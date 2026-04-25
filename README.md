@@ -1,6 +1,6 @@
 # Shadow Fight Real-Time
 
-A 1v1 fighting game where two players throw real punches and kicks at their phone cameras and watch their silhouettes fight in a shared browser overlay. Built for the Cornell Claude Claude Builders Club Hackathon, spring 2026.
+A 1v1 fighting game where two players throw real punches and kicks at their phone cameras and watch their silhouettes fight in a shared browser overlay. Built for the Cornell Claude Claude Builders Club Hackathon, spring 2026. Created by Charlie Xue, Akhil Chilaka, Yosef Mimarbasi, Adi Prathapa.
 
 Each phone runs MediaPipe pose estimation in the browser and streams keypoints to a Python game server. The server runs hit detection, damage, and round logic. A separate browser overlay renders the match in a Shadow Fight 2 style, with a live AI commentator powered by the Claude API and ElevenLabs.
 
