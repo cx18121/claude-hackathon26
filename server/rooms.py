@@ -43,6 +43,10 @@ class RoomState:
     created_at: float = field(default_factory=time.time)
     spectators: set = field(default_factory=set)
     game_loop: object = field(default=None)  # GameLoop | None, typed as object to avoid circular import
+    round_number: int = 1
+    wins: list[int] = field(default_factory=lambda: [0, 0])
+    round_start_time: float | None = None
+    match_over: bool = False
 
 
 class RoomManager:

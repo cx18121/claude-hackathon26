@@ -4,6 +4,7 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
 from dotenv import load_dotenv
@@ -11,7 +12,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
 from game_loop import GameLoop
-from protocol import MsgJoined, MsgPing, MsgPong, parse_mobile_msg
+from protocol import MsgCalibrationStart, MsgJoined, MsgMatchStart, MsgPing, MsgPong, parse_mobile_msg
 from qr import print_startup_info
 from rooms import RoomManager, record_pong
 from tunnel import TunnelManager
@@ -44,6 +45,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+_overlay_dist = Path(__file__).resolve().parent.parent / "overlay" / "dist"
+if _overlay_dist.exists():
+    from fastapi.staticfiles import StaticFiles
+    app.mount("/overlay", StaticFiles(directory=str(_overlay_dist), html=True), name="overlay")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -111,13 +117,7 @@ async def ws_player(websocket: WebSocket, room_code: str):
             opponent_connected=opponent.connected,
         ).model_dump_json()
     )
-
-    # Start the game loop once both players are connected
-    if opponent.connected and room.game_loop is None:
-        loop = GameLoop(room)
-        room.game_loop = loop
-        asyncio.create_task(loop.run())
-        log.info("Game loop started for room %s", room_code)
+    await websocket.send_text(MsgCalibrationStart().model_dump_json())
 
     try:
         while True:
@@ -144,6 +144,21 @@ async def ws_player(websocket: WebSocket, room_code: str):
             elif msg.type == "calibration_done":
                 slot.reference_velocity = msg.reference_velocity
                 log.info("Player %d calibrated, ref_velocity=%.2f", slot_num, msg.reference_velocity)
+                if (
+                    all(p.reference_velocity is not None for p in room.players.values())
+                    and room.game_loop is None
+                ):
+                    game_loop = GameLoop(room)
+                    room.game_loop = game_loop
+                    asyncio.create_task(game_loop.run())
+                    log.info("Game loop started for room %s after calibration", room_code)
+                    match_start_json = MsgMatchStart().model_dump_json()
+                    for p in room.players.values():
+                        if p.ws is not None:
+                            try:
+                                await p.ws.send_text(match_start_json)
+                            except Exception:
+                                pass
     except WebSocketDisconnect:
         pass
     finally:

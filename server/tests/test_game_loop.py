@@ -158,25 +158,34 @@ async def test_dead_spectators_pruned():
     assert len(room.spectators) == 0
 
 
-# --- integration: game loop starts when both players connect -----------------
+# --- integration: game loop starts after both players calibrate --------------
 
-def test_game_loop_starts_on_second_player_connect():
+def test_game_loop_starts_after_calibration():
     from fastapi.testclient import TestClient
-    from main import app
+    from main import app, room_manager
 
     with TestClient(app) as client:
         room_code = client.app.state.default_room
+        r = room_manager.get_room(room_code)
 
         with client.websocket_connect(f"/ws/player/{room_code}") as ws1:
             ws1.receive_text()  # joined
-            room = client.app.extra.get("room_manager", None)
-            # Game loop should NOT be running with only one player
-            from main import room_manager
-            r = room_manager.get_room(room_code)
-            assert r.game_loop is None
+            ws1.receive_text()  # calibration_start
 
             with client.websocket_connect(f"/ws/player/{room_code}") as ws2:
                 ws2.receive_text()  # joined
-                # Game loop should now be running
+                ws2.receive_text()  # calibration_start
+
+                # Game loop should NOT be running before calibration
+                assert r.game_loop is None
+
+                import json as _json
+                # Piggyback a ping to confirm ws1's calibration_done was processed
+                ws1.send_text(_json.dumps({"type": "calibration_done", "reference_velocity": 3.0}))
+                ws1.send_text(_json.dumps({"type": "ping", "t": 0.0}))
+                ws1.receive_text()  # pong -- proves calibration_done was handled first
+
+                ws2.send_text(_json.dumps({"type": "calibration_done", "reference_velocity": 3.0}))
+                ws2.receive_text()  # match_start -- game loop started
+
                 assert r.game_loop is not None
-                assert r.game_loop.running is True

@@ -118,6 +118,9 @@ def test_ws_player_join_and_ping():
             assert msg["player_slot"] in (1, 2)
             assert msg["room_code"] == default_room
 
+            calib = json.loads(ws.receive_text())
+            assert calib["type"] == "calibration_start"
+
             # Client-originated ping should be echoed as pong
             ws.send_text(json.dumps({"type": "ping", "t": 42.0}))
             pong = json.loads(ws.receive_text())
@@ -145,6 +148,7 @@ def test_ws_player_bad_message_does_not_crash():
         default_room = client.app.state.default_room
         with client.websocket_connect(f"/ws/player/{default_room}") as ws:
             ws.receive_text()  # consume joined
+            ws.receive_text()  # consume calibration_start
             ws.send_text("not valid json {{{{")
             # Send a valid ping after the bad message -- connection should still be alive
             ws.send_text(json.dumps({"type": "ping", "t": 1.0}))
