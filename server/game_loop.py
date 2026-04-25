@@ -19,6 +19,11 @@ _EMPTY_POSES: list[PoseKeypoint] = []
 _HIT_COOLDOWN_TICKS = 12  # ~200ms at 60Hz -- suppresses double-counting while allowing fast combos
 _ROUND_DURATION = 90.0
 _MAX_INPUT_DELAY_MS = 60  # cap so the low-latency player is never held back more than 60ms
+# The overlay shows a 3-2-1-FIGHT! countdown at the start of every round
+# (RoundOverlay.tsx, ~3800ms total). Hits landed during that window
+# shouldn't count, so the server gates hit detection until this many
+# seconds have elapsed since the round_start broadcast.
+_ROUND_WARMUP = 3.8
 
 
 class GameLoop:
@@ -57,6 +62,12 @@ class GameLoop:
         # Stalemate watcher: time of last hit (or round start).
         self._last_action_time: float = 0.0
         self._stalemate_announced: bool = False
+        # Wall-clock time at which hit detection becomes live for the
+        # current round. While now < _round_live_at, hits are ignored —
+        # this matches the client-side 3-2-1-FIGHT countdown so a fighter
+        # winding up during the countdown can't land a damaging hit at
+        # tick 0. Set in run() and reset on every round transition.
+        self._round_live_at: float = 0.0
 
     def add_pose_frame(self, player_slot: int, frame: object) -> None:
         """Called from the WebSocket handler each time a pose_frame arrives."""
@@ -65,7 +76,9 @@ class GameLoop:
     async def run(self) -> None:
         self.running = True
         self.commentator.start()
-        self._last_action_time = time.time()
+        now = time.time()
+        self._last_action_time = now
+        self._round_live_at = now + _ROUND_WARMUP
         await self._broadcast(MsgRoundStart(round_number=self.room.round_number).model_dump_json())
         self.commentator.event(
             "round_start",
@@ -106,6 +119,38 @@ class GameLoop:
             return
 
         now = time.time()
+
+        # Warmup window: while the overlay is showing 3-2-1-FIGHT, suppress
+        # hit detection entirely. Drain pose buffers each tick so any swing
+        # the players throw during the countdown can't seed a velocity
+        # baseline that pops the moment hit detection comes online.
+        if now < self._round_live_at:
+            for buf in self._buffers.values():
+                buf.clear()
+            for buf in self._processed.values():
+                buf.clear()
+            # Pin round timer to "full duration" while the countdown is up.
+            room.round_start_time = self._round_live_at
+            rtt_a = median_rtt(room.players[1])
+            rtt_b = median_rtt(room.players[2])
+            state = MsgGameState(
+                tick=self.tick,
+                hp=(self.hp[0], self.hp[1]),
+                poses=(_EMPTY_POSES, _EMPTY_POSES),
+                recent_hits=[],
+                high_latency=max(rtt_a, rtt_b) > 150,
+                remaining_time=_ROUND_DURATION,
+            )
+            state_json = state.model_dump_json()
+            dead: set = set()
+            for ws in self.room.spectators:
+                try:
+                    await ws.send_text(state_json)
+                except Exception:
+                    dead.add(ws)
+            self.room.spectators -= dead
+            return
+
         if room.round_start_time is None:
             room.round_start_time = now
 
@@ -223,7 +268,11 @@ class GameLoop:
             self._combo = {1: (0.0, 0), 2: (0.0, 0)}
             self._low_hp_announced.clear()
             self._stalemate_announced = False
-            self._last_action_time = time.time()
+            now_t = time.time()
+            self._last_action_time = now_t
+            # Re-arm the warmup so the next round's countdown also gates
+            # hit detection.
+            self._round_live_at = now_t + _ROUND_WARMUP
             self.commentator.event(
                 "round_start",
                 {"round": room.round_number, "wins": tuple(room.wins)},
