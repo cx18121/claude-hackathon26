@@ -32,10 +32,12 @@ class GameLoop:
             1: deque(maxlen=180),
             2: deque(maxlen=180),
         }
-        # Last 3 released frames per player, fed to hit detection
+        # Last 10 released frames per player (~333ms at 30fps), fed to hit detection.
+        # Wider window lets the sweep catch punches that span multiple frames and
+        # gives _velocity a longer baseline when consecutive pairs are noisy.
         self._processed: dict[int, deque] = {
-            1: deque(maxlen=3),
-            2: deque(maxlen=3),
+            1: deque(maxlen=10),
+            2: deque(maxlen=10),
         }
         # Per-player cooldown: last tick a hit was registered as attacker
         self._last_hit_tick: dict[int, int] = {1: -999, 2: -999}

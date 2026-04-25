@@ -96,7 +96,7 @@ class TestTimestampVelocity:
         assert detect_punch(attacker, static_deque()) is None
 
     def test_15fps_fast_punch_still_registers(self):
-        """At 15fps a wrist moving 30cm/frame = 4.5 m/s > PUNCH_THRESHOLD (2.0)."""
+        """At 15fps a wrist moving 30cm/frame = 4.5 m/s > PUNCH_THRESHOLD."""
         dt = 1.0 / 15
         attacker = deque([
             frame(0.0,    {WRIST_LEFT: kp(x=-0.60, y=0.65)}),
@@ -169,6 +169,23 @@ class TestHitboxSweep:
         ])
         result = detect_punch(attacker, static_deque())
         assert result is not None, "off-centre jab at head height must register"
+        assert result.region == Region.HEAD_FACE
+
+    def test_snap_punch_with_retraction_registers(self):
+        """Quick snap punch: wrist extends then retracts within the 3-frame window.
+
+        Central difference (frame[-3] to frame[-1]) underreports speed because
+        the return motion partially cancels the outward motion.  _peak_speed over
+        consecutive pairs must still detect the punch.
+        """
+        dt = 1.0 / 30
+        attacker = deque([
+            frame(0.0,      {WRIST_LEFT: kp(x=-0.30, y=0.65)}),  # pre-punch
+            frame(dt,       {WRIST_LEFT: kp(x= 0.00, y=0.65)}),  # impact (fast outward)
+            frame(2 * dt,   {WRIST_LEFT: kp(x=-0.20, y=0.65)}),  # retraction (hand pulls back)
+        ])
+        result = detect_punch(attacker, static_deque())
+        assert result is not None, "snap punch with retraction must register via peak speed"
         assert result.region == Region.HEAD_FACE
 
 

@@ -7,8 +7,8 @@ import numpy as np
 
 from protocol import MsgPoseFrame
 
-PUNCH_THRESHOLD = 2.0  # m/s
-KICK_THRESHOLD = 2.5   # m/s
+PUNCH_THRESHOLD = 1.2  # m/s — lowered from 2.0; accounts for EMA smoothing attenuation on mobile
+KICK_THRESHOLD = 1.8   # m/s — lowered from 2.5 for same reason
 _FRAME_DT = 1 / 30     # seconds between pose frames
 
 WRIST_LEFT = 15
@@ -97,6 +97,31 @@ def _velocity(poses: deque, landmark_idx: int) -> np.ndarray:
     ) / dt
 
 
+def _peak_speed(poses: deque, landmark_idx: int) -> float:
+    """Max speed between any consecutive frame pair in the window.
+
+    Central difference (_velocity) underreports speed when the limb has already
+    started retracting by the third frame — the outward and return motions
+    partially cancel.  This function checks every consecutive pair so the true
+    peak is captured regardless of where in the window it lands.
+    """
+    frames = list(poses)
+    if len(frames) < 2:
+        return 0.0
+    best = 0.0
+    for i in range(len(frames) - 1):
+        a, b = frames[i], frames[i + 1]
+        dt = float(b.timestamp - a.timestamp)
+        if dt < 1e-4:
+            dt = _FRAME_DT
+        ka, kb = a.keypoints[landmark_idx], b.keypoints[landmark_idx]
+        dx, dy, dz = kb.x - ka.x, kb.y - ka.y, kb.z - ka.z
+        s = (dx * dx + dy * dy + dz * dz) ** 0.5 / dt
+        if s > best:
+            best = s
+    return best
+
+
 def _hip_midpoint(frame: MsgPoseFrame) -> np.ndarray:
     lh = frame.keypoints[LEFT_HIP]
     rh = frame.keypoints[RIGHT_HIP]
@@ -118,8 +143,13 @@ def _check_limb(
 ) -> HitResult | None:
     if not attacker_poses or not defender_poses:
         return None
-    vel = _velocity(attacker_poses, landmark_idx)
-    speed = float(np.linalg.norm(vel))
+    # Take the higher of the two estimates: central difference across the full
+    # window (noise-resistant for slow motion) and peak consecutive-pair speed
+    # (catches punches that have already started retracting).
+    speed = max(
+        float(np.linalg.norm(_velocity(attacker_poses, landmark_idx))),
+        _peak_speed(attacker_poses, landmark_idx),
+    )
     if speed < threshold:
         return None
 
