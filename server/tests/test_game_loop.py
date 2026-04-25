@@ -81,6 +81,7 @@ async def test_hit_reduces_hp():
     gl = GameLoop(room)
 
     # Fast punch: wrist moves 2m in 2 frames -> ~30 m/s >> threshold
+    # wrist_y=-0.45: 0.45m above hips in MediaPipe Y-down → head zone
     for x in (-2.0, -1.0, 0.0):
         f = make_frame(wrist_x=x, wrist_y=-0.45)  # head height in MediaPipe Y-down
         f2 = make_frame()  # static defender
@@ -100,6 +101,7 @@ async def test_hit_cooldown_suppresses_repeated_hits():
     gl = GameLoop(room)
 
     # Load processed frames with a fast punch in head zone
+    # wrist_y=-0.45: 0.45m above hips in MediaPipe Y-down → head zone
     for x in (-2.0, -1.0, 0.0):
         gl._processed[1].append(make_frame(wrist_x=x, wrist_y=-0.45))
         gl._processed[2].append(make_frame())

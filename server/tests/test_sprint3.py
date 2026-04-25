@@ -92,7 +92,6 @@ async def test_match_ends_after_single_round_win():
     assert room.match_over is True
     assert gl.running is False
 
-
 @pytest.mark.asyncio
 async def test_existing_win_also_ends_after_next_round_win():
     room = make_room()

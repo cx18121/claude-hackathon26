@@ -91,6 +91,29 @@ def test_punch_empty_deques_return_none():
     assert detect_punch(deque(), deque()) is None
 
 
+def test_no_punch_when_both_wrists_raise_upward():
+    """Guard raise: both wrists move fast upward — should NOT register as a punch."""
+    from hit_detection import WRIST_RIGHT
+    attacker = deque([
+        make_frame({WRIST_LEFT: kp(y=0.0),   WRIST_RIGHT: kp(y=0.0)}),
+        make_frame({WRIST_LEFT: kp(y=-0.25), WRIST_RIGHT: kp(y=-0.25)}),
+        make_frame({WRIST_LEFT: kp(y=-0.45), WRIST_RIGHT: kp(y=-0.45)}),
+    ])
+    assert detect_punch(attacker, static_deque()) is None
+
+
+def test_punch_still_registers_when_only_one_wrist_raises():
+    """Uppercut / single-arm raise: only one wrist upward → still a valid punch."""
+    from hit_detection import WRIST_RIGHT
+    attacker = deque([
+        make_frame({WRIST_LEFT: kp(x=-2.0, y=0.0),  WRIST_RIGHT: kp(y=0.0)}),
+        make_frame({WRIST_LEFT: kp(x=-1.0, y=-0.20), WRIST_RIGHT: kp(y=0.0)}),
+        make_frame({WRIST_LEFT: kp(x=0.0,  y=-0.45), WRIST_RIGHT: kp(y=0.0)}),
+    ])
+    result = detect_punch(attacker, static_deque())
+    assert result is not None
+
+
 def test_punch_velocity_above_threshold_on_hit():
     result = detect_punch(fast_punch_deque(end_x=0.0, end_y=-0.45), static_deque())
     assert result is not None

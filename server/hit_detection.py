@@ -177,6 +177,23 @@ def _apply_guard(region: str, guarded: set[str]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Motion-direction helpers
+# ---------------------------------------------------------------------------
+
+def _is_primarily_upward(vel: np.ndarray) -> bool:
+    """True when the dominant velocity component is upward.
+
+    MediaPipe Y is positive-down, so vy < 0 means moving up.
+    Returns True only when the upward component strictly dominates
+    the combined horizontal + depth components.
+    """
+    vy = float(vel[1])
+    if vy >= 0:
+        return False  # moving down or stationary in Y
+    return (-vy) > abs(float(vel[0])) + abs(float(vel[2]))
+
+
+# ---------------------------------------------------------------------------
 # Speed thresholds (scale with the attacker's calibrated reference velocity)
 # ---------------------------------------------------------------------------
 
@@ -215,11 +232,20 @@ def detect_punch(
     guarded = _guarded_zones(defender_kp, def_scale) if defender_kp else set()
 
     for wrist_idx in (WRIST_LEFT, WRIST_RIGHT):
+        vel_vec = _velocity(attacker_poses, wrist_idx)
         speed = max(
-            float(np.linalg.norm(_velocity(attacker_poses, wrist_idx))),
+            float(np.linalg.norm(vel_vec)),
             _peak_speed(attacker_poses, wrist_idx),
         )
         if speed < threshold:
+            continue
+
+        # Guard-raise veto: if both wrists are moving primarily upward at the
+        # same time the player is raising their guard, not throwing a punch.
+        other_idx = WRIST_RIGHT if wrist_idx == WRIST_LEFT else WRIST_LEFT
+        if _is_primarily_upward(vel_vec) and _is_primarily_upward(
+            _velocity(attacker_poses, other_idx)
+        ):
             continue
 
         for frame in reversed(list(attacker_poses)):
