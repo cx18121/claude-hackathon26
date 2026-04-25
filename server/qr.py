@@ -1,10 +1,15 @@
 from __future__ import annotations
+import time
 import qrcode
 
 
 def print_startup_info(public_url: str, room_code: str) -> None:
-    mobile_url = f"{public_url}/mobile?server={public_url}&room={room_code}&slot=2"
-    overlay_url = f"{public_url}/overlay?server={public_url}&room={room_code}"
+    # Cache-buster appended to printed URLs so phones don't reuse a stale
+    # index.html from before the latest mobile/overlay rebuild. Different
+    # value per server start.
+    cb = int(time.time())
+    mobile_url = f"{public_url}/mobile?server={public_url}&room={room_code}&slot=2&v={cb}"
+    overlay_url = f"{public_url}/overlay?server={public_url}&room={room_code}&v={cb}"
 
     print()
     print("=== SHADOW FIGHT SERVER READY ===")
