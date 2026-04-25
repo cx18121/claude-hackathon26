@@ -170,22 +170,32 @@ describe('useCalibration -- full happy path', () => {
     }
     expect(result.current.stage).toBe('punches');
 
+    // ---- Punches: settle period first (both wrists still for 20 frames)
+    const settleKp = makeKeypoints({
+      [LANDMARK.LEFT_WRIST]: { x: 0.5 },
+      [LANDMARK.RIGHT_WRIST]: { x: 0.5 },
+    });
+    for (let i = 0; i < 22; i++) {
+      feed(rerender, true, onComplete, settleKp);
+    }
+
     // ---- Punches: 3 peaks
-    // Each peak: 4 frames of fast wrist motion, then 4 frames of stillness
+    // Each peak: 4 frames of fast wrist motion, then 6 frames of stillness
     // Wrist motion: 0.10m per 33ms -> ~3 m/s velocity (well above 1.5 threshold)
     for (let p = 0; p < 3; p++) {
       // Motion frames
       for (let i = 0; i < 4; i++) {
-        const x = (i + 1) * 0.10;
+        const x = 0.5 + (i + 1) * 0.10;
         const kp = makeKeypoints({
           [LANDMARK.LEFT_WRIST]: { x },
-          [LANDMARK.RIGHT_WRIST]: { x: 0 },
+          [LANDMARK.RIGHT_WRIST]: { x: 0.5 },
         });
         feed(rerender, true, onComplete, kp);
       }
       // Stillness frames so velocity drops below 0.8 and the peak completes
       const restKp = makeKeypoints({
-        [LANDMARK.LEFT_WRIST]: { x: 0.4 },
+        [LANDMARK.LEFT_WRIST]: { x: 0.5 },
+        [LANDMARK.RIGHT_WRIST]: { x: 0.5 },
       });
       for (let i = 0; i < 6; i++) {
         feed(rerender, true, onComplete, restKp);

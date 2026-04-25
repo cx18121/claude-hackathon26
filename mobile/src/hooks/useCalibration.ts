@@ -54,6 +54,7 @@ const TPOSE_VISIBILITY_LANDMARKS = [
 
 const PUNCH_PEAK_THRESHOLD = 1.5; // m/s
 const PUNCH_RESET_THRESHOLD = 0.8; // m/s, must drop below this between peaks
+const PUNCH_SETTLE_FRAMES = 20; // both wrists must be still before arms count
 
 const NEUTRAL_STILLNESS_THRESHOLD = 0.2; // m/s
 const NEUTRAL_FRAMES_NEEDED = 60;
@@ -64,6 +65,7 @@ const FRAME_BUFFER_TS_KEY = 'cap_t';
 interface PunchTracker {
   armed: boolean; // true when velocity is currently above threshold
   peakVelocity: number; // running max during the current armed window
+  ready: boolean; // true once wrist has been still (< reset threshold) at least once
 }
 
 function distancePoints(a: PoseKeypoint, b: PoseKeypoint): number {
@@ -89,8 +91,9 @@ export function useCalibration({
   const prevFrameRef = useRef<TimedFrame | null>(null);
   const tposeStableCountRef = useRef(0);
   const peakVelocitiesRef = useRef<number[]>([]);
-  const leftTrackerRef = useRef<PunchTracker>({ armed: false, peakVelocity: 0 });
-  const rightTrackerRef = useRef<PunchTracker>({ armed: false, peakVelocity: 0 });
+  const leftTrackerRef = useRef<PunchTracker>({ armed: false, peakVelocity: 0, ready: false });
+  const rightTrackerRef = useRef<PunchTracker>({ armed: false, peakVelocity: 0, ready: false });
+  const punchSettleCountRef = useRef(0);
   const neutralStillCountRef = useRef(0);
   const completedRef = useRef(false);
 
@@ -104,8 +107,9 @@ export function useCalibration({
       prevFrameRef.current = null;
       tposeStableCountRef.current = 0;
       peakVelocitiesRef.current = [];
-      leftTrackerRef.current = { armed: false, peakVelocity: 0 };
-      rightTrackerRef.current = { armed: false, peakVelocity: 0 };
+      leftTrackerRef.current = { armed: false, peakVelocity: 0, ready: false };
+      rightTrackerRef.current = { armed: false, peakVelocity: 0, ready: false };
+      punchSettleCountRef.current = 0;
       neutralStillCountRef.current = 0;
       completedRef.current = false;
       setStage('tpose');
@@ -172,6 +176,22 @@ export function useCalibration({
       const left = computeWristVelocity(window, 'left');
       const right = computeWristVelocity(window, 'right');
 
+      // Wait for both wrists to settle below the reset threshold before counting
+      // punches. This prevents the arms-lowering motion from T-pose being counted.
+      if (punchSettleCountRef.current < PUNCH_SETTLE_FRAMES) {
+        if (left < PUNCH_RESET_THRESHOLD && right < PUNCH_RESET_THRESHOLD) {
+          punchSettleCountRef.current += 1;
+          if (punchSettleCountRef.current >= PUNCH_SETTLE_FRAMES) {
+            leftTrackerRef.current.ready = true;
+            rightTrackerRef.current.ready = true;
+          }
+        } else {
+          punchSettleCountRef.current = 0;
+        }
+        prevFrameRef.current = frame;
+        return;
+      }
+
       processPunchTracker(leftTrackerRef.current, left, peakVelocitiesRef);
       processPunchTracker(rightTrackerRef.current, right, peakVelocitiesRef);
 
@@ -227,18 +247,23 @@ function processPunchTracker(
   peaksRef: { current: number[] },
 ) {
   if (!tracker.armed) {
-    if (velocity >= PUNCH_PEAK_THRESHOLD) {
+    if (velocity < PUNCH_RESET_THRESHOLD) {
+      tracker.ready = true;
+    }
+    if (tracker.ready && velocity >= PUNCH_PEAK_THRESHOLD) {
       tracker.armed = true;
+      tracker.ready = false;
       tracker.peakVelocity = velocity;
     }
   } else {
     if (velocity > tracker.peakVelocity) tracker.peakVelocity = velocity;
     if (velocity < PUNCH_RESET_THRESHOLD) {
-      // peak completed
+      // peak completed — hand has extended AND returned to rest
       if (peaksRef.current.length < 3) {
         peaksRef.current.push(tracker.peakVelocity);
       }
       tracker.armed = false;
+      tracker.ready = true; // immediately ready for the next punch
       tracker.peakVelocity = 0;
     }
   }
