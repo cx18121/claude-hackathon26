@@ -1,5 +1,6 @@
 from __future__ import annotations
 import time
+import qrcode
 
 
 def print_startup_info(public_url: str, room_code: str) -> None:
@@ -11,11 +12,23 @@ def print_startup_info(public_url: str, room_code: str) -> None:
 
     print()
     print("=== SHADOW FIGHT SERVER READY ===")
-    print(f"Room code: {room_code}")
+    print(f"Public URL: {public_url}")
+    print(f"Room code:  {room_code}")
     print()
-    print(f"Overlay link:  {overlay_url}")
+    print("Open this URL on YOUR phone (Player 1):")
+    print(f"  {p1_url}")
     print()
-    print(f"Player 1 link: {p1_url}")
+    print("Share this URL with your teammate (Player 2):")
+    print(f"  {p2_url}")
     print()
-    print(f"Player 2 link: {p2_url}")
+    print("Open the overlay (laptop screen):")
+    print(f"  {overlay_url}")
     print()
+    # QR encodes the teammate URL so a host can show their laptop screen
+    # for the visiting player to scan from across the room.
+    print("Scan to join on mobile (Player 2):")
+
+    qr = qrcode.QRCode()
+    qr.add_data(p2_url)
+    qr.make(fit=True)
+    qr.print_ascii(invert=True)
