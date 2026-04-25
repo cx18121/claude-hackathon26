@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { PoseKeypoint } from '../protocol';
 import {
   computeWristVelocity,
+  computeWristPeakSpeed,
   LANDMARK,
   type TimedFrame,
 } from '../lib/velocity';
@@ -52,9 +53,8 @@ const TPOSE_VISIBILITY_LANDMARKS = [
   LANDMARK.RIGHT_HIP,
 ];
 
-const PUNCH_PEAK_THRESHOLD = 1.5; // m/s
+const PUNCH_PEAK_THRESHOLD = 1.2; // m/s — EMA smoothing attenuates peaks; keep achievable
 const PUNCH_RESET_THRESHOLD = 0.8; // m/s, must drop below this between peaks
-const PUNCH_SETTLE_FRAMES = 20; // both wrists must be still before arms count
 
 const NEUTRAL_STILLNESS_THRESHOLD = 0.2; // m/s
 const NEUTRAL_FRAMES_NEEDED = 60;
@@ -93,7 +93,6 @@ export function useCalibration({
   const peakVelocitiesRef = useRef<number[]>([]);
   const leftTrackerRef = useRef<PunchTracker>({ armed: false, peakVelocity: 0, ready: false });
   const rightTrackerRef = useRef<PunchTracker>({ armed: false, peakVelocity: 0, ready: false });
-  const punchSettleCountRef = useRef(0);
   const neutralStillCountRef = useRef(0);
   const completedRef = useRef(false);
 
@@ -109,7 +108,6 @@ export function useCalibration({
       peakVelocitiesRef.current = [];
       leftTrackerRef.current = { armed: false, peakVelocity: 0, ready: false };
       rightTrackerRef.current = { armed: false, peakVelocity: 0, ready: false };
-      punchSettleCountRef.current = 0;
       neutralStillCountRef.current = 0;
       completedRef.current = false;
       setStage('tpose');
@@ -173,24 +171,13 @@ export function useCalibration({
         setStage('punches');
       }
     } else if (current === 'punches') {
-      const left = computeWristVelocity(window, 'left');
-      const right = computeWristVelocity(window, 'right');
-
-      // Wait for both wrists to settle below the reset threshold before counting
-      // punches. This prevents the arms-lowering motion from T-pose being counted.
-      if (punchSettleCountRef.current < PUNCH_SETTLE_FRAMES) {
-        if (left < PUNCH_RESET_THRESHOLD && right < PUNCH_RESET_THRESHOLD) {
-          punchSettleCountRef.current += 1;
-          if (punchSettleCountRef.current >= PUNCH_SETTLE_FRAMES) {
-            leftTrackerRef.current.ready = true;
-            rightTrackerRef.current.ready = true;
-          }
-        } else {
-          punchSettleCountRef.current = 0;
-        }
-        prevFrameRef.current = frame;
-        return;
-      }
+      // Use the higher of the windowed average and the per-pair peak so a fast
+      // snap punch that retracts before the window rolls over is still detected.
+      // tracker.ready starts false and only becomes true once the wrist drops
+      // below PUNCH_RESET_THRESHOLD, so the arm-lowering motion from T-pose
+      // cannot trigger a false count even without a separate settle period.
+      const left = Math.max(computeWristVelocity(window, 'left'), computeWristPeakSpeed(window, 'left'));
+      const right = Math.max(computeWristVelocity(window, 'right'), computeWristPeakSpeed(window, 'right'));
 
       processPunchTracker(leftTrackerRef.current, left, peakVelocitiesRef);
       processPunchTracker(rightTrackerRef.current, right, peakVelocitiesRef);

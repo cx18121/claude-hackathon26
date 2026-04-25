@@ -44,6 +44,27 @@ export function computeWristVelocity(
   return dist / dtSec;
 }
 
+// Max speed across consecutive frame pairs in the window.
+// computeWristVelocity uses oldest→newest and underreports when the wrist
+// peaks mid-window and has already started retracting by the last frame.
+// This function checks every pair so the true peak is captured.
+export function computeWristPeakSpeed(
+  frames: TimedFrame[],
+  wrist: 'left' | 'right',
+): number {
+  if (frames.length < 2) return 0;
+  const idx = wrist === 'left' ? LANDMARK.LEFT_WRIST : LANDMARK.RIGHT_WRIST;
+  let best = 0;
+  for (let i = 0; i < frames.length - 1; i++) {
+    const dtMs = frames[i + 1].t - frames[i].t;
+    if (dtMs <= 0) continue;
+    const d = distance(frames[i].keypoints[idx], frames[i + 1].keypoints[idx]);
+    const v = d / (dtMs / 1000);
+    if (v > best) best = v;
+  }
+  return best;
+}
+
 // EMA smoothing per landmark. Used on the mobile sender to reduce MediaPipe
 // jitter (especially on z) before frames hit the wire.
 export function smoothKeypoints(
