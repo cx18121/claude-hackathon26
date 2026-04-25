@@ -162,7 +162,11 @@ export function GameScreen({
       {phase === 'calibration' && !isReady ? (
         <div className="ready-overlay">
           <p className="ready-title">Shadow Fight</p>
-          <p className="ready-hint">Stand in front of your camera and get ready to move.</p>
+          <p className="ready-hint">
+            {playerSlot === 1
+              ? 'Face RIGHT and stand in front of your camera.'
+              : 'Face LEFT and stand in front of your camera.'}
+          </p>
           <button className="ready-button" onClick={() => setIsReady(true)}>
             READY
           </button>
@@ -176,6 +180,7 @@ export function GameScreen({
           tposeProgress={calibration.tposeProgress}
           neutralProgress={calibration.neutralProgress}
           instruction={calibration.instruction}
+          playerSlot={playerSlot}
         />
       ) : null}
 

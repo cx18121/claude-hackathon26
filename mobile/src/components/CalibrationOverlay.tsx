@@ -6,6 +6,7 @@ interface CalibrationOverlayProps {
   tposeProgress: number;
   neutralProgress: number;
   instruction: string;
+  playerSlot: 1 | 2;
 }
 
 export function CalibrationOverlay({
@@ -14,6 +15,7 @@ export function CalibrationOverlay({
   tposeProgress,
   neutralProgress,
   instruction,
+  playerSlot,
 }: CalibrationOverlayProps) {
   if (stage === 'idle') {
     return (
@@ -38,7 +40,7 @@ export function CalibrationOverlay({
         <>
           <TposeSilhouette progress={tposeProgress} />
           <p className="calibration-tip">
-            Stand 2m from camera, full body visible.
+            Stand 2m from camera facing {playerSlot === 1 ? 'RIGHT' : 'LEFT'}, full body visible.
           </p>
         </>
       ) : null}
