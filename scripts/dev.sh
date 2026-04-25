@@ -15,7 +15,7 @@ cd "$ROOT/server"
 if [ -f .venv/bin/activate ]; then
   source .venv/bin/activate
 fi
-TUNNEL=false python main.py &
+python main.py &
 server_pid=$!
 
 echo "Starting mobile dev server..."
