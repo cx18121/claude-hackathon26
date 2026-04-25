@@ -137,6 +137,42 @@ def create_room():
     return {"code": code}
 
 
+@app.post("/rooms/{room_code}/rematch")
+async def rematch(room_code: str):
+    from fastapi import HTTPException
+    room = room_manager.get_room(room_code)
+    if room is None:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    # Stop the existing game loop
+    if room.game_loop is not None:
+        room.game_loop.stop()
+        room.game_loop = None
+
+    # Reset all match state
+    room.match_over = False
+    room.round_number = 1
+    room.wins = [0, 0]
+    room.round_start_time = None
+    for timer in room.disconnect_timers.values():
+        timer.cancel()
+    room.disconnect_timers.clear()
+    for slot in room.players.values():
+        slot.reference_velocity = None
+
+    # Send calibration_start to all connected players
+    cal_json = MsgCalibrationStart().model_dump_json()
+    connected = [s for s in room.players.values() if s.connected and s.ws is not None]
+    for slot in connected:
+        try:
+            await slot.ws.send_text(cal_json)
+        except Exception:
+            pass
+
+    log.info("Rematch triggered for room %s (%d player(s) connected)", room_code, len(connected))
+    return {"ok": True}
+
+
 @app.websocket("/ws/player/{room_code}")
 async def ws_player(websocket: WebSocket, room_code: str):
     room = room_manager.get_room(room_code)

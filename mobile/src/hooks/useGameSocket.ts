@@ -46,12 +46,28 @@ export interface UseGameSocketResult {
   // does not emit calibration_start / match_start. These setters let the
   // calibration hook advance the local phase as the user progresses.
   setPhase: (phase: GamePhase) => void;
+  playAgain: () => Promise<void>;
 }
 
 const RECONNECT_DELAY_MS = 2000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const PING_INTERVAL_MS = 500;
 const HIT_FLASH_MS = 1500;
+
+export function normalizeHttpUrl(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) return trimmed;
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed.replace(/\/$/, '');
+  }
+  if (trimmed.startsWith('ws://')) {
+    return 'http://' + trimmed.slice('ws://'.length).replace(/\/$/, '');
+  }
+  if (trimmed.startsWith('wss://')) {
+    return 'https://' + trimmed.slice('wss://'.length).replace(/\/$/, '');
+  }
+  return 'http://' + trimmed.replace(/\/$/, '');
+}
 
 export function normalizeWsUrl(input: string): string {
   const trimmed = input.trim();
@@ -155,6 +171,9 @@ export function useGameSocket(): UseGameSocketResult {
       case 'calibration_start':
         setOpponentConnected(true);
         setPhase('calibration');
+        setMatchEnd(null);
+        setLastRoundEnd(null);
+        setRoundNumber(1);
         break;
 
       case 'match_start':
@@ -281,6 +300,13 @@ export function useGameSocket(): UseGameSocketResult {
     openRef.current = open;
   }, [open]);
 
+  const playAgain = useCallback(async () => {
+    const args = connectionArgsRef.current;
+    if (!args) return;
+    const base = normalizeHttpUrl(args.serverUrl);
+    await fetch(`${base}/rooms/${encodeURIComponent(args.roomCode)}/rematch`, { method: 'POST' });
+  }, []);
+
   const connect = useCallback(
     (serverUrl: string, roomCode: string, playerSlot: 1 | 2) => {
       connectionArgsRef.current = { serverUrl, roomCode, playerSlot };
@@ -344,5 +370,6 @@ export function useGameSocket(): UseGameSocketResult {
     connect,
     disconnect,
     setPhase,
+    playAgain,
   };
 }

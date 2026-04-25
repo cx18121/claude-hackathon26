@@ -25,6 +25,7 @@ interface GameScreenProps {
   send: (msg: OutboundMobileMsg) => void;
   setPhase: (phase: GamePhase) => void;
   onDisconnect: () => void;
+  onPlayAgain: () => void;
 }
 
 const POSE_FRAME_INTERVAL_MS = 1000 / 30;
@@ -43,6 +44,7 @@ export function GameScreen({
   send,
   setPhase,
   onDisconnect,
+  onPlayAgain,
 }: GameScreenProps) {
   const [isReady, setIsReady] = useState(false);
   const [countdown, setCountdown] = useState<string | null>(null);
@@ -130,10 +132,10 @@ export function GameScreen({
     return () => { countdownTimersRef.current.forEach(id => window.clearTimeout(id)); };
   }, []);
 
-  // Reset the READY gate whenever we fall back to the lobby so the next
-  // calibration session always starts from the "press READY" screen.
+  // Reset the READY gate whenever calibration (re)starts so the player
+  // must press READY again each round — including after a rematch.
   useEffect(() => {
-    if (phase === 'lobby') setIsReady(false);
+    if (phase === 'lobby' || phase === 'calibration') setIsReady(false);
   }, [phase]);
 
   return (
@@ -197,7 +199,7 @@ export function GameScreen({
       <HitFlash hit={lastHit} />
 
       {matchEnd ? (
-        <MatchEndScreen winner={matchEnd.winner} playerSlot={playerSlot} />
+        <MatchEndScreen winner={matchEnd.winner} playerSlot={playerSlot} onPlayAgain={onPlayAgain} />
       ) : null}
 
       {phase !== 'ended' ? (

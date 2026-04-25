@@ -78,6 +78,7 @@ function App() {
           send={socket.send}
           setPhase={socket.setPhase}
           onDisconnect={socket.disconnect}
+          onPlayAgain={socket.playAgain}
         />
       ) : (
         <ConnectionScreen
