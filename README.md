@@ -1,6 +1,6 @@
 # Shadow Fight Real-Time
 
-A 1v1 fighting game where two players throw real punches and kicks at their phone cameras and watch their silhouettes fight in a shared browser overlay. Built for the Cornell Claude Claude Builders Club Hackathon, spring 2026. Created by Charlie Xue, Akhil Chilaka, Yosef Mimarbasi, Adi Prathapa.
+A 1v1 fighting game where two players throw real punches and kicks at their phone cameras and watch their silhouettes fight in a shared browser overlay. Built for the Cornell Claude Builders Club Hackathon, spring 2026, by Charlie Xue, Akhil Chilaka, Yosef Mimarbasi, and Adi Prathapa. We built this because nearly 80% of people in the U.S. don’t get enough exercise, while over half the world loves playing video games. So we gamified exercise with spectre.
 
 Each phone runs MediaPipe pose estimation in the browser and streams keypoints to a Python game server. The server runs hit detection, damage, and round logic. A separate browser overlay renders the match in a Shadow Fight 2 style, with a live AI commentator powered by the Claude API and ElevenLabs.
 
@@ -84,12 +84,10 @@ Player 2 phone: http://<LAN_IP>:8000/mobile?room=<CODE>&slot=2
 ### Across the internet (Cloudflare Tunnel)
 
 ```bash
-cd server
-source .venv/bin/activate
-TUNNEL=true python main.py
+bash scripts/tunnel.sh
 ```
 
-The server prints a `trycloudflare.com` URL and a QR code. Share the URL with the other player. Both phones open `<url>/mobile?slot=1` and `?slot=2`. Open the overlay at `<url>/overlay`.
+The script starts the server with a Cloudflare quick tunnel and prints a `trycloudflare.com` URL plus a QR code for the Player 2 link. Share the URL with the other player and use the printed `/mobile?...&slot=1` / `&slot=2` and `/overlay?...` links from the launcher banner.
 
 ### Across blocked networks (Tailscale)
 
@@ -105,7 +103,7 @@ The script auto-detects your Tailscale IP, sets up `tailscale serve` for HTTPS (
 
 1. Both players open the camera capture URL on their phones/laptops with different slot numbers.
 2. The host opens the overlay on a laptop or TV browser.
-3. Each player completes a short calibration: 3 practice jabs and a neutral stance.
+3. Each player completes a short calibration: hold a T-pose, then throw 3 full-speed practice punches so the server can learn your reach and punch velocity.
 4. The match starts once both players finish calibrating and are ready.
 
 Stand sideways to your phone. MediaPipe needs a side-view angle to read depth correctly.
@@ -131,10 +129,3 @@ docs/        Original sprint plans and design notes
 | Overlay     | Vite, React 18, TypeScript, pixi.js v8                         |
 | Commentator | Claude (Anthropic SDK) + ElevenLabs           |
 | Transport   | WebSockets, Cloudflare Tunnel (quick tunnel) or Tailscale      |
-
-## Notes and known limits
-
-- The simulation uses delay-based netcode. The server measures RTT to both players every 500ms and applies the larger value as a uniform input delay so neither player has a frame advantage. Above 150ms RTT the clients show a lag warning.
-- MediaPipe gives 3D world landmarks in meters relative to the hip. The server uses z for depth checks during hit detection. The overlay only uses x and y.
-- Pose frames stream at 30fps. The server simulates at 60Hz, interpolating between the two most recent pose frames.
-- iOS Safari requires HTTPS for camera access. Cloudflare Tunnel and `tailscale serve` both provide this. On plain LAN, use the Chrome insecure-origin flag described in the Tailscale script output.
