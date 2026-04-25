@@ -193,8 +193,19 @@ async def ws_player(websocket: WebSocket, room_code: str):
         if room.game_loop is not None and room.game_loop.paused:
             room.game_loop.paused = False
             log.info("Game loop resumed for room %s after player %d reconnect", room_code, slot_num)
+        # Re-send match_start so the reconnected client restores the match phase
+        await websocket.send_text(MsgMatchStart().model_dump_json())
     else:
-        await websocket.send_text(MsgCalibrationStart().model_dump_json())
+        if opponent.connected:
+            # Both players now connected — kick off calibration for both simultaneously
+            cal_json = MsgCalibrationStart().model_dump_json()
+            await websocket.send_text(cal_json)
+            if opponent.ws is not None:
+                try:
+                    await opponent.ws.send_text(cal_json)
+                except Exception:
+                    pass
+        # else: opponent not here yet — wait; we'll send calibration_start when they join
 
     try:
         while True:
@@ -242,7 +253,17 @@ async def ws_player(websocket: WebSocket, room_code: str):
         slot.ws = None
         log.info("Player %d disconnected from room %s", slot_num, room_code)
 
-        if room.game_loop is not None:
+        if room.game_loop is None:
+            # Pre-game disconnect — clear calibration state and notify the
+            # waiting opponent so their client returns to the lobby.
+            slot.reference_velocity = None
+            opp_ws = room.players[3 - slot_num].ws
+            if opp_ws is not None:
+                try:
+                    await opp_ws.send_text(MsgPlayerDisconnected(player=slot_num).model_dump_json())
+                except Exception:
+                    pass
+        elif room.game_loop is not None:
             opponent_connected = any(p.connected for p in room.players.values())
             if opponent_connected:
                 # Pause match and give the disconnected player 30s to reconnect

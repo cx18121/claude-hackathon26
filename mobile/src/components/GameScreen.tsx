@@ -55,15 +55,13 @@ export function GameScreen({
   const { keypoints, imageKeypoints, fps, modelStatus, modelError } = usePose(videoRef, cameraReady);
 
   // Calibration runs while phase === 'calibration'. When it completes, send
-  // calibration_done and locally advance to 'match' (the current server build
-  // does not emit match_start).
+  // calibration_done and wait for the server's match_start to advance the phase.
+  // The server only sends match_start once both players have calibrated.
   const calibration = useCalibration({
     keypoints,
     active: phase === 'calibration',
     onComplete: (referenceVelocity) => {
       send({ type: 'calibration_done', reference_velocity: referenceVelocity });
-      // Brief pause to let "Fight!" overlay show before transitioning.
-      window.setTimeout(() => setPhase('match'), 800);
     },
   });
 
@@ -133,6 +131,12 @@ export function GameScreen({
     return () => { countdownTimersRef.current.forEach(id => window.clearTimeout(id)); };
   }, []);
 
+  // Reset the READY gate whenever we fall back to the lobby so the next
+  // calibration session always starts from the "press READY" screen.
+  useEffect(() => {
+    if (phase === 'lobby') setIsReady(false);
+  }, [phase]);
+
   return (
     <div className="game-screen">
       <CameraView ref={videoRef} error={cameraError} />
@@ -148,6 +152,10 @@ export function GameScreen({
         playerSlot={playerSlot}
         opponentConnected={opponentConnected}
       />
+
+      {phase === 'lobby' && status === 'connected' && !opponentConnected ? (
+        <div className="loading-overlay">Waiting for opponent...</div>
+      ) : null}
 
       {modelStatus === 'loading' ? (
         <div className="loading-overlay">Loading pose model...</div>

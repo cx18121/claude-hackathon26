@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Application, BlurFilter, Container, Graphics } from 'pixi.js'
-import { interpolatePosesInto } from '../lib/interpolate'
+import { extrapolatePosesInto, interpolatePosesInto } from '../lib/interpolate'
 import { sfx } from '../lib/sfx'
 import { SparkEmitter } from '../lib/sparks'
 import type { HitEvent, MsgGameState, PoseKeypoint } from '../protocol'
@@ -15,8 +15,13 @@ interface ScreenPoint {
   y: number
   visible: boolean
 }
+interface ArmTrailSnapshot {
+  pts: ScreenPoint[]  // 6 entries in ARM_TRAIL_INDICES order
+  valid: boolean
+}
 interface PlayerLayers {
   shadow: Graphics
+  trail: Graphics
   glow: Graphics
   rim: Graphics
   main: Graphics
@@ -26,6 +31,8 @@ const SILHOUETTE_COLOR = 0xffffff
 const VISIBILITY_THRESHOLD = 0.3
 const DEFAULT_TICK_INTERVAL_MS = 16
 const TICK_EWMA_ALPHA = 0.1
+const MAX_EXTRAPOLATION_T = 1.5
+const TRAIL_VEL_THRESHOLD_PX = 4
 
 // MediaPipe BlazePose landmark indices
 const NOSE = 0
@@ -41,6 +48,14 @@ const LEFT_KNEE = 25
 const RIGHT_KNEE = 26
 const LEFT_ANKLE = 27
 const RIGHT_ANKLE = 28
+
+// Indices into the ArmTrailSnapshot.pts array (order matches ARM_TRAIL_INDICES)
+const TRAIL_LEFT_SHOULDER = 0
+const TRAIL_RIGHT_SHOULDER = 1
+const TRAIL_LEFT_WRIST = 4
+const TRAIL_RIGHT_WRIST = 5
+
+const ARM_TRAIL_INDICES = [LEFT_SHOULDER, RIGHT_SHOULDER, LEFT_ELBOW, RIGHT_ELBOW, LEFT_WRIST, RIGHT_WRIST]
 
 function projectKeypoint(
   keypoint: PoseKeypoint,
@@ -211,9 +226,41 @@ function createScreenPointBuffer() {
   return Array.from({ length: 33 }, () => ({ x: 0, y: 0, visible: false }))
 }
 
+function createArmTrail(): ArmTrailSnapshot {
+  return {
+    pts: Array.from({ length: ARM_TRAIL_INDICES.length }, () => ({ x: 0, y: 0, visible: false })),
+    valid: false,
+  }
+}
+
+function drawArmTrailFromPts(g: Graphics, pts: ScreenPoint[], lineW: number): void {
+  const sl = pts[TRAIL_LEFT_SHOULDER]
+  const sr = pts[TRAIL_RIGHT_SHOULDER]
+  const le = pts[2]
+  const re = pts[3]
+  const lw = pts[TRAIL_LEFT_WRIST]
+  const rw = pts[TRAIL_RIGHT_WRIST]
+  if (!sl || !sr || !le || !re || !lw || !rw) return
+
+  if (sl.visible && le.visible)
+    g.moveTo(sl.x, sl.y).lineTo(le.x, le.y).stroke({ width: lineW, color: SILHOUETTE_COLOR })
+  if (le.visible && lw.visible)
+    g.moveTo(le.x, le.y).lineTo(lw.x, lw.y).stroke({ width: lineW, color: SILHOUETTE_COLOR })
+  if (lw.visible)
+    g.circle(lw.x, lw.y, lineW * 2).fill({ color: SILHOUETTE_COLOR })
+
+  if (sr.visible && re.visible)
+    g.moveTo(sr.x, sr.y).lineTo(re.x, re.y).stroke({ width: lineW, color: SILHOUETTE_COLOR })
+  if (re.visible && rw.visible)
+    g.moveTo(re.x, re.y).lineTo(rw.x, rw.y).stroke({ width: lineW, color: SILHOUETTE_COLOR })
+  if (rw.visible)
+    g.circle(rw.x, rw.y, lineW * 2).fill({ color: SILHOUETTE_COLOR })
+}
+
 function createPlayerLayers(parent: Container): PlayerLayers {
   const playerContainer = new Container()
   const shadow = new Graphics()
+  const trail = new Graphics()
   const rim = new Graphics()
   const glow = new Graphics()
   const main = new Graphics()
@@ -224,17 +271,21 @@ function createPlayerLayers(parent: Container): PlayerLayers {
   glow.filters = [new BlurFilter({ strength: 8, quality: 4 })]
   glow.alpha = 0.75
 
+  trail.filters = [new BlurFilter({ strength: 6, quality: 2 })]
+
   playerContainer.addChild(shadow)
+  playerContainer.addChild(trail)
   playerContainer.addChild(rim)
   playerContainer.addChild(glow)
   playerContainer.addChild(main)
   parent.addChild(playerContainer)
 
-  return { shadow, rim, glow, main }
+  return { shadow, trail, rim, glow, main }
 }
 
 function destroyPlayerLayers(layers: PlayerLayers) {
   layers.shadow.destroy()
+  layers.trail.destroy()
   layers.rim.destroy()
   layers.glow.destroy()
   layers.main.destroy()
@@ -260,6 +311,7 @@ export function PixiCanvas({ gameState }: PixiCanvasProps) {
   const expectedTickIntervalRef = useRef<number>(DEFAULT_TICK_INTERVAL_MS)
   const lastEmittedTickRef = useRef<number>(-1)
   const tickerHandlerRef = useRef<((ticker: { deltaTime: number }) => void) | null>(null)
+  const armTrailRef = useRef<ArmTrailSnapshot[]>([createArmTrail(), createArmTrail()])
 
   useEffect(() => {
     let cancelled = false
@@ -314,7 +366,7 @@ export function PixiCanvas({ gameState }: PixiCanvasProps) {
           if (!Number.isFinite(raw)) {
             t = 1
           } else {
-            t = Math.max(0, Math.min(1, raw))
+            t = Math.max(0, Math.min(MAX_EXTRAPOLATION_T, raw))
           }
         }
 
@@ -331,18 +383,56 @@ export function PixiCanvas({ gameState }: PixiCanvasProps) {
           if (!layers) {
             continue
           }
+          const armTrail = armTrailRef.current[slot]
           if (!next) {
             layers.main.clear()
             layers.glow.clear()
             layers.rim.clear()
             layers.shadow.clear()
+            layers.trail.clear()
+            armTrail.valid = false
             continue
           }
           const pose = prev
-            ? interpolatePosesInto(prev, next, t, poseBuffersRef.current[slot])
+            ? t <= 1
+              ? interpolatePosesInto(prev, next, t, poseBuffersRef.current[slot])
+              : extrapolatePosesInto(prev, next, t, poseBuffersRef.current[slot])
             : next
           const side: Side = slot === 0 ? 'left' : 'right'
-          drawBoxer(layers, pose, side, w, h, screenPointBuffersRef.current[slot])
+          const currentScreenPts = screenPointBuffersRef.current[slot]
+          drawBoxer(layers, pose, side, w, h, currentScreenPts)
+
+          // Motion blur trail: ghost arms at previous frame's positions when moving fast
+          layers.trail.clear()
+          if (armTrail.valid) {
+            const lwNow = currentScreenPts[LEFT_WRIST]
+            const rwNow = currentScreenPts[RIGHT_WRIST]
+            const lwPrev = armTrail.pts[TRAIL_LEFT_WRIST]
+            const rwPrev = armTrail.pts[TRAIL_RIGHT_WRIST]
+            const lwVel = lwNow.visible && lwPrev.visible
+              ? Math.hypot(lwNow.x - lwPrev.x, lwNow.y - lwPrev.y) : 0
+            const rwVel = rwNow.visible && rwPrev.visible
+              ? Math.hypot(rwNow.x - rwPrev.x, rwNow.y - rwPrev.y) : 0
+            const maxVel = Math.max(lwVel, rwVel)
+            if (maxVel > TRAIL_VEL_THRESHOLD_PX) {
+              const slPrev = armTrail.pts[TRAIL_LEFT_SHOULDER]
+              const srPrev = armTrail.pts[TRAIL_RIGHT_SHOULDER]
+              const bodyScale = slPrev.visible && srPrev.visible
+                ? Math.max(h * 0.28, Math.hypot(srPrev.x - slPrev.x, srPrev.y - slPrev.y))
+                : h * 0.28
+              const lineW = Math.max(4, bodyScale * 0.04)
+              layers.trail.alpha = Math.min(0.40, maxVel / (TRAIL_VEL_THRESHOLD_PX * 8))
+              drawArmTrailFromPts(layers.trail, armTrail.pts, lineW)
+            }
+          }
+          // Save current arm screen positions for next frame's trail comparison
+          for (let ti = 0; ti < ARM_TRAIL_INDICES.length; ti += 1) {
+            const pt = currentScreenPts[ARM_TRAIL_INDICES[ti]]
+            armTrail.pts[ti].x = pt.x
+            armTrail.pts[ti].y = pt.y
+            armTrail.pts[ti].visible = pt.visible
+          }
+          armTrail.valid = true
         }
 
         emitter.update(ticker.deltaTime)
@@ -395,6 +485,7 @@ export function PixiCanvas({ gameState }: PixiCanvasProps) {
       lastTickTimeRef.current = null
       expectedTickIntervalRef.current = DEFAULT_TICK_INTERVAL_MS
       lastEmittedTickRef.current = -1
+      armTrailRef.current = [createArmTrail(), createArmTrail()]
     }
   }, [])
 

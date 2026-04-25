@@ -132,10 +132,8 @@ export function useGameSocket(): UseGameSocketResult {
         setStatus('connected');
         setOpponentConnected(msg.opponent_connected);
         setAssignedSlot(msg.player_slot);
-        // Server doesn't send calibration_start in current sprint, so begin
-        // calibration as soon as we're joined. Calibration UX itself waits
-        // for the user to initiate movement.
-        setPhase('calibration');
+        // Stay in lobby until the server sends calibration_start (which it
+        // only does once both players are connected).
         break;
 
       case 'pong': {
@@ -155,6 +153,7 @@ export function useGameSocket(): UseGameSocketResult {
         break;
 
       case 'calibration_start':
+        setOpponentConnected(true);
         setPhase('calibration');
         break;
 
@@ -177,6 +176,8 @@ export function useGameSocket(): UseGameSocketResult {
 
       case 'player_disconnected':
         setOpponentConnected(false);
+        // If the opponent leaves before the match starts, drop back to the lobby.
+        setPhase(prev => (prev === 'lobby' || prev === 'calibration') ? 'lobby' : prev);
         break;
 
       case 'round_start':
