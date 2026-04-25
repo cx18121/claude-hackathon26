@@ -10,9 +10,9 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
-from protocol import MsgJoined, MsgPong, parse_mobile_msg
+from protocol import MsgJoined, MsgPing, MsgPong, parse_mobile_msg
 from qr import print_startup_info
-from rooms import RoomManager
+from rooms import RoomManager, record_pong
 from tunnel import TunnelManager
 
 load_dotenv()
@@ -91,6 +91,17 @@ async def ws_player(websocket: WebSocket, room_code: str):
     slot.connected = True
     log.info("Player %d connected to room %s", slot_num, room_code)
 
+    async def ping_loop():
+        import time
+        while slot.connected:
+            try:
+                await websocket.send_text(MsgPing(t=time.time()).model_dump_json())
+            except Exception:
+                break
+            await asyncio.sleep(0.5)
+
+    asyncio.create_task(ping_loop())
+
     opponent = room.players[3 - slot_num]
     await websocket.send_text(
         MsgJoined(
@@ -116,7 +127,11 @@ async def ws_player(websocket: WebSocket, room_code: str):
                 slot.latest_pose = msg
                 await websocket.send_text(raw)  # echo back for Sprint 1
             elif msg.type == "ping":
+                # Client-originated ping: echo back for client-side RTT display
                 await websocket.send_text(MsgPong(t=msg.t).model_dump_json())
+            elif msg.type == "pong":
+                # Server-originated ping echoed back: record server-side RTT
+                record_pong(slot, msg.t)
     except WebSocketDisconnect:
         pass
     finally:

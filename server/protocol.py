@@ -113,7 +113,7 @@ from typing import Union, Annotated
 from pydantic import Field
 
 InboundMobileMsg = Annotated[
-    Union[MsgJoin, MsgPoseFrame, MsgCalibrationDone, MsgPing],
+    Union[MsgJoin, MsgPoseFrame, MsgCalibrationDone, MsgPing, MsgPong],
     Field(discriminator="type"),
 ]
 

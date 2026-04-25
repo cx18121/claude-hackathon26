@@ -1,5 +1,6 @@
 from __future__ import annotations
 import random
+import statistics
 import string
 import time
 from dataclasses import dataclass, field
@@ -17,6 +18,22 @@ class PlayerSlot:
     reference_velocity: float | None = None
     connected: bool = False
     rtt_ms: float = 0.0
+    ping_times: list[float] = field(default_factory=list)
+    rtt_samples: list[float] = field(default_factory=list)
+
+
+def median_rtt(slot: PlayerSlot) -> float:
+    if not slot.rtt_samples:
+        return 0.0
+    return statistics.median(slot.rtt_samples)
+
+
+def record_pong(slot: PlayerSlot, original_t: float) -> float:
+    rtt = (time.time() - original_t) * 1000
+    slot.rtt_samples.append(rtt)
+    if len(slot.rtt_samples) > 10:
+        slot.rtt_samples = slot.rtt_samples[-10:]
+    return rtt
 
 
 @dataclass
