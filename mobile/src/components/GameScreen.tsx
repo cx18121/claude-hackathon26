@@ -58,11 +58,15 @@ export function GameScreen({
     },
   });
 
-  // Stream pose frames during the match. Throttled to 30fps via the last-send
-  // timestamp; MediaPipe may produce more frames than that on a fast device.
+  // Stream pose frames during BOTH calibration and match. The server needs
+  // calibration-window frames to derive skeleton metrics (per
+  // docs/plans/server-todo.md); only sending during 'match' starves that
+  // pipeline and forces fallback hitbox scaling. Throttled to 30fps via the
+  // last-send timestamp; MediaPipe may produce more frames than that on a
+  // fast device.
   const lastSendRef = useRef(0);
   useEffect(() => {
-    if (phase !== 'match' || !keypoints) return;
+    if ((phase !== 'match' && phase !== 'calibration') || !keypoints) return;
     const now = performance.now();
     if (now - lastSendRef.current < POSE_FRAME_INTERVAL_MS) return;
     lastSendRef.current = now;

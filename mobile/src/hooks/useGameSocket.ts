@@ -26,6 +26,12 @@ export interface UseGameSocketResult {
   status: SocketStatus;
   opponentConnected: boolean;
   phase: GamePhase;
+  // Authoritative slot the server assigned to this connection (set on
+  // 'joined'). The server's WS handler picks the first open slot regardless
+  // of the value the client sent in 'join', so we cannot trust the locally
+  // chosen slot to match what the server uses for hit attribution and
+  // win/lose messaging. UI must use this once it's set.
+  assignedSlot: 1 | 2 | null;
   lastHit: { region: string; damage: number } | null;
   highLatency: boolean;
   rttMs: number;
@@ -70,6 +76,7 @@ export function useGameSocket(
 ): UseGameSocketResult {
   const [status, setStatus] = useState<SocketStatus>('disconnected');
   const [opponentConnected, setOpponentConnected] = useState(false);
+  const [assignedSlot, setAssignedSlot] = useState<1 | 2 | null>(null);
   const [phase, setPhase] = useState<GamePhase>('lobby');
   const [lastHit, setLastHit] = useState<{ region: string; damage: number } | null>(null);
   const [highLatency, setHighLatency] = useState(false);
@@ -117,6 +124,10 @@ export function useGameSocket(
       case 'joined':
         setStatus('connected');
         setOpponentConnected(msg.opponent_connected);
+        // The server assigns the slot itself (first open). Store the
+        // authoritative value so the UI doesn't show "P2" while the server
+        // attributes our hits and HP to slot 1.
+        setAssignedSlot(msg.player_slot);
         // Server doesn't send calibration_start in current sprint, so begin
         // calibration as soon as we're joined. Calibration UX itself waits
         // for the user to initiate movement.
@@ -268,6 +279,7 @@ export function useGameSocket(
     setPhase('lobby');
     setLastHit(null);
     setOpponentConnected(false);
+    setAssignedSlot(null);
     setRttMs(0);
     setHighLatency(false);
     setMatchEnd(null);
@@ -291,6 +303,7 @@ export function useGameSocket(
   return {
     status,
     opponentConnected,
+    assignedSlot,
     phase,
     lastHit,
     highLatency,

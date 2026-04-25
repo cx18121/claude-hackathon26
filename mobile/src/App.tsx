@@ -66,6 +66,12 @@ function App() {
   const showGame =
     socket.status === 'connected' || socket.status === 'connecting';
 
+  // The server picks the slot itself (first open) and ignores the value the
+  // client sent in 'join'. Once we've heard back from the server, prefer its
+  // assignment over the locally selected slot so UI labels and win/lose
+  // messaging line up with what the server is actually scoring.
+  const effectiveSlot: 1 | 2 = socket.assignedSlot ?? playerSlot;
+
   return (
     <div className="app-root">
       {showGame ? (
@@ -73,7 +79,7 @@ function App() {
           status={socket.status}
           phase={socket.phase}
           roomCode={roomCode}
-          playerSlot={playerSlot}
+          playerSlot={effectiveSlot}
           rttMs={socket.rttMs}
           highLatency={socket.highLatency}
           opponentConnected={socket.opponentConnected}
