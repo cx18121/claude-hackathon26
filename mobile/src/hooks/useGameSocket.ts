@@ -53,7 +53,7 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 const PING_INTERVAL_MS = 500;
 const HIT_FLASH_MS = 1500;
 
-function normalizeWsUrl(input: string): string {
+export function normalizeWsUrl(input: string): string {
   const trimmed = input.trim();
   if (!trimmed) return trimmed;
   if (trimmed.startsWith('ws://') || trimmed.startsWith('wss://')) {
