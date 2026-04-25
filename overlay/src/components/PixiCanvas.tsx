@@ -64,10 +64,13 @@ function projectKeypoint(
   height: number,
   out: ScreenPoint,
 ) {
-  // 2.5x scale so figures fill the screen. Each player occupies their half.
-  const scale = height * 1.15
+  // Body spans ~1.1 world units top-to-bottom (±0.55 from hip origin).
+  // Reserve 14% top (HUD) + 4% bottom as padding and fit within the rest.
+  const usable = height * 0.82
+  const scale = usable / 1.1
   const centerX = side === 'left' ? width * 0.25 : width * 0.75
-  const centerY = height * 0.48
+  // Position lower: top of usable zone + 58% of usable height
+  const centerY = height * 0.14 + usable * 0.58
   const flip = side === 'right' ? -1 : 1
   out.x = centerX + keypoint.x * scale * flip
   out.y = centerY + keypoint.y * scale
@@ -80,9 +83,10 @@ function projectXY(
   width: number,
   height: number,
 ): { x: number; y: number } {
-  const scale = height * 1.0
+  const usable = height * 0.82
+  const scale = usable / 1.1
   const centerX = side === 'left' ? width * 0.25 : width * 0.75
-  const centerY = height * 0.48
+  const centerY = height * 0.14 + usable * 0.58
   const flip = side === 'right' ? -1 : 1
   return {
     x: centerX + point.x * scale * flip,
@@ -155,7 +159,7 @@ function drawBoxer(
   const la = screenPoints[LEFT_ANKLE]
   const ra = screenPoints[RIGHT_ANKLE]
 
-  let bodyScale = height * 0.28
+  let bodyScale = height * 0.18
   if (sl?.visible && sr?.visible) {
     bodyScale = Math.max(bodyScale, distance(sl.x, sl.y, sr.x, sr.y))
   } else if (lh?.visible && rh?.visible) {
