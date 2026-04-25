@@ -26,15 +26,18 @@ def kp(x=0.0, y=0.0, z=0.0, v=1.0) -> PoseKeypoint:
 
 
 def neutral_keypoints(
-    wrist_x=0.0, wrist_y=0.5,
-    ankle_x=0.0, ankle_y=-0.5,
+    wrist_x=0.0, wrist_y=-0.10,
+    ankle_x=0.0, ankle_y=0.45,
 ) -> list[PoseKeypoint]:
+    """MediaPipe Y-down: negative y = above hips, positive y = below hips."""
     pts = [kp()] * 33
     pts = list(pts)
-    pts[LEFT_HIP]   = kp(x=-0.1, y=0.0)
-    pts[RIGHT_HIP]  = kp(x= 0.1, y=0.0)
-    pts[WRIST_LEFT] = kp(x=wrist_x, y=wrist_y)
-    pts[ANKLE_LEFT] = kp(x=ankle_x, y=ankle_y)
+    pts[LEFT_HIP]        = kp(x=-0.1, y=0.0)
+    pts[RIGHT_HIP]       = kp(x= 0.1, y=0.0)
+    pts[11]              = kp(x=-0.2, y=-0.25)   # LEFT_SHOULDER
+    pts[12]              = kp(x= 0.2, y=-0.25)   # RIGHT_SHOULDER
+    pts[WRIST_LEFT]      = kp(x=wrist_x, y=wrist_y)
+    pts[ANKLE_LEFT]      = kp(x=ankle_x, y=ankle_y)
     return pts
 
 
@@ -42,8 +45,11 @@ def make_frame(keypoints: list[PoseKeypoint]) -> MsgPoseFrame:
     return MsgPoseFrame(type="pose_frame", timestamp=0.0, keypoints=keypoints)
 
 
-def fast_punch_deque(end_x=0.0, end_y=0.65) -> deque:
-    """Wrist moves 2m in 2 frames -> 30 m/s >> PUNCH_THRESHOLD."""
+def fast_punch_deque(end_x=0.0, end_y=-0.45) -> deque:
+    """Wrist moves 2 m in 2 frames → 30 m/s >> PUNCH_THRESHOLD.
+
+    end_y=-0.45 places wrist 0.45 m above hips (head zone) in MediaPipe Y-down.
+    """
     return deque([
         make_frame(neutral_keypoints(wrist_x=-2.0, wrist_y=end_y)),
         make_frame(neutral_keypoints(wrist_x=-1.0, wrist_y=end_y)),
@@ -154,7 +160,8 @@ def test_no_hit_when_static():
 
 
 def test_punch_registers_fast_wrist_in_head_zone():
-    attacker = fast_punch_deque(end_x=0.0, end_y=0.65)
+    # wrist.y=-0.45 → 0.45 m above hips → HEAD zone (MediaPipe Y-down)
+    attacker = fast_punch_deque(end_x=0.0, end_y=-0.45)
     defender = static_deque()
     result = detect_punch(attacker, defender)
     assert result is not None
@@ -163,37 +170,38 @@ def test_punch_registers_fast_wrist_in_head_zone():
 
 
 def test_punch_in_torso_zone():
-    attacker = fast_punch_deque(end_x=0.0, end_y=0.30)
+    # wrist.y=-0.25 → 0.25 m above hips → TORSO_UPPER zone
+    attacker = fast_punch_deque(end_x=0.0, end_y=-0.25)
     defender = static_deque()
     result = detect_punch(attacker, defender)
     assert result is not None
     assert result.region == Region.TORSO_UPPER
 
 
-def test_punch_miss_wrist_far_from_body():
-    attacker = fast_punch_deque(end_x=5.0, end_y=5.0)  # way off to the side
+def test_punch_miss_wrist_below_hips():
+    # wrist.y=+0.50 → 0.50 m BELOW hips → not an attack position
+    attacker = fast_punch_deque(end_x=0.0, end_y=0.50)
     defender = static_deque()
     result = detect_punch(attacker, defender)
     assert result is None
 
 
 def test_no_punch_below_threshold():
-    # Slow wrist: ~0.15 m/s, well below 2.0 threshold
     slow = deque([
-        make_frame(neutral_keypoints(wrist_x=0.00, wrist_y=0.65)),
-        make_frame(neutral_keypoints(wrist_x=0.01, wrist_y=0.65)),
-        make_frame(neutral_keypoints(wrist_x=0.02, wrist_y=0.65)),
+        make_frame(neutral_keypoints(wrist_x=0.00, wrist_y=-0.45)),
+        make_frame(neutral_keypoints(wrist_x=0.01, wrist_y=-0.45)),
+        make_frame(neutral_keypoints(wrist_x=0.02, wrist_y=-0.45)),
     ])
     defender = static_deque()
     assert detect_punch(slow, defender) is None
 
 
-def test_kick_registers_fast_ankle():
-    # Shin capsules sit at x=±0.12; aim directly at the left one
+def test_kick_registers_raised_ankle():
+    # Ankle sweeps upward: from below hips to raised position above hips
     attacker = deque([
-        make_frame(neutral_keypoints(ankle_x=-2.12, ankle_y=-0.48)),
-        make_frame(neutral_keypoints(ankle_x=-1.12, ankle_y=-0.48)),
-        make_frame(neutral_keypoints(ankle_x=-0.12, ankle_y=-0.48)),
+        make_frame(neutral_keypoints(ankle_x=0.0, ankle_y= 0.45)),
+        make_frame(neutral_keypoints(ankle_x=0.0, ankle_y= 0.15)),
+        make_frame(neutral_keypoints(ankle_x=0.0, ankle_y=-0.10)),
     ])
     defender = static_deque()
     result = detect_kick(attacker, defender)

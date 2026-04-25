@@ -117,7 +117,8 @@ class GameLoop:
             if self.tick - self._last_hit_tick[attacker] < _HIT_COOLDOWN_TICKS:
                 continue
 
-            result = detect_punch(a_frames, d_frames) or detect_kick(a_frames, d_frames)
+            ref_vel = room.players[attacker].reference_velocity
+            result = detect_punch(a_frames, d_frames, ref_vel) or detect_kick(a_frames, d_frames, ref_vel)
             if result is None:
                 continue
 

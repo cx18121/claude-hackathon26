@@ -16,9 +16,10 @@ import pytest
 
 from protocol import MsgPoseFrame, PoseKeypoint
 from hit_detection import (
-    _velocity, _check_limb,
+    _velocity,
     detect_punch, detect_kick,
     WRIST_LEFT, ANKLE_LEFT, LEFT_HIP, RIGHT_HIP,
+    LEFT_SHOULDER, RIGHT_SHOULDER,
     PUNCH_THRESHOLD, Region,
 )
 from damage import compute_damage, BASE_DAMAGE
@@ -35,8 +36,11 @@ def kp(x=0.0, y=0.0, z=0.0, v=1.0) -> PoseKeypoint:
 def frame(ts: float, overrides: dict | None = None) -> MsgPoseFrame:
     pts: list[PoseKeypoint] = [kp()] * 33
     pts = list(pts)
-    pts[LEFT_HIP]  = kp(x=-0.1)
-    pts[RIGHT_HIP] = kp(x= 0.1)
+    pts[LEFT_HIP]       = kp(x=-0.1)
+    pts[RIGHT_HIP]      = kp(x= 0.1)
+    # Shoulders 0.25 m above hips in MediaPipe Y-down (negative = up)
+    pts[LEFT_SHOULDER]  = kp(x=-0.2, y=-0.25)
+    pts[RIGHT_SHOULDER] = kp(x= 0.2, y=-0.25)
     if overrides:
         for idx, point in overrides.items():
             pts[idx] = point
@@ -89,9 +93,9 @@ class TestTimestampVelocity:
         """At 15fps a wrist moving 5cm/frame = 0.75 m/s -- below PUNCH_THRESHOLD."""
         dt = 1.0 / 15
         attacker = deque([
-            frame(0.0,    {WRIST_LEFT: kp(x=0.00, y=0.65)}),
-            frame(dt,     {WRIST_LEFT: kp(x=0.05, y=0.65)}),
-            frame(2 * dt, {WRIST_LEFT: kp(x=0.10, y=0.65)}),
+            frame(0.0,    {WRIST_LEFT: kp(x=0.00, y=-0.45)}),
+            frame(dt,     {WRIST_LEFT: kp(x=0.05, y=-0.45)}),
+            frame(2 * dt, {WRIST_LEFT: kp(x=0.10, y=-0.45)}),
         ])
         assert detect_punch(attacker, static_deque()) is None
 
@@ -99,9 +103,9 @@ class TestTimestampVelocity:
         """At 15fps a wrist moving 30cm/frame = 4.5 m/s > PUNCH_THRESHOLD."""
         dt = 1.0 / 15
         attacker = deque([
-            frame(0.0,    {WRIST_LEFT: kp(x=-0.60, y=0.65)}),
-            frame(dt,     {WRIST_LEFT: kp(x=-0.30, y=0.65)}),
-            frame(2 * dt, {WRIST_LEFT: kp(x= 0.00, y=0.65)}),
+            frame(0.0,    {WRIST_LEFT: kp(x=-0.60, y=-0.45)}),
+            frame(dt,     {WRIST_LEFT: kp(x=-0.30, y=-0.45)}),
+            frame(2 * dt, {WRIST_LEFT: kp(x= 0.00, y=-0.45)}),
         ])
         result = detect_punch(attacker, static_deque(2 * dt))
         assert result is not None
@@ -116,9 +120,9 @@ class TestHitboxSweep:
     def test_wrist_inside_hitbox_on_middle_frame_is_caught(self):
         """Wrist enters and exits head_face zone in one frame window."""
         attacker = deque([
-            frame(0.0, {WRIST_LEFT: kp(x=-2.0, y=0.65)}),  # approaching
-            frame(0.0, {WRIST_LEFT: kp(x= 0.0, y=0.65)}),  # inside head_face
-            frame(0.0, {WRIST_LEFT: kp(x= 2.0, y=0.65)}),  # exited -- final frame is a miss
+            frame(0.0, {WRIST_LEFT: kp(x=-2.0, y=-0.45)}),  # approaching
+            frame(0.0, {WRIST_LEFT: kp(x= 0.0, y=-0.45)}),  # inside head_face
+            frame(0.0, {WRIST_LEFT: kp(x= 2.0, y=-0.45)}),  # exited -- final frame is a miss
         ])
         result = detect_punch(attacker, static_deque())
         assert result is not None, "sweep should catch hit on intermediate frame"
@@ -127,9 +131,9 @@ class TestHitboxSweep:
     def test_wrist_only_in_hitbox_on_first_frame_is_caught(self):
         """Wrist starts inside torso zone and flies out."""
         attacker = deque([
-            frame(0.0, {WRIST_LEFT: kp(x=0.0, y=0.30)}),  # inside torso_upper
-            frame(0.0, {WRIST_LEFT: kp(x=1.0, y=0.30)}),  # exiting
-            frame(0.0, {WRIST_LEFT: kp(x=2.0, y=0.30)}),  # well outside
+            frame(0.0, {WRIST_LEFT: kp(x=0.0, y=-0.25)}),  # inside torso_upper
+            frame(0.0, {WRIST_LEFT: kp(x=1.0, y=-0.25)}),  # exiting
+            frame(0.0, {WRIST_LEFT: kp(x=2.0, y=-0.25)}),  # well outside
         ])
         result = detect_punch(attacker, static_deque())
         assert result is not None
@@ -152,9 +156,9 @@ class TestHitboxSweep:
         punch missed. The fix zeroes z before the capsule check.
         """
         attacker = deque([
-            frame(0.0, {WRIST_LEFT: kp(x=-0.60, y=0.65, z= 0.05)}),
-            frame(0.0, {WRIST_LEFT: kp(x=-0.30, y=0.65, z=-0.10)}),
-            frame(0.0, {WRIST_LEFT: kp(x= 0.00, y=0.65, z=-0.22)}),  # at impact
+            frame(0.0, {WRIST_LEFT: kp(x=-0.60, y=-0.45, z= 0.05)}),
+            frame(0.0, {WRIST_LEFT: kp(x=-0.30, y=-0.45, z=-0.10)}),
+            frame(0.0, {WRIST_LEFT: kp(x= 0.00, y=-0.45, z=-0.22)}),  # at impact
         ])
         result = detect_punch(attacker, static_deque())
         assert result is not None, "forward-extended punch must register after z-projection fix"
@@ -163,9 +167,9 @@ class TestHitboxSweep:
     def test_off_centre_jab_at_head_height_registers(self):
         """Left jab lands 18 cm off centre -- within the wider head radius (0.22 m)."""
         attacker = deque([
-            frame(0.0, {WRIST_LEFT: kp(x=-0.40, y=0.65)}),
-            frame(0.0, {WRIST_LEFT: kp(x=-0.05, y=0.65)}),
-            frame(0.0, {WRIST_LEFT: kp(x= 0.18, y=0.65)}),  # 18 cm off centre
+            frame(0.0, {WRIST_LEFT: kp(x=-0.40, y=-0.45)}),
+            frame(0.0, {WRIST_LEFT: kp(x=-0.05, y=-0.45)}),
+            frame(0.0, {WRIST_LEFT: kp(x= 0.18, y=-0.45)}),  # 18 cm off centre
         ])
         result = detect_punch(attacker, static_deque())
         assert result is not None, "off-centre jab at head height must register"
@@ -180,9 +184,9 @@ class TestHitboxSweep:
         """
         dt = 1.0 / 30
         attacker = deque([
-            frame(0.0,      {WRIST_LEFT: kp(x=-0.30, y=0.65)}),  # pre-punch
-            frame(dt,       {WRIST_LEFT: kp(x= 0.00, y=0.65)}),  # impact (fast outward)
-            frame(2 * dt,   {WRIST_LEFT: kp(x=-0.20, y=0.65)}),  # retraction (hand pulls back)
+            frame(0.0,      {WRIST_LEFT: kp(x=-0.30, y=-0.45)}),  # pre-punch
+            frame(dt,       {WRIST_LEFT: kp(x= 0.00, y=-0.45)}),  # impact (fast outward)
+            frame(2 * dt,   {WRIST_LEFT: kp(x=-0.20, y=-0.45)}),  # retraction (hand pulls back)
         ])
         result = detect_punch(attacker, static_deque())
         assert result is not None, "snap punch with retraction must register via peak speed"
