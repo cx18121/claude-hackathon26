@@ -399,3 +399,75 @@ button {
     inset-block-end: 16px;
   }
 }
+
+/* === Live AI commentator subtitle ============================== */
+
+.commentary-subtitle {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 7%;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 220ms ease, transform 220ms ease;
+  z-index: 30;
+}
+
+.commentary-subtitle.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.commentary-subtitle-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  max-width: min(960px, 86%);
+  padding: 14px 22px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(8, 9, 14, 0.92) 0%, rgba(2, 3, 6, 0.92) 100%);
+  border: 1px solid rgba(255, 80, 70, 0.55);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.45),
+    0 18px 40px -12px rgba(255, 64, 50, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(6px);
+}
+
+.commentary-subtitle-tag {
+  flex-shrink: 0;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: #ff5d4a;
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 93, 74, 0.55);
+  border-radius: 4px;
+  text-transform: uppercase;
+  text-shadow: 0 0 12px rgba(255, 93, 74, 0.4);
+}
+
+.commentary-subtitle-text {
+  font-size: clamp(20px, 2.4vw, 32px);
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  line-height: 1.25;
+  color: #fff7ee;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.85);
+  white-space: pre-wrap;
+}
+
+.commentary-cursor {
+  display: inline-block;
+  margin-inline-start: 2px;
+  color: #ff5d4a;
+  animation: commentary-blink 0.7s steps(2, jump-none) infinite;
+}
+
+@keyframes commentary-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}

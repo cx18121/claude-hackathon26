@@ -11,7 +11,7 @@ interface HudLayerProps {
   roomCode: string
 }
 
-const MAX_HP = 200
+const MAX_HP = 300
 
 function clampHp(value: number): number {
   return Math.max(0, Math.min(MAX_HP, value))

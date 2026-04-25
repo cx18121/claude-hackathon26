@@ -139,8 +139,8 @@ async def test_game_state_broadcast_to_spectators():
     assert state["type"] == "game_state"
     assert state["tick"] == 1
     assert len(state["hp"]) == 2
-    assert state["hp"][0] == 200
-    assert state["hp"][1] == 200
+    assert state["hp"][0] == 300
+    assert state["hp"][1] == 300
 
 
 # --- unit: dead spectators pruned --------------------------------------------

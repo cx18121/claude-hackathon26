@@ -1,6 +1,10 @@
 export type {
   HitEvent,
   HpPair,
+  MsgCommentaryAudio,
+  MsgCommentaryEnd,
+  MsgCommentaryStart,
+  MsgCommentaryText,
   MsgGameState,
   MsgMatchEnd,
   MsgPlayerDisconnected,

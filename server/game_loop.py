@@ -4,6 +4,7 @@ import logging
 import time
 from collections import deque
 
+from commentator import CommentaryEngine
 from damage import compute_damage
 from hit_detection import detect_punch, detect_kick
 from protocol import (
@@ -25,7 +26,7 @@ class GameLoop:
         self.room = room
         self.tick = 0
         self.running = False
-        self.hp: list[int] = [200, 200]
+        self.hp: list[int] = [300, 300]
 
         # Input buffers: raw frames with arrival timestamps, awaiting delay release
         self._buffers: dict[int, deque[tuple[float, object]]] = {
@@ -44,13 +45,32 @@ class GameLoop:
 
         self.paused = False
 
+        # Live commentator. Reuses _broadcast as its sink so commentary text
+        # and audio land on the same WS as game_state.
+        self.commentator = CommentaryEngine(self._broadcast)
+        # First-blood detector: True until the first hit lands.
+        self._first_blood_pending = True
+        # Combo tracker: per-attacker (last_hit_time, count_within_window).
+        self._combo: dict[int, tuple[float, int]] = {1: (0.0, 0), 2: (0.0, 0)}
+        # Low-HP one-shot per round so we don't spam.
+        self._low_hp_announced: set[int] = set()
+        # Stalemate watcher: time of last hit (or round start).
+        self._last_action_time: float = 0.0
+        self._stalemate_announced: bool = False
+
     def add_pose_frame(self, player_slot: int, frame: object) -> None:
         """Called from the WebSocket handler each time a pose_frame arrives."""
         self._buffers[player_slot].append((time.time(), frame))
 
     async def run(self) -> None:
         self.running = True
+        self.commentator.start()
+        self._last_action_time = time.time()
         await self._broadcast(MsgRoundStart(round_number=self.room.round_number).model_dump_json())
+        self.commentator.event(
+            "round_start",
+            {"round": self.room.round_number, "wins": tuple(self.room.wins)},
+        )
         target_dt = 1.0 / 60
         loop = asyncio.get_event_loop()
         while self.running:
@@ -143,6 +163,8 @@ class GameLoop:
             )
             recent_hits.append(hit_event)
 
+            self._emit_hit_commentary(attacker, defender, result.region, dmg, now)
+
             ws = room.players[defender].ws
             if ws is not None:
                 try:
@@ -169,6 +191,16 @@ class GameLoop:
             # else draw: round_winner stays None
 
         if round_over:
+            ko = round_winner is not None and (self.hp[0] == 0 or self.hp[1] == 0)
+            self.commentator.event(
+                "ko" if ko else "round_end",
+                {
+                    "winner": round_winner,
+                    "final_hp": [self.hp[0], self.hp[1]],
+                    "round": self.room.round_number,
+                    "by_timeout": not ko and remaining_time <= 0,
+                },
+            )
             await self._broadcast(
                 MsgRoundEnd(winner=round_winner, final_hp=(self.hp[0], self.hp[1])).model_dump_json()
             )
@@ -177,14 +209,39 @@ class GameLoop:
             if max(room.wins) >= 1:
                 match_winner = 1 if room.wins[0] >= 1 else 2
                 room.match_over = True
+                self.commentator.event(
+                    "match_end",
+                    {"winner": match_winner, "score": list(room.wins)},
+                )
                 await self._broadcast(MsgMatchEnd(winner=match_winner).model_dump_json())
                 self.stop()
                 return
             room.round_number += 1
             room.round_start_time = None
-            self.hp = [200, 200]
+            self.hp = [300, 300]
+            self._first_blood_pending = True
+            self._combo = {1: (0.0, 0), 2: (0.0, 0)}
+            self._low_hp_announced.clear()
+            self._stalemate_announced = False
+            self._last_action_time = time.time()
+            self.commentator.event(
+                "round_start",
+                {"round": room.round_number, "wins": tuple(room.wins)},
+            )
             await self._broadcast(MsgRoundStart(round_number=room.round_number).model_dump_json())
             return
+
+        # Stalemate watch: 8s without a hit -> commentator filler.
+        if (
+            not self._stalemate_announced
+            and now - self._last_action_time > 8.0
+            and remaining_time > 5.0
+        ):
+            self._stalemate_announced = True
+            self.commentator.event(
+                "stalemate",
+                {"hp": [self.hp[0], self.hp[1]], "remaining": int(remaining_time)},
+            )
 
         # Pose data is no longer carried on the 60Hz game_state channel — it
         # streams to spectators on a separate `pose_update` message that fires
@@ -211,3 +268,71 @@ class GameLoop:
 
     def stop(self) -> None:
         self.running = False
+        if self.commentator.enabled:
+            asyncio.create_task(self.commentator.stop())
+
+    def _emit_hit_commentary(
+        self,
+        attacker: int,
+        defender: int,
+        region: str,
+        damage: int,
+        now: float,
+    ) -> None:
+        """Translate one hit into the most narratively-interesting event
+        kind we can. The commentator's own cooldown decides whether to
+        actually speak — we just describe what happened."""
+        self._last_action_time = now
+        self._stalemate_announced = False
+
+        # Combo tracking: same attacker, second-or-later hit within 1.8s.
+        last_t, count = self._combo[attacker]
+        if now - last_t <= 1.8:
+            count += 1
+        else:
+            count = 1
+        self._combo[attacker] = (now, count)
+        # Reset opponent's combo on getting hit.
+        self._combo[defender] = (0.0, 0)
+
+        defender_hp = self.hp[defender - 1]
+        defender_hp_pct = defender_hp / 300.0
+        attacker_hp_pct = self.hp[attacker - 1] / 300.0
+
+        kind = "hit"
+        priority = False
+        # First hit of the match wins out over everything else.
+        if self._first_blood_pending:
+            kind = "first_blood"
+            priority = True
+            self._first_blood_pending = False
+        elif count >= 3:
+            kind = "combo"
+            priority = True
+        elif (
+            attacker_hp_pct < 0.3
+            and defender_hp_pct >= attacker_hp_pct
+        ):
+            kind = "comeback"
+            priority = True
+        elif defender_hp_pct <= 0.25 and defender not in self._low_hp_announced:
+            kind = "low_hp"
+            priority = True
+            self._low_hp_announced.add(defender)
+
+        payload = {
+            "attacker": attacker,
+            "defender": defender,
+            "region": region,
+            "damage": damage,
+            "attacker_hp": self.hp[attacker - 1],
+            "defender_hp": defender_hp,
+            "combo_count": count if kind == "combo" else 0,
+            "round": self.room.round_number,
+        }
+        # Build the synthetic event with priority flag.
+        if priority:
+            self.commentator.event(kind, payload)
+        else:
+            # Plain hit — let the engine cooldown decide.
+            self.commentator.event(kind, payload)

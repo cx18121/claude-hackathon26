@@ -1,8 +1,10 @@
 import { useCallback, useRef, useState } from 'react'
+import { CommentarySubtitle } from './components/CommentarySubtitle'
 import { HudLayer } from './components/HudLayer'
 import { ParallaxBackground } from './components/ParallaxBackground'
 import { PixiCanvas } from './components/PixiCanvas'
 import { RoundOverlay } from './components/RoundOverlay'
+import { useCommentary } from './hooks/useCommentary'
 import { useSpectatorSocket } from './hooks/useSpectatorSocket'
 import { unlockSfx } from './lib/sfx'
 import type { HpPair } from './protocol'
@@ -19,8 +21,9 @@ function App() {
     matchWinner,
     roundState,
     poseStreamRef,
+    socket,
   } = useSpectatorSocket(serverUrl, roomCode)
-  const hp: HpPair = gameState?.hp ?? [200, 200]
+  const hp: HpPair = gameState?.hp ?? [300, 300]
   const remainingTime = gameState?.remaining_time ?? 90
   const roundNumber = roundState?.number ?? 1
 
@@ -34,6 +37,16 @@ function App() {
       shakeTimerRef.current = null
     }, 450)
   }, [])
+
+  // Browsers block <audio> playback until a user gesture. Track unlock so
+  // the commentary hook only tries to play when allowed.
+  const [audioUnlocked, setAudioUnlocked] = useState(false)
+  const handleUnlock = useCallback(() => {
+    unlockSfx()
+    setAudioUnlocked(true)
+  }, [])
+
+  const commentary = useCommentary(socket, audioUnlocked)
 
   return (
     <main className={`overlay-shell${shaking ? ' shaking' : ''}`}>
@@ -52,13 +65,16 @@ function App() {
         round={roundNumber}
         roomCode={roomCode}
       />
+      <CommentarySubtitle commentary={commentary} />
       <RoundOverlay
         matchWinner={matchWinner}
         roundState={roundState}
       />
-      <button className="audio-unlock" type="button" onClick={unlockSfx}>
-        Click to start audio
-      </button>
+      {!audioUnlocked && (
+        <button className="audio-unlock" type="button" onClick={handleUnlock}>
+          Click to start audio
+        </button>
+      )}
     </main>
   )
 }

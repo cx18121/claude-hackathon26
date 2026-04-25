@@ -132,6 +132,31 @@ export interface MsgPoseUpdate {
   keypoints: PoseKeypoint[];
 }
 
+// Live commentator messages. Server -> overlay only.
+export interface MsgCommentaryStart {
+  type: "commentary_start";
+  id: number;
+}
+
+export interface MsgCommentaryText {
+  type: "commentary_text";
+  id: number;
+  delta: string;
+}
+
+export interface MsgCommentaryAudio {
+  type: "commentary_audio";
+  id: number;
+  idx: number;
+  mime: string; // "audio/mpeg"
+  audio_b64: string; // base64-encoded mp3 from ElevenLabs
+}
+
+export interface MsgCommentaryEnd {
+  type: "commentary_end";
+  id: number;
+}
+
 export type InboundServerMsg =
   | MsgJoined
   | MsgPongFromServer
@@ -144,11 +169,19 @@ export type InboundServerMsg =
   | MsgRoundEnd
   | MsgMatchEnd
   | MsgGameState
-  | MsgPoseUpdate;
+  | MsgPoseUpdate
+  | MsgCommentaryStart
+  | MsgCommentaryText
+  | MsgCommentaryAudio
+  | MsgCommentaryEnd;
 
 export type ServerMessage =
   | MsgGameState
   | MsgPoseUpdate
   | MsgRoundStart
   | MsgRoundEnd
-  | MsgMatchEnd;
+  | MsgMatchEnd
+  | MsgCommentaryStart
+  | MsgCommentaryText
+  | MsgCommentaryAudio
+  | MsgCommentaryEnd;

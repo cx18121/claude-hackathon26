@@ -44,6 +44,9 @@ interface SpectatorSocketState {
   // Stable across renders. PixiCanvas reads this every frame instead of
   // re-rendering React on each pose update.
   poseStreamRef: React.MutableRefObject<PoseStream>
+  // Live socket — exposed so other hooks (commentary subtitle, audio) can
+  // attach passive `message` listeners without owning their own connection.
+  socket: WebSocket | null
 }
 
 const DEFAULT_POSE_INTERVAL_MS = 16
@@ -105,22 +108,24 @@ export function useSpectatorSocket(
   )
   const roundNumberRef = useRef(1)
   const poseStreamRef = useRef<PoseStream>(makePoseStream())
+  const [socket, setSocket] = useState<WebSocket | null>(null)
 
   useEffect(() => {
     let closed = false
     let reconnectTimer: number | undefined
-    let socket: WebSocket | null = null
+    let activeSocket: WebSocket | null = null
 
     const connect = () => {
-      socket = new WebSocket(spectatorUrl(serverUrl, roomCode))
+      activeSocket = new WebSocket(spectatorUrl(serverUrl, roomCode))
+      setSocket(activeSocket)
 
-      socket.addEventListener('open', () => {
+      activeSocket.addEventListener('open', () => {
         if (!closed) {
           setConnected(true)
         }
       })
 
-      socket.addEventListener('message', (event) => {
+      activeSocket.addEventListener('message', (event) => {
         let parsed: unknown
 
         try {
@@ -190,17 +195,18 @@ export function useSpectatorSocket(
         console.warn('useSpectatorSocket: unknown message type', parsed)
       })
 
-      socket.addEventListener('close', () => {
+      activeSocket.addEventListener('close', () => {
         if (closed) {
           return
         }
 
+        setSocket(null)
         setConnected(false)
         reconnectTimer = window.setTimeout(connect, 1000)
       })
 
-      socket.addEventListener('error', () => {
-        socket?.close()
+      activeSocket.addEventListener('error', () => {
+        activeSocket?.close()
       })
     }
 
@@ -209,7 +215,8 @@ export function useSpectatorSocket(
     return () => {
       closed = true
       window.clearTimeout(reconnectTimer)
-      socket?.close()
+      activeSocket?.close()
+      setSocket(null)
     }
   }, [roomCode, serverUrl])
 
@@ -220,5 +227,6 @@ export function useSpectatorSocket(
     matchWinner,
     roundState,
     poseStreamRef,
+    socket,
   }
 }
