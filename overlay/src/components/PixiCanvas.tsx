@@ -51,13 +51,13 @@ function projectKeypoint(
   height: number,
   out: ScreenPoint,
 ) {
-  // worldLandmarks: origin at hip midpoint, Y-up (positive = up), X-right (metres)
-  const scale = height * 0.45
-  const centerX = side === 'left' ? width * 0.27 : width * 0.73
-  const centerY = height * 0.52   // hip midpoint sits ~52% down the screen
+  // worldLandmarks: origin at hip midpoint. MediaPipe JS uses Y-down (positive = toward feet).
+  const scale = height * 0.46
+  const centerX = side === 'left' ? width * 0.35 : width * 0.65
+  const centerY = height * 0.46
   const flip = side === 'right' ? -1 : 1
   out.x = centerX + keypoint.x * scale * flip
-  out.y = centerY - keypoint.y * scale  // negate: world Y-up → screen Y-down
+  out.y = centerY + keypoint.y * scale
   out.visible = keypoint.visibility >= VISIBILITY_THRESHOLD
 }
 
@@ -73,7 +73,7 @@ function projectXY(
   const flip = side === 'right' ? -1 : 1
   return {
     x: centerX + point.x * scale * flip,
-    y: centerY - point.y * scale,
+    y: centerY + point.y * scale,
   }
 }
 

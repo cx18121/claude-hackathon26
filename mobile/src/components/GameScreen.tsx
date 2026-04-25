@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useCamera } from '../hooks/useCamera';
 import { usePose } from '../hooks/usePose';
 import { useCalibration } from '../hooks/useCalibration';
+import { AvatarCanvas } from './AvatarCanvas';
 import { CameraView } from './CameraView';
 import { CalibrationOverlay } from './CalibrationOverlay';
 import { HitFlash } from './HitFlash';
@@ -14,6 +15,7 @@ import type { OutboundMobileMsg, PoseKeypoint } from '../protocol';
 interface GameScreenProps {
   status: SocketStatus;
   phase: GamePhase;
+  roundNumber: number;
   roomCode: string;
   playerSlot: 1 | 2;
   rttMs: number;
@@ -31,6 +33,7 @@ const POSE_FRAME_INTERVAL_MS = 1000 / 30;
 export function GameScreen({
   status,
   phase,
+  roundNumber,
   roomCode,
   playerSlot,
   rttMs,
@@ -43,6 +46,9 @@ export function GameScreen({
   onDisconnect,
 }: GameScreenProps) {
   const [isReady, setIsReady] = useState(false);
+  const [countdown, setCountdown] = useState<string | null>(null);
+  const countdownTimersRef = useRef<number[]>([]);
+  const lastCountdownRoundRef = useRef<number | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const { error: cameraError, ready: cameraReady } = useCamera(videoRef);
@@ -108,10 +114,30 @@ export function GameScreen({
     };
   }, [phase]);
 
+  useEffect(() => {
+    if (phase !== 'match') return;
+    if (lastCountdownRoundRef.current === roundNumber) return;
+    lastCountdownRoundRef.current = roundNumber;
+
+    countdownTimersRef.current.forEach(id => window.clearTimeout(id));
+    countdownTimersRef.current = [];
+
+    setCountdown('3');
+    countdownTimersRef.current.push(window.setTimeout(() => setCountdown('2'), 1000));
+    countdownTimersRef.current.push(window.setTimeout(() => setCountdown('1'), 2000));
+    countdownTimersRef.current.push(window.setTimeout(() => setCountdown('FIGHT!'), 3000));
+    countdownTimersRef.current.push(window.setTimeout(() => setCountdown(null), 3800));
+  }, [phase, roundNumber]);
+
+  useEffect(() => {
+    return () => { countdownTimersRef.current.forEach(id => window.clearTimeout(id)); };
+  }, []);
+
   return (
     <div className="game-screen">
       <CameraView ref={videoRef} error={cameraError} />
       <PoseOverlay keypoints={imageKeypoints} />
+      <AvatarCanvas keypoints={keypoints} hitRegion={lastHit?.region ?? null} />
 
       <StatusBar
         status={status}
@@ -152,6 +178,10 @@ export function GameScreen({
           instruction={calibration.instruction}
         />
       ) : null}
+
+      {countdown && (
+        <div className="mobile-countdown">{countdown}</div>
+      )}
 
       <HitFlash hit={lastHit} />
 

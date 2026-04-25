@@ -638,6 +638,30 @@
 }
 
 /* ============================================================
+   Round countdown overlay (mobile)
+   ============================================================ */
+
+.mobile-countdown {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  color: #fff3cf;
+  font-size: clamp(72px, 28vw, 160px);
+  font-weight: 900;
+  text-align: center;
+  text-shadow: 0 6px 0 #000, 0 0 40px rgba(255, 151, 38, 0.9);
+  z-index: 8;
+  animation: mobile-countdown-pop 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes mobile-countdown-pop {
+  from { opacity: 0; transform: scale(0.6); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ============================================================
    Landscape warning -- this app is portrait-only
    ============================================================ */
 

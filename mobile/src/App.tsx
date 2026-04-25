@@ -67,6 +67,7 @@ function App() {
         <GameScreen
           status={socket.status}
           phase={socket.phase}
+          roundNumber={socket.roundNumber}
           roomCode={roomCode}
           playerSlot={effectiveSlot}
           rttMs={socket.rttMs}

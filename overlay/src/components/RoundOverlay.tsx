@@ -20,6 +20,8 @@ export function RoundOverlay({ roundState, matchWinner }: RoundOverlayProps) {
   const matchWinnerPlayedRef = useRef<PlayerSlot | null>(null);
   const startTimerRef = useRef<number | null>(null);
   const endTimerRef = useRef<number | null>(null);
+  const [countdown, setCountdown] = useState<string | null>(null);
+  const countdownTimersRef = useRef<number[]>([]);
 
   useEffect(() => {
     if (!roundState) {
@@ -32,16 +34,27 @@ export function RoundOverlay({ roundState, matchWinner }: RoundOverlayProps) {
     ) {
       lastStartRoundRef.current = roundState.number;
       setStartRound(roundState.number);
-      setShowStart(true);
-      sfx.play('round_bell');
 
-      if (startTimerRef.current !== null) {
-        window.clearTimeout(startTimerRef.current);
-      }
-      startTimerRef.current = window.setTimeout(() => {
-        setShowStart(false);
-        startTimerRef.current = null;
-      }, 2000);
+      // Clear any stale countdown timers
+      countdownTimersRef.current.forEach(id => window.clearTimeout(id));
+      countdownTimersRef.current = [];
+      if (startTimerRef.current !== null) window.clearTimeout(startTimerRef.current);
+
+      setCountdown('3');
+      countdownTimersRef.current.push(window.setTimeout(() => setCountdown('2'), 1000));
+      countdownTimersRef.current.push(window.setTimeout(() => setCountdown('1'), 2000));
+      countdownTimersRef.current.push(window.setTimeout(() => {
+        setCountdown('FIGHT!');
+        sfx.play('round_bell');
+      }, 3000));
+      countdownTimersRef.current.push(window.setTimeout(() => {
+        setCountdown(null);
+        setShowStart(true);
+        startTimerRef.current = window.setTimeout(() => {
+          setShowStart(false);
+          startTimerRef.current = null;
+        }, 2000);
+      }, 3800));
     }
   }, [roundState]);
 
@@ -81,12 +94,9 @@ export function RoundOverlay({ roundState, matchWinner }: RoundOverlayProps) {
 
   useEffect(() => {
     return () => {
-      if (startTimerRef.current !== null) {
-        window.clearTimeout(startTimerRef.current);
-      }
-      if (endTimerRef.current !== null) {
-        window.clearTimeout(endTimerRef.current);
-      }
+      if (startTimerRef.current !== null) window.clearTimeout(startTimerRef.current);
+      if (endTimerRef.current !== null) window.clearTimeout(endTimerRef.current);
+      countdownTimersRef.current.forEach(id => window.clearTimeout(id));
     };
   }, []);
 
@@ -94,13 +104,18 @@ export function RoundOverlay({ roundState, matchWinner }: RoundOverlayProps) {
   const hasEnd = showEnd && endRound !== null && endWinner !== null;
   const hasMatch = matchWinner !== null;
 
-  if (!hasStart && !hasEnd && !hasMatch) {
+  if (!countdown && !hasStart && !hasEnd && !hasMatch) {
     return null;
   }
 
   return (
     <>
-      {hasStart && (
+      {countdown && (
+        <div key={countdown} className="round-flash">
+          {countdown}
+        </div>
+      )}
+      {!countdown && hasStart && (
         <div key={`round-start-${startRound}`} className="round-flash">
           ROUND {startRound}
         </div>
