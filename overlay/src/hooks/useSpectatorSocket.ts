@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import type {
   HpPair,
   MsgGameState,
-  PlayerSlot,
+  MsgPlayerDisconnected,
   ServerMessage,
+  PlayerSlot,
 } from '../protocol'
 
 export interface RoundState {
@@ -35,11 +36,6 @@ function toWebSocketBase(url: string) {
 
 function spectatorUrl(serverUrl: string, roomCode: string) {
   return `${toWebSocketBase(serverUrl)}/ws/spectator/${encodeURIComponent(roomCode)}`
-}
-
-interface MsgPlayerDisconnected {
-  type: 'player_disconnected'
-  player: PlayerSlot
 }
 
 type IncomingMessage = ServerMessage | MsgPlayerDisconnected

@@ -107,7 +107,7 @@ export function RoundOverlay({ roundState, matchWinner }: RoundOverlayProps) {
       )}
       {hasEnd && (
         <div key={`round-end-${endRound}-${endWinner}`} className="round-flash">
-          ROUND {endRound} — P{endWinner} WINS
+          ROUND {endRound} - P{endWinner} WINS
         </div>
       )}
       {hasMatch && (

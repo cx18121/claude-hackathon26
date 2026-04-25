@@ -102,6 +102,11 @@ button {
   );
 }
 
+.city-png {
+  inset-block: 0;
+  background-position-y: center;
+}
+
 .ground {
   inset-block-end: 0;
   height: 22%;

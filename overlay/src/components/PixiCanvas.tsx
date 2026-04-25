@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Application, Container, Graphics } from 'pixi.js'
 import { CONNECTIONS } from '../lib/skeleton'
-import { interpolatePoses } from '../lib/interpolate'
+import { interpolatePosesInto } from '../lib/interpolate'
 import { sfx } from '../lib/sfx'
 import { SparkEmitter } from '../lib/sparks'
 import type { HitEvent, MsgGameState, PoseKeypoint } from '../protocol'
@@ -11,6 +11,11 @@ interface PixiCanvasProps {
 }
 
 type Side = 'left' | 'right'
+interface ScreenPoint {
+  x: number
+  y: number
+  visible: boolean
+}
 
 const SILHOUETTE_COLOR = 0x000000
 const BONE_WIDTH = 12
@@ -24,15 +29,15 @@ function projectKeypoint(
   side: Side,
   width: number,
   height: number,
-): { x: number; y: number } {
+  out: ScreenPoint,
+) {
   const halfW = width / 2
   const xOffset = side === 'left' ? halfW * 0.5 : halfW * 1.5
   const flip = side === 'right' ? -1 : 1
   const scale = height * 0.4
-  return {
-    x: xOffset + keypoint.x * scale * flip,
-    y: height * 0.5 + keypoint.y * scale,
-  }
+  out.x = xOffset + keypoint.x * scale * flip
+  out.y = height * 0.5 + keypoint.y * scale
+  out.visible = keypoint.visibility >= VISIBILITY_THRESHOLD
 }
 
 function projectXY(
@@ -57,6 +62,7 @@ function drawSkeleton(
   side: Side,
   width: number,
   height: number,
+  screenPoints: ScreenPoint[],
 ) {
   gfx.clear()
 
@@ -64,17 +70,21 @@ function drawSkeleton(
     return
   }
 
+  for (let index = 0; index < keypoints.length; index += 1) {
+    const point = screenPoints[index] ?? { x: 0, y: 0, visible: false }
+    projectKeypoint(keypoints[index], side, width, height, point)
+    screenPoints[index] = point
+  }
+
   for (const [a, b] of CONNECTIONS) {
-    const ka = keypoints[a]
-    const kb = keypoints[b]
-    if (!ka || !kb) {
+    const pa = screenPoints[a]
+    const pb = screenPoints[b]
+    if (!pa || !pb) {
       continue
     }
-    if (ka.visibility < VISIBILITY_THRESHOLD || kb.visibility < VISIBILITY_THRESHOLD) {
+    if (!pa.visible || !pb.visible) {
       continue
     }
-    const pa = projectKeypoint(ka, side, width, height)
-    const pb = projectKeypoint(kb, side, width, height)
     gfx
       .moveTo(pa.x, pa.y)
       .lineTo(pb.x, pb.y)
@@ -82,13 +92,20 @@ function drawSkeleton(
   }
 
   for (let index = 0; index < keypoints.length; index += 1) {
-    const kp = keypoints[index]
-    if (kp.visibility < VISIBILITY_THRESHOLD) {
+    const p = screenPoints[index]
+    if (!p?.visible) {
       continue
     }
-    const p = projectKeypoint(kp, side, width, height)
     gfx.circle(p.x, p.y, JOINT_RADIUS).fill({ color: SILHOUETTE_COLOR })
   }
+}
+
+function createPoseBuffer() {
+  return Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0, visibility: 0 }))
+}
+
+function createScreenPointBuffer() {
+  return Array.from({ length: 33 }, () => ({ x: 0, y: 0, visible: false }))
 }
 
 export function PixiCanvas({ gameState }: PixiCanvasProps) {
@@ -99,6 +116,14 @@ export function PixiCanvas({ gameState }: PixiCanvasProps) {
 
   const prevPosesRef = useRef<(PoseKeypoint[] | null)[]>([null, null])
   const nextPosesRef = useRef<(PoseKeypoint[] | null)[]>([null, null])
+  const poseBuffersRef = useRef<PoseKeypoint[][]>([
+    createPoseBuffer(),
+    createPoseBuffer(),
+  ])
+  const screenPointBuffersRef = useRef<ScreenPoint[][]>([
+    createScreenPointBuffer(),
+    createScreenPointBuffer(),
+  ])
   const lastTickTimeRef = useRef<number | null>(null)
   const expectedTickIntervalRef = useRef<number>(DEFAULT_TICK_INTERVAL_MS)
   const lastEmittedTickRef = useRef<number>(-1)
@@ -181,9 +206,11 @@ export function PixiCanvas({ gameState }: PixiCanvasProps) {
             gfx.clear()
             continue
           }
-          const pose = prev ? interpolatePoses(prev, next, t) : next
+          const pose = prev
+            ? interpolatePosesInto(prev, next, t, poseBuffersRef.current[slot])
+            : next
           const side: Side = slot === 0 ? 'left' : 'right'
-          drawSkeleton(gfx, pose, side, w, h)
+          drawSkeleton(gfx, pose, side, w, h, screenPointBuffersRef.current[slot])
         }
 
         emitter.update(ticker.deltaTime)
@@ -224,6 +251,11 @@ export function PixiCanvas({ gameState }: PixiCanvasProps) {
       tickerHandlerRef.current = null
       prevPosesRef.current = [null, null]
       nextPosesRef.current = [null, null]
+      poseBuffersRef.current = [createPoseBuffer(), createPoseBuffer()]
+      screenPointBuffersRef.current = [
+        createScreenPointBuffer(),
+        createScreenPointBuffer(),
+      ]
       lastTickTimeRef.current = null
       expectedTickIntervalRef.current = DEFAULT_TICK_INTERVAL_MS
       lastEmittedTickRef.current = -1

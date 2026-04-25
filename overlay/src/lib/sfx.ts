@@ -6,11 +6,11 @@ export type SfxName =
   | 'match_win'
 
 const audioFiles: Record<SfxName, string> = {
-  hit_light: '/sfx/hit_light.ogg',
-  hit_heavy: '/sfx/hit_heavy.ogg',
-  round_bell: '/sfx/round_bell.ogg',
-  round_end: '/sfx/round_end.ogg',
-  match_win: '/sfx/match_win.ogg',
+  hit_light: `${import.meta.env.BASE_URL}sfx/hit_light.ogg`,
+  hit_heavy: `${import.meta.env.BASE_URL}sfx/hit_heavy.ogg`,
+  round_bell: `${import.meta.env.BASE_URL}sfx/round_bell.ogg`,
+  round_end: `${import.meta.env.BASE_URL}sfx/round_end.ogg`,
+  match_win: `${import.meta.env.BASE_URL}sfx/match_win.ogg`,
 }
 
 const fallbackTones: Record<SfxName, { frequency: number; duration: number; gain: number }> = {
@@ -61,10 +61,17 @@ class SfxPlayer {
   }
 
   preload(name: SfxName, path: string) {
-    const sound = new Audio(path)
-    sound.preload = 'auto'
-    sound.load()
-    this.sounds.set(name, sound)
+    try {
+      const sound = new Audio(path)
+      sound.preload = 'auto'
+      sound.addEventListener('error', () => {
+        console.warn(`sfx missing: ${path}`)
+      })
+      sound.load()
+      this.sounds.set(name, sound)
+    } catch (error) {
+      console.warn('sfx preload failed', name, error)
+    }
   }
 
   preloadAll() {
@@ -86,8 +93,12 @@ class SfxPlayer {
       return
     }
 
-    sound.volume = Math.max(0, Math.min(1, volume))
-    sound.play().catch(() => playFallbackTone(name, volume))
+    try {
+      sound.volume = Math.max(0, Math.min(1, volume))
+      sound.play().catch(() => playFallbackTone(name, volume))
+    } catch {
+      playFallbackTone(name, volume)
+    }
   }
 }
 
@@ -95,7 +106,11 @@ export const sfx = new SfxPlayer()
 
 export function unlockSfx() {
   audioUnlocked = true
-  const context = getAudioContext()
-  void context.resume()
+  try {
+    const context = getAudioContext()
+    void context.resume()
+  } catch (error) {
+    console.warn('audio unlock failed', error)
+  }
   document.body.classList.add('audio-ready')
 }

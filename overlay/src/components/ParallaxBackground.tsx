@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 
+const backgroundUrl = `${import.meta.env.BASE_URL}background.png`;
+
 export function ParallaxBackground({ tick }: { tick: number }) {
   const [pngOk, setPngOk] = useState<boolean>(false);
 
@@ -7,7 +9,7 @@ export function ParallaxBackground({ tick }: { tick: number }) {
     const img = new Image();
     img.onload = () => setPngOk(true);
     img.onerror = () => setPngOk(false);
-    img.src = '/background.png';
+    img.src = backgroundUrl;
   }, []);
 
   return (
@@ -24,7 +26,7 @@ export function ParallaxBackground({ tick }: { tick: number }) {
         <div
           className="parallax-layer city-png"
           style={{
-            backgroundImage: 'url(/background.png)',
+            backgroundImage: `url(${backgroundUrl})`,
             backgroundRepeat: 'repeat-x',
             backgroundSize: 'auto 60%',
             backgroundPosition: `${-(tick / 5) % 1536}px center`,

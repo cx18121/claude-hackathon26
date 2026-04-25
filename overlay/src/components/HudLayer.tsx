@@ -75,15 +75,15 @@ export function HudLayer({
         </div>
       </div>
       <div className={`connection-pill${connected ? ' is-connected' : ''}`}>
-        {connected ? `Room ${roomCode}` : `Connecting to ${roomCode}…`}
+        {connected ? `Room ${roomCode}` : `Connecting to ${roomCode}...`}
       </div>
       {disconnectedPlayer !== null ? (
         <div className="latency-banner">
-          Player {disconnectedPlayer} disconnected — waiting for reconnect
+          Player {disconnectedPlayer} disconnected - waiting for reconnect
         </div>
       ) : highLatency ? (
         <div className="latency-banner">
-          High latency detected — match may feel laggy
+          High latency detected - match may feel laggy
         </div>
       ) : null}
     </div>
