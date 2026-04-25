@@ -11,12 +11,14 @@ interface HudLayerProps {
   roomCode: string
 }
 
+const MAX_HP = 200
+
 function clampHp(value: number): number {
-  return Math.max(0, Math.min(100, value))
+  return Math.max(0, Math.min(MAX_HP, value))
 }
 
 function hpBackground(value: number): string {
-  return `hsl(${(clampHp(value) / 100) * 120}, 80%, 48%)`
+  return `hsl(${(clampHp(value) / MAX_HP) * 120}, 80%, 48%)`
 }
 
 function formatTime(seconds: number): string {
@@ -35,8 +37,8 @@ export function HudLayer({
   round,
   roomCode,
 }: HudLayerProps) {
-  const p1Width = `${clampHp(hp[0])}%`
-  const p2Width = `${clampHp(hp[1])}%`
+  const p1Width = `${(clampHp(hp[0]) / MAX_HP) * 100}%`
+  const p2Width = `${(clampHp(hp[1]) / MAX_HP) * 100}%`
   const p1Display = Math.max(0, Math.round(hp[0]))
   const p2Display = Math.max(0, Math.round(hp[1]))
 

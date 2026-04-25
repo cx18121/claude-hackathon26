@@ -25,7 +25,7 @@ class GameLoop:
         self.room = room
         self.tick = 0
         self.running = False
-        self.hp: list[int] = [100, 100]
+        self.hp: list[int] = [200, 200]
 
         # Input buffers: raw frames with arrival timestamps, awaiting delay release
         self._buffers: dict[int, deque[tuple[float, object]]] = {

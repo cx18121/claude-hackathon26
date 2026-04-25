@@ -30,6 +30,14 @@ interface PlayerLayers {
 const SILHOUETTE_COLOR = 0xffffff
 const PLAYER_GLOW_COLORS = [0x33aaff, 0xff3322] as const
 const VISIBILITY_THRESHOLD = 0.3
+
+// Fighter projection: tighter horizontal spacing so extended punches read as
+// landing on the opponent. Centers were 0.25/0.75 (50% gap); 0.36/0.64 narrows
+// the gap to ~28% of width — about one arm-reach apart at typical poses.
+const PLAYER_CENTER_X_LEFT = 0.36
+const PLAYER_CENTER_X_RIGHT = 0.64
+const PLAYER_CENTER_Y = 0.575
+const PLAYER_SCALE_Y = 0.55
 const DEFAULT_TICK_INTERVAL_MS = 16
 const TICK_EWMA_ALPHA = 0.1
 const MAX_EXTRAPOLATION_T = 1.5
@@ -65,10 +73,10 @@ function projectKeypoint(
   height: number,
   out: ScreenPoint,
 ) {
-  const scale = height * 0.55
-  const centerX = side === 'left' ? width * 0.25 : width * 0.75
-  const centerY = height * 0.575
-  const flip = side === 'right' ? -1 : 1
+  const scale = height * PLAYER_SCALE_Y
+  const centerX = width * (side === 'left' ? PLAYER_CENTER_X_LEFT : PLAYER_CENTER_X_RIGHT)
+  const centerY = height * PLAYER_CENTER_Y
+  const flip = side === 'left' ? -1 : 1
   out.x = centerX + keypoint.x * scale * flip
   out.y = centerY + keypoint.y * scale
   out.visible = keypoint.visibility >= VISIBILITY_THRESHOLD
@@ -80,10 +88,10 @@ function projectXY(
   width: number,
   height: number,
 ): { x: number; y: number } {
-  const scale = height * 0.55
-  const centerX = side === 'left' ? width * 0.25 : width * 0.75
-  const centerY = height * 0.575
-  const flip = side === 'right' ? -1 : 1
+  const scale = height * PLAYER_SCALE_Y
+  const centerX = width * (side === 'left' ? PLAYER_CENTER_X_LEFT : PLAYER_CENTER_X_RIGHT)
+  const centerY = height * PLAYER_CENTER_Y
+  const flip = side === 'left' ? -1 : 1
   return {
     x: centerX + point.x * scale * flip,
     y: centerY + point.y * scale,
