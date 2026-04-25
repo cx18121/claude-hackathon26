@@ -166,6 +166,11 @@
   height: 100%;
   object-fit: cover;
   background: #000;
+  /* Mirror the front-camera preview so the player sees themselves the
+     way every selfie app does (their right hand on the right of the
+     screen). The pose keypoints sent to the server are NOT affected --
+     this is purely a CSS transform on the rendered frame. */
+  transform: scaleX(-1);
 }
 
 .camera-error {

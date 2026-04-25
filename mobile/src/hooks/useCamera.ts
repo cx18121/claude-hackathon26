@@ -32,7 +32,12 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>): UseCame
       try {
         const s = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: { ideal: 'environment' },
+            // Front-facing camera so the player sees themselves while
+            // playing -- natural for a solo capture app. Note: MediaPipe
+            // landmark indices (left_wrist = 15, etc.) follow the
+            // SUBJECT's perspective, not the camera's, so the keypoint
+            // stream sent to the server stays correct without any flip.
+            facingMode: { ideal: 'user' },
             width: { ideal: 640 },
             height: { ideal: 480 },
             frameRate: { ideal: 30 },

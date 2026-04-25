@@ -88,15 +88,35 @@ _overlay_dist = Path(__file__).resolve().parent.parent / "overlay" / "dist"
 _mobile_dist = Path(__file__).resolve().parent.parent / "mobile" / "dist"
 if _overlay_dist.exists() or _mobile_dist.exists():
     from fastapi.staticfiles import StaticFiles
+    from starlette.types import Scope
+
+    class NoCacheHtmlStatic(StaticFiles):
+        """StaticFiles wrapper that disables caching on .html responses.
+
+        The Vite-built index.html references hashed asset filenames. If a
+        phone caches index.html across rebuilds, it keeps requesting the
+        old hash and 404s -- the white-screen symptom. Hashed JS/CSS files
+        are still cacheable forever (the hash IS the cache key), so we
+        only no-store the HTML."""
+
+        async def get_response(self, path: str, scope: Scope):
+            response = await super().get_response(path, scope)
+            if path.endswith(".html") or path in ("", "/"):
+                response.headers["Cache-Control"] = "no-store, must-revalidate"
+            return response
+
     if _overlay_dist.exists():
-        app.mount("/overlay", StaticFiles(directory=str(_overlay_dist), html=True), name="overlay")
+        app.mount("/overlay", NoCacheHtmlStatic(directory=str(_overlay_dist), html=True), name="overlay")
     if _mobile_dist.exists():
-        app.mount("/mobile", StaticFiles(directory=str(_mobile_dist), html=True), name="mobile")
+        app.mount("/mobile", NoCacheHtmlStatic(directory=str(_mobile_dist), html=True), name="mobile")
 
 
 @app.get("/", response_class=HTMLResponse)
 def landing():
     code = app.state.default_room
+    # Both player links go to /mobile (the bundled mobile client). Server
+    # picks the first open slot regardless of the slot query param, but we
+    # still pass it so the UI starts with a sensible default.
     return f"""<!DOCTYPE html>
 <html>
 <head><title>Shadow Fight Server</title></head>
@@ -104,7 +124,8 @@ def landing():
 <h1>Shadow Fight Server</h1>
 <p>Status: running</p>
 <p>Room code: <strong>{code}</strong></p>
-<p>Join: <a href="/join?room={code}" style="color:#7af">/join?room={code}</a></p>
+<p>Player 1: <a href="/mobile?room={code}&slot=1" style="color:#7af">/mobile?room={code}&slot=1</a></p>
+<p>Player 2: <a href="/mobile?room={code}&slot=2" style="color:#7af">/mobile?room={code}&slot=2</a></p>
 <p>Overlay: <a href="/overlay?room={code}" style="color:#7af">/overlay?room={code}</a></p>
 </body>
 </html>"""
