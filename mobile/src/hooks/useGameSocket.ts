@@ -40,7 +40,7 @@ export interface UseGameSocketResult {
   matchEnd: MatchEnd | null;
   errorMessage: string | null;
   send: (msg: OutboundMobileMsg) => void;
-  connect: () => void;
+  connect: (serverUrl: string, roomCode: string, playerSlot: 1 | 2) => void;
   disconnect: () => void;
   // Mobile drives its own phase transitions because the current server build
   // does not emit calibration_start / match_start. These setters let the
@@ -69,11 +69,13 @@ function normalizeWsUrl(input: string): string {
   return 'ws://' + trimmed.replace(/\/$/, '');
 }
 
-export function useGameSocket(
-  serverUrl: string,
-  roomCode: string,
-  playerSlot: 1 | 2,
-): UseGameSocketResult {
+interface ConnectionArgs {
+  serverUrl: string;
+  roomCode: string;
+  playerSlot: 1 | 2;
+}
+
+export function useGameSocket(): UseGameSocketResult {
   const [status, setStatus] = useState<SocketStatus>('disconnected');
   const [opponentConnected, setOpponentConnected] = useState(false);
   const [assignedSlot, setAssignedSlot] = useState<1 | 2 | null>(null);
@@ -93,6 +95,11 @@ export function useGameSocket(
   const reconnectAttemptsRef = useRef(0);
   const intentionalCloseRef = useRef(false);
   const rttSamplesRef = useRef<number[]>([]);
+  const connectionArgsRef = useRef<ConnectionArgs | null>(null);
+  // Ref to the latest open() implementation so the close handler's
+  // reconnect path always invokes the current closure rather than a
+  // stale one captured at WS creation time.
+  const openRef = useRef<() => void>(() => {});
 
   const send = useCallback((msg: OutboundMobileMsg) => {
     const ws = wsRef.current;
@@ -124,9 +131,6 @@ export function useGameSocket(
       case 'joined':
         setStatus('connected');
         setOpponentConnected(msg.opponent_connected);
-        // The server assigns the slot itself (first open). Store the
-        // authoritative value so the UI doesn't show "P2" while the server
-        // attributes our hits and HP to slot 1.
         setAssignedSlot(msg.player_slot);
         // Server doesn't send calibration_start in current sprint, so begin
         // calibration as soon as we're joined. Calibration UX itself waits
@@ -196,14 +200,15 @@ export function useGameSocket(
   }, [send]);
 
   const open = useCallback(() => {
-    if (!serverUrl || !roomCode) return;
+    const args = connectionArgsRef.current;
+    if (!args || !args.serverUrl || !args.roomCode) return;
 
     intentionalCloseRef.current = false;
     setErrorMessage(null);
     setStatus('connecting');
 
-    const base = normalizeWsUrl(serverUrl);
-    const url = `${base}/ws/player/${encodeURIComponent(roomCode)}`;
+    const base = normalizeWsUrl(args.serverUrl);
+    const url = `${base}/ws/player/${encodeURIComponent(args.roomCode)}`;
 
     let ws: WebSocket;
     try {
@@ -217,8 +222,14 @@ export function useGameSocket(
 
     ws.addEventListener('open', () => {
       reconnectAttemptsRef.current = 0;
-      // Send join for protocol completeness; current server ignores its body.
-      send({ type: 'join', room_code: roomCode, player_slot: playerSlot });
+      // Send join for protocol completeness; current server ignores its body
+      // and assigns the slot itself based on first open. The 'joined'
+      // response carries the authoritative slot.
+      send({
+        type: 'join',
+        room_code: args.roomCode,
+        player_slot: args.playerSlot,
+      });
 
       pingTimerRef.current = window.setInterval(() => {
         send({ type: 'ping', t: performance.now() });
@@ -249,21 +260,36 @@ export function useGameSocket(
         setErrorMessage('Room not found.');
         return;
       }
-      // Auto-reconnect on unexpected close
+      // Auto-reconnect on unexpected close. Use the ref so we always invoke
+      // the latest open() closure rather than a stale capture.
       if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
         reconnectAttemptsRef.current += 1;
         setStatus('connecting');
         reconnectTimerRef.current = window.setTimeout(() => {
-          open();
+          openRef.current();
         }, RECONNECT_DELAY_MS);
       } else {
         setStatus('error');
         setErrorMessage('Could not reconnect.');
       }
     });
-  }, [serverUrl, roomCode, playerSlot, send, handleMessage]);
+  }, [send, handleMessage]);
 
-  const close = useCallback(() => {
+  // Keep the openRef in sync with the latest open closure.
+  useEffect(() => {
+    openRef.current = open;
+  }, [open]);
+
+  const connect = useCallback(
+    (serverUrl: string, roomCode: string, playerSlot: 1 | 2) => {
+      connectionArgsRef.current = { serverUrl, roomCode, playerSlot };
+      reconnectAttemptsRef.current = 0;
+      open();
+    },
+    [open],
+  );
+
+  const disconnect = useCallback(() => {
     intentionalCloseRef.current = true;
     clearTimers();
     if (hitClearTimerRef.current !== null) {
@@ -285,6 +311,7 @@ export function useGameSocket(
     setMatchEnd(null);
     setLastRoundEnd(null);
     rttSamplesRef.current = [];
+    connectionArgsRef.current = null;
   }, []);
 
   // Cleanup on unmount
@@ -313,8 +340,8 @@ export function useGameSocket(
     matchEnd,
     errorMessage,
     send,
-    connect: open,
-    disconnect: close,
+    connect,
+    disconnect,
     setPhase,
   };
 }

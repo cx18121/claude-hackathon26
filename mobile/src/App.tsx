@@ -30,20 +30,9 @@ function App() {
   const [serverUrl, setServerUrl] = useState(readInitialServerUrl);
   const [roomCode, setRoomCode] = useState(readInitialRoomCode);
   const [playerSlot, setPlayerSlot] = useState<1 | 2>(readInitialSlot);
-  const [shouldConnect, setShouldConnect] = useState(false);
 
-  const socket = useGameSocket(serverUrl, roomCode, playerSlot);
+  const socket = useGameSocket();
   const persistedRef = useRef(false);
-
-  // Effect: open the WebSocket once the user has supplied a server+room.
-  // The hook's connect() reads from its closure of serverUrl/roomCode, so we
-  // must wait for those to settle into state before calling it.
-  useEffect(() => {
-    if (shouldConnect && serverUrl && roomCode) {
-      socket.connect();
-      setShouldConnect(false);
-    }
-  }, [shouldConnect, serverUrl, roomCode, socket]);
 
   // Persist server URL on a successful connection.
   useEffect(() => {
@@ -60,7 +49,7 @@ function App() {
     setServerUrl(server);
     setRoomCode(room);
     setPlayerSlot(slot);
-    setShouldConnect(true);
+    socket.connect(server, room, slot);
   };
 
   const showGame =

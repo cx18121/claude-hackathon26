@@ -1,3 +1,13 @@
+/* eslint-disable react-hooks/set-state-in-effect --
+ * This hook intentionally drives surface state (stage / progress / counts)
+ * from a per-frame keypoints stream and from `active` transitions. Both
+ * legitimately require setState inside useEffect: the keypoints stream is
+ * the external system this hook synchronizes against, and the active
+ * transition is the lifecycle reset point. Refactoring into a reducer or
+ * useSyncExternalStore would not change the cascading-render count and
+ * would obscure the simple linear stage machine.
+ */
+
 import { useEffect, useRef, useState } from 'react';
 import type { PoseKeypoint } from '../protocol';
 import {
@@ -84,11 +94,12 @@ export function useCalibration({
   const neutralStillCountRef = useRef(0);
   const completedRef = useRef(false);
 
-  // Reset when calibration becomes active.
+  // Lifecycle: enter / exit calibration. Refs and surface state are reset
+  // together when `active` flips. See the file header for the eslint note.
   useEffect(() => {
-    if (active && stageRef.current === 'idle') {
+    if (active) {
+      // Reset all buffers; a fresh calibration always starts from T-pose.
       stageRef.current = 'tpose';
-      setStage('tpose');
       frameWindowRef.current = [];
       prevFrameRef.current = null;
       tposeStableCountRef.current = 0;
@@ -97,11 +108,12 @@ export function useCalibration({
       rightTrackerRef.current = { armed: false, peakVelocity: 0 };
       neutralStillCountRef.current = 0;
       completedRef.current = false;
+      setStage('tpose');
       setPunchesRecorded(0);
       setTposeProgress(0);
       setNeutralProgress(0);
       setReferenceVelocity(null);
-    } else if (!active) {
+    } else {
       stageRef.current = 'idle';
       setStage('idle');
     }

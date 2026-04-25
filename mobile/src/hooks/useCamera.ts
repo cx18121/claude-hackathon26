@@ -18,6 +18,9 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>): UseCame
   useEffect(() => {
     cancelledRef.current = false;
 
+    // Snapshot the ref so the cleanup function uses the same node we attached
+    // to, even if the parent re-renders and swaps the video element.
+    const videoEl = videoRef.current;
     let activeStream: MediaStream | null = null;
 
     async function start() {
@@ -83,9 +86,8 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>): UseCame
       if (activeStream) {
         activeStream.getTracks().forEach((t) => t.stop());
       }
-      const video = videoRef.current;
-      if (video) {
-        video.srcObject = null;
+      if (videoEl) {
+        videoEl.srcObject = null;
       }
       setReady(false);
       setStream(null);
