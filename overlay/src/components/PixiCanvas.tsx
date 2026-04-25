@@ -31,13 +31,28 @@ const SILHOUETTE_COLOR = 0xffffff
 const PLAYER_GLOW_COLORS = [0x33aaff, 0xff3322] as const
 const VISIBILITY_THRESHOLD = 0.3
 
-// Fighter projection: tighter horizontal spacing so extended punches read as
-// landing on the opponent. Centers were 0.25/0.75 (50% gap); 0.36/0.64 narrows
-// the gap to ~28% of width — about one arm-reach apart at typical poses.
-const PLAYER_CENTER_X_LEFT = 0.36
-const PLAYER_CENTER_X_RIGHT = 0.64
-const PLAYER_CENTER_Y = 0.575
+// Fighter projection. Pose keypoints are MediaPipe BlazePose worldLandmarks
+// (hip-centered, metres) — same coords the server uses in hit_detection.py.
+// 1 world-metre therefore renders as `PLAYER_SCALE_Y * height` pixels.
 const PLAYER_SCALE_Y = 0.55
+const PLAYER_CENTER_Y = 0.575
+
+// Half-gap between fighter spines, measured in world metres so fighters stay
+// the same physical distance apart regardless of viewport aspect ratio.
+//
+// Picked from human anatomy and typical boxing motion (averages):
+//   - Shoulder half-width:  ~0.18 m  → silhouettes at ±0.40 m leave ~0.44 m
+//                                       of empty air between idle stances.
+//   - Moderate punch reach: wrist lateral .x ≈ ±0.40 m at extension, so the
+//                                       two wrists meet at the screen midline
+//                                       when both fighters punch.
+//   - Hook reach:          wrist lateral .x ≈ ±0.55 m, which overlaps the
+//                                       opponent's torso by ~0.15 m — reads
+//                                       visually as a landed strike.
+// Previously hard-coded as fractions of width (0.25/0.75, then 0.36/0.64),
+// which made the gap aspect-dependent and 0.91 m on a 16:9 1080p canvas —
+// too far for moderate punches to connect.
+const PLAYER_HALF_GAP_METERS = 0.40
 const DEFAULT_TICK_INTERVAL_MS = 16
 const TICK_EWMA_ALPHA = 0.1
 const MAX_EXTRAPOLATION_T = 1.5
@@ -66,6 +81,11 @@ const TRAIL_RIGHT_WRIST = 5
 
 const ARM_TRAIL_INDICES = [LEFT_SHOULDER, RIGHT_SHOULDER, LEFT_ELBOW, RIGHT_ELBOW, LEFT_WRIST, RIGHT_WRIST]
 
+function fighterCenterX(side: Side, width: number, height: number): number {
+  const halfGapPx = PLAYER_HALF_GAP_METERS * height * PLAYER_SCALE_Y
+  return width / 2 + (side === 'left' ? -halfGapPx : halfGapPx)
+}
+
 function projectKeypoint(
   keypoint: PoseKeypoint,
   side: Side,
@@ -74,7 +94,7 @@ function projectKeypoint(
   out: ScreenPoint,
 ) {
   const scale = height * PLAYER_SCALE_Y
-  const centerX = width * (side === 'left' ? PLAYER_CENTER_X_LEFT : PLAYER_CENTER_X_RIGHT)
+  const centerX = fighterCenterX(side, width, height)
   const centerY = height * PLAYER_CENTER_Y
   const flip = side === 'left' ? -1 : 1
   out.x = centerX + keypoint.x * scale * flip
@@ -89,7 +109,7 @@ function projectXY(
   height: number,
 ): { x: number; y: number } {
   const scale = height * PLAYER_SCALE_Y
-  const centerX = width * (side === 'left' ? PLAYER_CENTER_X_LEFT : PLAYER_CENTER_X_RIGHT)
+  const centerX = fighterCenterX(side, width, height)
   const centerY = height * PLAYER_CENTER_Y
   const flip = side === 'left' ? -1 : 1
   return {
