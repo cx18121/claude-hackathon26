@@ -2,6 +2,9 @@
 // Server's protocol.py mirrors this file as Pydantic models.
 // Mobile and overlay each import their own copy to avoid cross-package paths.
 
+export type PlayerSlot = 1 | 2;
+export type HpPair = [number, number];
+
 export interface PoseKeypoint {
   x: number;
   y: number;
@@ -132,3 +135,9 @@ export type InboundServerMsg =
   | MsgRoundEnd
   | MsgMatchEnd
   | MsgGameState;
+
+export type ServerMessage =
+  | MsgGameState
+  | MsgRoundStart
+  | MsgRoundEnd
+  | MsgMatchEnd;

@@ -109,7 +109,7 @@ export function useSpectatorSocket(
           setRoundState({
             number: roundNumberRef.current,
             phase: 'ended',
-            winner: parsed.winner,
+            winner: parsed.winner ?? undefined,
             finalHp: parsed.final_hp,
           })
           return
