@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useCamera } from '../hooks/useCamera';
 import { usePose } from '../hooks/usePose';
 import { useCalibration } from '../hooks/useCalibration';
@@ -42,6 +42,8 @@ export function GameScreen({
   setPhase,
   onDisconnect,
 }: GameScreenProps) {
+  const [isReady, setIsReady] = useState(false);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const { error: cameraError, ready: cameraReady } = useCamera(videoRef);
   const { keypoints, imageKeypoints, fps, modelStatus, modelError } = usePose(videoRef, cameraReady);
@@ -131,7 +133,17 @@ export function GameScreen({
         </div>
       ) : null}
 
-      {phase === 'calibration' && modelStatus === 'ready' ? (
+      {phase === 'calibration' && !isReady ? (
+        <div className="ready-overlay">
+          <p className="ready-title">Shadow Fight</p>
+          <p className="ready-hint">Stand in front of your camera and get ready to move.</p>
+          <button className="ready-button" onClick={() => setIsReady(true)}>
+            READY
+          </button>
+        </div>
+      ) : null}
+
+      {phase === 'calibration' && isReady && modelStatus === 'ready' ? (
         <CalibrationOverlay
           stage={calibration.stage}
           punchesRecorded={calibration.punchesRecorded}

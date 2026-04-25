@@ -315,6 +315,63 @@
 }
 
 /* ============================================================
+   Ready overlay
+   ============================================================ */
+
+.ready-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  background: rgba(0, 0, 0, 0.82);
+  color: #fff;
+  z-index: 6;
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.ready-title {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -1px;
+  margin: 0;
+  color: #fff;
+}
+
+.ready-hint {
+  margin: 0;
+  color: #aaa;
+  font-size: 1rem;
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+.ready-button {
+  background: #ffe34f;
+  color: #0a0a0c;
+  font: inherit;
+  font-weight: 800;
+  font-size: 1.4rem;
+  letter-spacing: 0.08em;
+  border: 0;
+  border-radius: 14px;
+  min-width: 200px;
+  min-height: 64px;
+  padding: 16px 40px;
+  cursor: pointer;
+  transition: filter 0.1s, transform 0.1s;
+  margin-top: 12px;
+}
+
+.ready-button:active {
+  filter: brightness(0.88);
+  transform: scale(0.97);
+}
+
+/* ============================================================
    Calibration overlay
    ============================================================ */
 
