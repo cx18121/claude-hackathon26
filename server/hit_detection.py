@@ -45,23 +45,24 @@ class Capsule(NamedTuple):
     axis: tuple[float, float, float]    # unit vector along the long axis
 
 
-# All positions are in defender-local space (MediaPipe world coordinates, origin = hip midpoint).
-# Y up, Z forward. Values are approximate and meant to be tuned during integration.
+# Hitboxes are checked in attacker-local XY space (Z ignored — see _check_limb).
+# Y up, X lateral. Radii sized for real punch geometry where the wrist lands
+# 10-20 cm off the body centreline.
 HITBOXES: dict[str, list[Capsule]] = {
     Region.HEAD_FACE: [
-        Capsule(center=(0.0,  0.65, 0.0), radius=0.12, half_length=0.05, axis=(0, 1, 0)),
+        Capsule(center=(0.0,  0.65, 0.0), radius=0.22, half_length=0.09, axis=(0, 1, 0)),
     ],
     Region.HEAD_CHIN: [
-        Capsule(center=(0.0,  0.55, 0.05), radius=0.08, half_length=0.04, axis=(0, 1, 0)),
+        Capsule(center=(0.0,  0.55, 0.0), radius=0.16, half_length=0.05, axis=(0, 1, 0)),
     ],
     Region.HEAD_THROAT: [
-        Capsule(center=(0.0,  0.50, 0.05), radius=0.07, half_length=0.06, axis=(0, 1, 0)),
+        Capsule(center=(0.0,  0.50, 0.0), radius=0.13, half_length=0.07, axis=(0, 1, 0)),
     ],
     Region.TORSO_UPPER: [
-        Capsule(center=(0.0,  0.30, 0.0), radius=0.18, half_length=0.12, axis=(1, 0, 0)),
+        Capsule(center=(0.0,  0.30, 0.0), radius=0.26, half_length=0.16, axis=(1, 0, 0)),
     ],
     Region.TORSO_LOWER: [
-        Capsule(center=(0.0,  0.10, 0.0), radius=0.16, half_length=0.10, axis=(1, 0, 0)),
+        Capsule(center=(0.0,  0.10, 0.0), radius=0.24, half_length=0.14, axis=(1, 0, 0)),
     ],
     Region.BLOCK_HAND: [
         Capsule(center=(-0.35, 0.25, 0.0), radius=0.06, half_length=0.06, axis=(1, 0, 0)),
@@ -72,12 +73,12 @@ HITBOXES: dict[str, list[Capsule]] = {
         Capsule(center=( 0.28, 0.20, 0.0), radius=0.05, half_length=0.12, axis=(0, 1, 0)),
     ],
     Region.LEG_THIGH: [
-        Capsule(center=(-0.12, -0.20, 0.0), radius=0.08, half_length=0.15, axis=(0, 1, 0)),
-        Capsule(center=( 0.12, -0.20, 0.0), radius=0.08, half_length=0.15, axis=(0, 1, 0)),
+        Capsule(center=(-0.12, -0.20, 0.0), radius=0.10, half_length=0.18, axis=(0, 1, 0)),
+        Capsule(center=( 0.12, -0.20, 0.0), radius=0.10, half_length=0.18, axis=(0, 1, 0)),
     ],
     Region.LEG_SHIN: [
-        Capsule(center=(-0.12, -0.48, 0.0), radius=0.06, half_length=0.15, axis=(0, 1, 0)),
-        Capsule(center=( 0.12, -0.48, 0.0), radius=0.06, half_length=0.15, axis=(0, 1, 0)),
+        Capsule(center=(-0.12, -0.48, 0.0), radius=0.08, half_length=0.18, axis=(0, 1, 0)),
+        Capsule(center=( 0.12, -0.48, 0.0), radius=0.08, half_length=0.18, axis=(0, 1, 0)),
     ],
 }
 
@@ -122,17 +123,19 @@ def _check_limb(
     if speed < threshold:
         return None
 
-    origin = _hip_midpoint(defender_poses[-1])
-
-    # Sweep newest→oldest so a fast strike that passes through a hitbox and
-    # exits before the final frame is still caught. We prefer the most recent
-    # in-zone position (the exit point closest to follow-through).
+    # Each player's MediaPipe world landmarks are body-centred (hip midpoint ≈
+    # origin), so we use the ATTACKER's own hip as the reference. Crucially we
+    # zero out the z component before the capsule check: a real forward punch
+    # extends the wrist 15-25 cm in front of the body (negative z), but the
+    # capsule centres are at z=0. Without this projection the z-offset alone
+    # exceeds the head capsule radius and every punch misses.
     for frame in reversed(list(attacker_poses)):
         kp = frame.keypoints[landmark_idx]
-        local = np.array([kp.x - origin[0], kp.y - origin[1], kp.z - origin[2]])
+        origin = _hip_midpoint(frame)
+        local_xy = np.array([kp.x - origin[0], kp.y - origin[1], 0.0])
         for region, capsules in HITBOXES.items():
             for cap in capsules:
-                if _capsule_dist(local, cap) < cap.radius:
+                if _capsule_dist(local_xy, cap) < cap.radius:
                     return HitResult(region=region, velocity=speed, position=(kp.x, kp.y, kp.z))
     return None
 

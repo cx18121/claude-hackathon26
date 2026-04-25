@@ -206,7 +206,8 @@ async def ws_player(websocket: WebSocket, room_code: str):
                 log.warning("Player %d bad message: %s", slot_num, exc)
                 continue
 
-            log.info("Player %d [%s]: %s", slot_num, room_code, msg.type)
+            if msg.type != "pose_frame":
+                log.info("Player %d [%s]: %s", slot_num, room_code, msg.type)
 
             if msg.type == "pose_frame":
                 slot.latest_pose = msg

@@ -117,7 +117,7 @@ class TestHitboxSweep:
         """Wrist enters and exits head_face zone in one frame window."""
         attacker = deque([
             frame(0.0, {WRIST_LEFT: kp(x=-2.0, y=0.65)}),  # approaching
-            frame(0.0, {WRIST_LEFT: kp(x= 0.0, y=0.65)}),  # inside head_face (radius 0.12)
+            frame(0.0, {WRIST_LEFT: kp(x= 0.0, y=0.65)}),  # inside head_face
             frame(0.0, {WRIST_LEFT: kp(x= 2.0, y=0.65)}),  # exited -- final frame is a miss
         ])
         result = detect_punch(attacker, static_deque())
@@ -143,6 +143,33 @@ class TestHitboxSweep:
             frame(0.0, {WRIST_LEFT: kp(x=-1.0, y=5.0)}),
         ])
         assert detect_punch(attacker, static_deque()) is None
+
+    def test_forward_extended_punch_registers(self):
+        """Wrist at z=-0.22 (extended forward as in a real punch) must hit.
+
+        The old code included z in the capsule distance; a 22 cm forward
+        extension alone exceeded the old head radius (0.12 m) so every real
+        punch missed. The fix zeroes z before the capsule check.
+        """
+        attacker = deque([
+            frame(0.0, {WRIST_LEFT: kp(x=-0.60, y=0.65, z= 0.05)}),
+            frame(0.0, {WRIST_LEFT: kp(x=-0.30, y=0.65, z=-0.10)}),
+            frame(0.0, {WRIST_LEFT: kp(x= 0.00, y=0.65, z=-0.22)}),  # at impact
+        ])
+        result = detect_punch(attacker, static_deque())
+        assert result is not None, "forward-extended punch must register after z-projection fix"
+        assert result.region == Region.HEAD_FACE
+
+    def test_off_centre_jab_at_head_height_registers(self):
+        """Left jab lands 18 cm off centre -- within the wider head radius (0.22 m)."""
+        attacker = deque([
+            frame(0.0, {WRIST_LEFT: kp(x=-0.40, y=0.65)}),
+            frame(0.0, {WRIST_LEFT: kp(x=-0.05, y=0.65)}),
+            frame(0.0, {WRIST_LEFT: kp(x= 0.18, y=0.65)}),  # 18 cm off centre
+        ])
+        result = detect_punch(attacker, static_deque())
+        assert result is not None, "off-centre jab at head height must register"
+        assert result.region == Region.HEAD_FACE
 
 
 # ---------------------------------------------------------------------------

@@ -17,6 +17,7 @@ log = logging.getLogger(__name__)
 _EMPTY_POSES: list[PoseKeypoint] = []
 _HIT_COOLDOWN_TICKS = 12  # ~200ms at 60Hz -- suppresses double-counting while allowing fast combos
 _ROUND_DURATION = 90.0
+_MAX_INPUT_DELAY_MS = 60  # cap so the low-latency player is never held back more than 60ms
 
 
 class GameLoop:
@@ -94,7 +95,7 @@ class GameLoop:
         # also arrived.
         rtt_a = median_rtt(room.players[1])
         rtt_b = median_rtt(room.players[2])
-        max_rtt_s = max(rtt_a, rtt_b) / 1000.0
+        max_rtt_s = min(max(rtt_a, rtt_b), _MAX_INPUT_DELAY_MS) / 1000.0
         cutoff = now - max_rtt_s
 
         for slot in (1, 2):
