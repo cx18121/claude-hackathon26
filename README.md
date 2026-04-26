@@ -1,6 +1,10 @@
-# Shadow Fight Real-Time
+# spectre
 
-A 1v1 fighting game where two players throw real punches and kicks at their phone cameras and watch their silhouettes fight in a shared browser overlay. Built for the Cornell Claude Builders Club Hackathon, spring 2026, by Charlie Xue, Akhil Chilaka, Yosef Mimarbasi, and Adi Prathapa. We built this because nearly 80% of people in the U.S. don’t get enough exercise, while over half the world loves playing video games. So we gamified exercise with spectre.
+A 1v1 fighting game where two players throw real punches and kicks at their phone cameras and watch their silhouettes fight in a shared browser overlay. 
+
+Built for the Cornell Claude Builders Club Hackathon, spring 2026, by Charlie Xue, Akhil Chilaka, Yosef Mimarbasi, and Adi Prathapa. 
+
+We built this because nearly 80% of people in the U.S. don’t get enough exercise, while over half the world loves playing video games. So we gamified exercise with spectre.
 
 Each phone runs MediaPipe pose estimation in the browser and streams keypoints to a Python game server. The server runs hit detection, damage, and round logic. A separate browser overlay renders the match in a Shadow Fight 2 style, with a live AI commentator powered by the Claude API and ElevenLabs.
 
