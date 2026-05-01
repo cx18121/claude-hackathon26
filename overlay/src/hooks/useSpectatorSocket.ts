@@ -7,7 +7,7 @@ import type {
   PoseKeypoint,
   ServerMessage,
   PlayerSlot,
-} from '../protocol'
+} from '@shared/protocol'
 
 export interface RoundState {
   number: number
@@ -37,20 +37,24 @@ export interface PoseStream {
 
 export interface LobbyState { p1: boolean; p2: boolean }
 
+export interface MatchStats {
+  damage: [number, number]
+  hits: [number, number]
+  rounds: number
+  winner: PlayerSlot
+}
+
 interface SpectatorSocketState {
   gameState: MsgGameState | null
   roundState: RoundState | null
   matchWinner: PlayerSlot | null
+  matchStats: MatchStats | null
   wins: [number, number]
   maxWins: number
   lobbyState: LobbyState
   connected: boolean
   disconnectedPlayer: PlayerSlot | null
-  // Stable across renders. PixiCanvas reads this every frame instead of
-  // re-rendering React on each pose update.
   poseStreamRef: React.MutableRefObject<PoseStream>
-  // Live socket — exposed so other hooks (commentary subtitle, audio) can
-  // attach passive `message` listeners without owning their own connection.
   socket: WebSocket | null
 }
 
@@ -107,6 +111,7 @@ export function useSpectatorSocket(
     phase: 'waiting',
   })
   const [matchWinner, setMatchWinner] = useState<PlayerSlot | null>(null)
+  const [matchStats, setMatchStats] = useState<MatchStats | null>(null)
   const [wins, setWins] = useState<[number, number]>([0, 0])
   const [maxWins, setMaxWins] = useState<number>(2)
   const [lobbyState, setLobbyState] = useState<LobbyState>({ p1: false, p2: false })
@@ -117,6 +122,12 @@ export function useSpectatorSocket(
   const roundNumberRef = useRef(1)
   const poseStreamRef = useRef<PoseStream>(makePoseStream())
   const [socket, setSocket] = useState<WebSocket | null>(null)
+
+  // Running accumulators — refs to avoid re-renders on every game_state tick.
+  const damageAccRef = useRef<[number, number]>([0, 0])
+  const hitsAccRef = useRef<[number, number]>([0, 0])
+  const roundsPlayedRef = useRef<number>(0)
+  const lastStatTickRef = useRef<number>(-1)
 
   useEffect(() => {
     let closed = false
@@ -176,6 +187,15 @@ export function useSpectatorSocket(
           setGameState(parsed)
           setMaxWins(parsed.max_wins ?? 2)
           setDisconnectedPlayer(null)
+          // Accumulate damage/hits from this tick (deduplicated by tick number)
+          if (parsed.recent_hits.length > 0 && parsed.tick > lastStatTickRef.current) {
+            lastStatTickRef.current = parsed.tick
+            for (const hit of parsed.recent_hits) {
+              const idx = hit.player - 1
+              damageAccRef.current[idx] += hit.damage
+              hitsAccRef.current[idx]++
+            }
+          }
           return
         }
 
@@ -195,6 +215,7 @@ export function useSpectatorSocket(
               return next
             })
           }
+          roundsPlayedRef.current++
           setRoundState({
             number: roundNumberRef.current,
             phase: 'ended',
@@ -206,6 +227,26 @@ export function useSpectatorSocket(
 
         if (parsed.type === 'match_end') {
           setMatchWinner(parsed.winner)
+          setMatchStats({
+            damage: [damageAccRef.current[0], damageAccRef.current[1]],
+            hits: [hitsAccRef.current[0], hitsAccRef.current[1]],
+            rounds: roundsPlayedRef.current,
+            winner: parsed.winner,
+          })
+          return
+        }
+
+        if (parsed.type === 'rematch_start') {
+          setMatchWinner(null)
+          setMatchStats(null)
+          setGameState(null)
+          setWins([0, 0])
+          setRoundState({ number: 1, phase: 'waiting' })
+          poseStreamRef.current = makePoseStream()
+          damageAccRef.current = [0, 0]
+          hitsAccRef.current = [0, 0]
+          roundsPlayedRef.current = 0
+          lastStatTickRef.current = -1
           return
         }
 
@@ -247,6 +288,7 @@ export function useSpectatorSocket(
     disconnectedPlayer,
     gameState,
     matchWinner,
+    matchStats,
     wins,
     maxWins,
     lobbyState,

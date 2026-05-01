@@ -9,7 +9,7 @@ import { WaitingOverlay } from './components/WaitingOverlay'
 import { useCommentary } from './hooks/useCommentary'
 import { useSpectatorSocket } from './hooks/useSpectatorSocket'
 import { unlockSfx } from './lib/sfx'
-import type { HpPair } from './protocol'
+import type { HpPair } from '@shared/protocol'
 import type { AudioSettings } from './components/SettingsPanel'
 
 const params = new URLSearchParams(window.location.search)
@@ -22,6 +22,7 @@ function App() {
     disconnectedPlayer,
     gameState,
     matchWinner,
+    matchStats,
     wins,
     maxWins,
     lobbyState,
@@ -83,7 +84,13 @@ function App() {
         roomCode={roomCode}
       />
       <CommentarySubtitle commentary={commentary} />
-      <RoundOverlay matchWinner={matchWinner} roundState={roundState} />
+      <RoundOverlay
+        matchWinner={matchWinner}
+        matchStats={matchStats}
+        roundState={roundState}
+        serverUrl={serverUrl}
+        roomCode={roomCode}
+      />
 
       <SettingsPanel settings={audioSettings} onChange={setAudioSettings} />
 

@@ -172,6 +172,95 @@
 }
 
 /* ============================================================
+   Mode toggle (Multiplayer / Solo)
+   ============================================================ */
+
+.mode-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.mode-btn {
+  flex: 1;
+  min-height: 48px;
+  border: 1px solid var(--text-dim);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+}
+
+.mode-btn.active {
+  border-color: var(--accent-bright);
+  background: oklch(from var(--accent) l c h / 0.12);
+  color: var(--text-primary);
+}
+
+/* ============================================================
+   Difficulty picker
+   ============================================================ */
+
+.difficulty-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.difficulty-picker legend {
+  font-size: 0.85rem;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0 0 6px 0;
+}
+
+.diff-option {
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  border: 1px solid var(--text-dim);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0 16px;
+  gap: 12px;
+  position: relative;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.diff-option input[type='radio'] {
+  position: absolute;
+  opacity: 0;
+}
+
+.diff-option.selected {
+  border-color: var(--accent-bright);
+  background: oklch(from var(--accent) l c h / 0.12);
+}
+
+.diff-label {
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex: 0 0 auto;
+}
+
+.diff-hint {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+/* ============================================================
    Game screen
    ============================================================ */
 

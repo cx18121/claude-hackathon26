@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ConnectionScreen } from './components/ConnectionScreen';
 import { GameScreen } from './components/GameScreen';
-import { useGameSocket } from './hooks/useGameSocket';
+import { useGameSocket, normalizeHttpUrl } from './hooks/useGameSocket';
 import './app.css';
 
 const SERVER_URL_STORAGE_KEY = 'shadowfight.serverUrl';
@@ -30,6 +30,8 @@ function App() {
   const [serverUrl, setServerUrl] = useState(readInitialServerUrl);
   const [roomCode, setRoomCode] = useState(readInitialRoomCode);
   const [playerSlot, setPlayerSlot] = useState<1 | 2>(readInitialSlot);
+  const [isSolo, setIsSolo] = useState(false);
+  const [soloLoading, setSoloLoading] = useState(false);
 
   const socket = useGameSocket();
   const persistedRef = useRef(false);
@@ -49,16 +51,40 @@ function App() {
     setServerUrl(server);
     setRoomCode(room);
     setPlayerSlot(slot);
+    setIsSolo(false);
     socket.connect(server, room, slot);
   };
+
+  const handleSoloStart = useCallback(async (server: string, difficulty: string) => {
+    setServerUrl(server);
+    setSoloLoading(true);
+    try {
+      const base = normalizeHttpUrl(server);
+      const res = await fetch(`${base}/rooms?mode=solo&difficulty=${encodeURIComponent(difficulty)}`, {
+        method: 'POST',
+      });
+      if (!res.ok) throw new Error('Failed to create room');
+      const { code } = await res.json() as { code: string };
+      window.localStorage.setItem(SERVER_URL_STORAGE_KEY, server);
+      setRoomCode(code);
+      setPlayerSlot(1);
+      setIsSolo(true);
+      socket.connect(server, code, 1);
+    } catch {
+      // Error will surface via socket.errorMessage or user retries
+    } finally {
+      setSoloLoading(false);
+    }
+  }, [socket]);
+
+  const handleDisconnect = useCallback(() => {
+    socket.disconnect();
+    setIsSolo(false);
+  }, [socket]);
 
   const showGame =
     socket.status === 'connected' || socket.status === 'connecting';
 
-  // The server picks the slot itself (first open) and ignores the value the
-  // client sent in 'join'. Once we've heard back from the server, prefer its
-  // assignment over the locally selected slot so UI labels and win/lose
-  // messaging line up with what the server is actually scoring.
   const effectiveSlot: 1 | 2 = socket.assignedSlot ?? playerSlot;
 
   return (
@@ -75,8 +101,9 @@ function App() {
           opponentConnected={socket.opponentConnected}
           lastHit={socket.lastHit}
           matchEnd={socket.matchEnd}
+          isSolo={isSolo}
           send={socket.send}
-          onDisconnect={socket.disconnect}
+          onDisconnect={handleDisconnect}
           onPlayAgain={socket.playAgain}
         />
       ) : (
@@ -86,7 +113,9 @@ function App() {
           initialSlot={playerSlot}
           status={socket.status}
           errorMessage={socket.errorMessage}
+          soloLoading={soloLoading}
           onConnect={handleConnect}
+          onSoloStart={handleSoloStart}
         />
       )}
     </div>

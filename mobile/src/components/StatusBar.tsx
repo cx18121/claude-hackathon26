@@ -8,6 +8,7 @@ interface StatusBarProps {
   highLatency: boolean;
   playerSlot: 1 | 2;
   opponentConnected: boolean;
+  isSolo?: boolean;
 }
 
 const dotColor: Record<SocketStatus, string> = {
@@ -25,7 +26,14 @@ export function StatusBar({
   highLatency,
   playerSlot,
   opponentConnected,
+  isSolo = false,
 }: StatusBarProps) {
+  const opponentLabel = isSolo
+    ? 'BOT'
+    : opponentConnected
+    ? 'P' + (playerSlot === 1 ? 2 : 1)
+    : 'waiting...';
+
   return (
     <>
       <div className="status-bar">
@@ -37,9 +45,7 @@ export function StatusBar({
           />
           <span className={`status-slot slot-${playerSlot}`}>P{playerSlot}</span>
           <span className="status-vs">vs</span>
-          <span className="status-opponent">
-            {opponentConnected ? 'P' + (playerSlot === 1 ? 2 : 1) : 'waiting...'}
-          </span>
+          <span className="status-opponent">{opponentLabel}</span>
         </div>
         <div className="status-center">{roomCode}</div>
         <div className="status-right">

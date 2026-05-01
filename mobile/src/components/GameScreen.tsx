@@ -9,7 +9,7 @@ import { PoseOverlay } from './PoseOverlay';
 import { MatchEndScreen } from './MatchEndScreen';
 import { StatusBar } from './StatusBar';
 import type { GamePhase, MatchEnd, SocketStatus } from '../hooks/useGameSocket';
-import type { OutboundMobileMsg, PoseKeypoint } from '../protocol';
+import type { OutboundMobileMsg, PoseKeypoint } from '@shared/protocol';
 
 interface GameScreenProps {
   status: SocketStatus;
@@ -22,6 +22,7 @@ interface GameScreenProps {
   opponentConnected: boolean;
   lastHit: { region: string; damage: number } | null;
   matchEnd: MatchEnd | null;
+  isSolo?: boolean;
   send: (msg: OutboundMobileMsg) => void;
   onDisconnect: () => void;
   onPlayAgain: () => void;
@@ -43,6 +44,7 @@ export function GameScreen({
   opponentConnected,
   lastHit,
   matchEnd,
+  isSolo = false,
   send,
   onDisconnect,
   onPlayAgain,
@@ -144,10 +146,11 @@ export function GameScreen({
     };
   }, [phase, roundNumber]);
 
-  // Reset the READY gate whenever calibration (re)starts so the player
-  // must press READY again each round — including after a rematch.
+  // Reset the READY gate and countdown ref whenever calibration (re)starts so the
+  // player must press READY again — including after a rematch.
   useEffect(() => {
     if (phase !== 'lobby' && phase !== 'calibration') return;
+    lastCountdownRoundRef.current = null;
     const timer = window.setTimeout(() => setIsReady(false), 0);
     return () => window.clearTimeout(timer);
   }, [phase]);
@@ -165,9 +168,10 @@ export function GameScreen({
         highLatency={highLatency}
         playerSlot={playerSlot}
         opponentConnected={opponentConnected}
+        isSolo={isSolo}
       />
 
-      {phase === 'lobby' && status === 'connected' && !opponentConnected ? (
+      {phase === 'lobby' && status === 'connected' && !opponentConnected && !isSolo ? (
         <div className="loading-overlay">Waiting for opponent...</div>
       ) : null}
 

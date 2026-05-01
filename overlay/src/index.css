@@ -323,11 +323,12 @@ button { font: inherit; }
   z-index: 4;
   display: grid;
   place-content: center;
-  gap: 16px;
+  gap: 20px;
   padding: 24px;
   pointer-events: none;
   background: oklch(5% 0.005 22 / 0.78);
   text-align: center;
+  justify-items: center;
 }
 
 .ko-text {
@@ -352,12 +353,101 @@ button { font: inherit; }
   animation: fade-in-up 0.4s 0.35s ease both;
 }
 
-.match-end-subtitle {
-  color: var(--text-secondary);
-  font-size: clamp(14px, 2vw, 20px);
-  font-weight: 600;
-  letter-spacing: 0.06em;
+/* ============================================================
+   Match stats grid
+   ============================================================ */
+
+.match-stats {
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr;
+  grid-template-rows: auto auto;
+  width: min(440px, 86vw);
+  border: 1px solid oklch(from var(--gold) l c h / 0.18);
+  background: oklch(5% 0.005 22 / 0.72);
   animation: fade-in-up 0.4s 0.55s ease both;
+}
+
+.match-stats-col {
+  padding: 16px 20px;
+  display: flex;
+  gap: 20px;
+}
+
+.match-stats-col-p1 { justify-content: flex-start; }
+.match-stats-col-p2 { justify-content: flex-end; }
+
+.match-stats-sep {
+  background: oklch(from var(--gold) l c h / 0.14);
+  grid-row: 1;
+}
+
+.match-stats-footer {
+  grid-column: 1 / -1;
+  border-top: 1px solid oklch(from var(--gold) l c h / 0.12);
+  padding: 7px 20px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.match-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.match-stat-value {
+  font-size: clamp(20px, 3vw, 32px);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.match-stat-value.p1 { color: var(--accent-bright); }
+.match-stat-value.p2 { color: oklch(62% 0.2 250); }
+
+.match-stat-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* ============================================================
+   Rematch button
+   ============================================================ */
+
+.rematch-btn {
+  padding: 13px 36px;
+  border: 1px solid var(--accent);
+  background: oklch(from var(--accent) l c h / 0.14);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  pointer-events: auto;
+  transition: background 120ms, border-color 120ms;
+  animation: fade-in-up 0.4s 0.75s ease both;
+}
+
+.rematch-btn:hover:not(:disabled) {
+  background: oklch(from var(--accent) l c h / 0.28);
+  border-color: var(--accent-bright);
+}
+
+.rematch-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.rematch-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 /* ============================================================
