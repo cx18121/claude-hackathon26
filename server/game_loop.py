@@ -352,7 +352,7 @@ class GameLoop:
             if round_winner is not None:
                 room.wins[round_winner - 1] += 1
             if max(room.wins) >= room.max_wins:
-                match_winner = 1 if room.wins[0] >= 1 else 2
+                match_winner = 1 if room.wins[0] >= room.max_wins else 2
                 room.match_over = True
                 self.commentator.event(
                     "match_end",

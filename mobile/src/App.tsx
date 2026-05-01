@@ -32,6 +32,7 @@ function App() {
   const [playerSlot, setPlayerSlot] = useState<1 | 2>(readInitialSlot);
   const [isSolo, setIsSolo] = useState(false);
   const [soloLoading, setSoloLoading] = useState(false);
+  const [soloError, setSoloError] = useState<string | null>(null);
 
   const socket = useGameSocket();
   const persistedRef = useRef(false);
@@ -48,6 +49,7 @@ function App() {
   }, [socket.status, serverUrl]);
 
   const handleConnect = (server: string, room: string, slot: 1 | 2) => {
+    setSoloError(null);
     setServerUrl(server);
     setRoomCode(room);
     setPlayerSlot(slot);
@@ -58,20 +60,21 @@ function App() {
   const handleSoloStart = useCallback(async (server: string, difficulty: string) => {
     setServerUrl(server);
     setSoloLoading(true);
+    setSoloError(null);
     try {
       const base = normalizeHttpUrl(server);
       const res = await fetch(`${base}/rooms?mode=solo&difficulty=${encodeURIComponent(difficulty)}`, {
         method: 'POST',
       });
-      if (!res.ok) throw new Error('Failed to create room');
+      if (!res.ok) throw new Error(`Failed to create solo room (${res.status})`);
       const { code } = await res.json() as { code: string };
       window.localStorage.setItem(SERVER_URL_STORAGE_KEY, server);
       setRoomCode(code);
       setPlayerSlot(1);
       setIsSolo(true);
       socket.connect(server, code, 1);
-    } catch {
-      // Error will surface via socket.errorMessage or user retries
+    } catch (err) {
+      setSoloError(err instanceof Error ? err.message : 'Could not start solo mode.');
     } finally {
       setSoloLoading(false);
     }
@@ -80,6 +83,7 @@ function App() {
   const handleDisconnect = useCallback(() => {
     socket.disconnect();
     setIsSolo(false);
+    setSoloError(null);
   }, [socket]);
 
   const showGame =
@@ -112,7 +116,7 @@ function App() {
           initialRoomCode={roomCode}
           initialSlot={playerSlot}
           status={socket.status}
-          errorMessage={socket.errorMessage}
+          errorMessage={socket.errorMessage ?? soloError}
           soloLoading={soloLoading}
           onConnect={handleConnect}
           onSoloStart={handleSoloStart}

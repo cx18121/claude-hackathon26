@@ -55,15 +55,13 @@ class RoomState:
     # ------------------------------------------------------------------
 
     def reset_for_rematch(self) -> None:
-        """Reset all match state for a rematch.
-
-        Intentionally does NOT clear ``reference_velocity`` — calibration
-        carries over so players don't have to recalibrate between rematches.
-        """
+        """Reset all match state for a rematch."""
         self.match_over = False
         self.round_number = 1
         self.wins = [0, 0]
         self.round_start_time = None
+        for slot in self.players.values():
+            slot.reference_velocity = None
         for timer in self.disconnect_timers.values():
             timer.cancel()
         self.disconnect_timers.clear()

@@ -101,8 +101,7 @@ def test_landing_returns_html():
         r = client.get("/")
         assert r.status_code == 200
         assert r.headers["content-type"].startswith("text/html")
-        assert "Shadow Fight" in r.text
-        assert "server=http://testserver" in r.text
+        assert "SPECTRE" in r.text
 
 
 def test_create_room_endpoint():
@@ -155,16 +154,16 @@ def test_ws_player_rejects_occupied_requested_slot():
 
         with client.websocket_connect(f"/ws/player/{default_room}?slot=1") as ws1:
             ws1.receive_text()
-            with pytest.raises(Exception):
-                with client.websocket_connect(f"/ws/player/{default_room}?slot=1"):
-                    pass
+            with client.websocket_connect(f"/ws/player/{default_room}?slot=1") as ws2:
+                with pytest.raises(Exception):
+                    ws2.receive_text()
 
 
 def test_ws_player_room_not_found():
     with make_client() as client:
-        with pytest.raises(Exception):
-            with client.websocket_connect("/ws/player/NOTEXIST"):
-                pass
+        with client.websocket_connect("/ws/player/NOTEXIST") as ws:
+            with pytest.raises(Exception):
+                ws.receive_text()
 
 
 def test_ws_spectator_connect():

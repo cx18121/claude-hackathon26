@@ -93,6 +93,27 @@ def test_disconnect_timer_dict_starts_empty():
     assert room.disconnect_timers == {}
 
 
+def test_rematch_reset_requires_fresh_calibration():
+    rm = RoomManager()
+    code = rm.create_room()
+    room = rm.get_room(code)
+    room.players[1].reference_velocity = 3.0
+    room.players[2].reference_velocity = 3.5
+    room.match_over = True
+    room.round_number = 3
+    room.wins = [1, 2]
+    room.round_start_time = time.time()
+
+    room.reset_for_rematch()
+
+    assert room.match_over is False
+    assert room.round_number == 1
+    assert room.wins == [0, 0]
+    assert room.round_start_time is None
+    assert room.players[1].reference_velocity is None
+    assert room.players[2].reference_velocity is None
+
+
 def test_record_pong_stores_rtt():
     slot = PlayerSlot()
     t0 = time.time() - 0.05

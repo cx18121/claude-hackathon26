@@ -85,6 +85,7 @@ async def test_round_ends_when_hp_zero():
 @pytest.mark.asyncio
 async def test_match_ends_after_single_round_win():
     room = make_room()
+    room.max_wins = 1
     gl = GameLoop(room)
     gl.hp[1] = 0
     await gl._tick()
@@ -107,6 +108,28 @@ async def test_existing_win_also_ends_after_next_round_win():
 
 
 @pytest.mark.asyncio
+async def test_player_two_can_win_best_of_three_match():
+    room = make_room()
+    room.max_wins = 2
+    room.wins = [1, 1]
+    gl = GameLoop(room)
+    gl.hp[0] = 0
+
+    received = []
+
+    class FakeWS:
+        async def send_text(self, text):
+            received.append(json.loads(text))
+
+    room.spectators.add(FakeWS())
+    await gl._tick()
+
+    match_end = next(m for m in received if m["type"] == "match_end")
+    assert room.wins == [1, 2]
+    assert match_end["winner"] == 2
+
+
+@pytest.mark.asyncio
 async def test_draw_round_no_wins_credited():
     room = make_room()
     gl = GameLoop(room)
@@ -120,6 +143,7 @@ async def test_draw_round_no_wins_credited():
 @pytest.mark.asyncio
 async def test_timeout_winner_determined_by_hp():
     room = make_room()
+    room.max_wins = 1
     gl = GameLoop(room)
     room.round_start_time = time.time() - 91
     gl.hp = [60, 40]  # player 1 has more HP
@@ -171,8 +195,6 @@ def test_round1_start_broadcast_on_match_start():
 
     with TestClient(app) as client:
         room_code = client.app.state.default_room
-        r = room_manager.get_room(room_code)
-
         with client.websocket_connect(f"/ws/spectator/{room_code}") as spec:
             with client.websocket_connect(f"/ws/player/{room_code}") as ws1:
                 ws1.receive_text()  # joined
@@ -185,8 +207,14 @@ def test_round1_start_broadcast_on_match_start():
                     ws1.receive_text()  # pong
                     ws2.send_text(json.dumps({"type": "calibration_done", "reference_velocity": 3.0}))
                     ws2.receive_text()  # match_start
-                    # Spectator should receive round_start for round 1
-                    round_start = json.loads(spec.receive_text())
+                    # Spectator receives lobby_update snapshots before round_start.
+                    round_start = None
+                    for _ in range(5):
+                        candidate = json.loads(spec.receive_text())
+                        if candidate["type"] == "round_start":
+                            round_start = candidate
+                            break
+                    assert round_start is not None
                     assert round_start["type"] == "round_start"
                     assert round_start["round_number"] == 1
 
