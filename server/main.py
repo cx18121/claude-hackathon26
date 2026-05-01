@@ -387,7 +387,8 @@ async def rematch(room_code: str):
 async def ws_player(websocket: WebSocket, room_code: str):
     room = room_manager.get_room(room_code)
     if room is None:
-        await websocket.close(code=4004)
+        await websocket.accept()
+        await websocket.close(code=4004, reason="Room not found")
         return
 
     requested_slot: int | None = None
@@ -408,7 +409,8 @@ async def ws_player(websocket: WebSocket, room_code: str):
                 break
 
     if slot_num is None:
-        await websocket.close(code=4000, reason="slot unavailable")
+        await websocket.accept()
+        await websocket.close(code=4000, reason="Room is full")
         return
 
     await websocket.accept()
@@ -597,7 +599,8 @@ async def ws_player(websocket: WebSocket, room_code: str):
 async def ws_spectator(websocket: WebSocket, room_code: str):
     room = room_manager.get_room(room_code)
     if room is None:
-        await websocket.close(code=4004)
+        await websocket.accept()
+        await websocket.close(code=4004, reason="Room not found")
         return
 
     await websocket.accept()
