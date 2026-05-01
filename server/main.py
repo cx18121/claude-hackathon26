@@ -8,7 +8,8 @@ from pathlib import Path
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+import json as _json
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
 from game_loop import GameLoop
@@ -17,7 +18,7 @@ from protocol import (
     MsgPing, MsgPong, MsgPlayerDisconnected, MsgPoseUpdate,
     parse_mobile_msg,
 )
-from qr import print_startup_info
+from qr import make_qr_b64, print_startup_info
 from rooms import RoomManager, record_pong
 from tunnel import TunnelManager
 
@@ -113,21 +114,75 @@ if _overlay_dist.exists() or _mobile_dist.exists():
 
 
 @app.get("/", response_class=HTMLResponse)
-def landing(request: Request):
-    code = app.state.default_room
-    server_url = str(request.base_url).rstrip("/")
-    # Both player links go to /mobile (the bundled mobile client). Server
-    # receives the requested slot on the WebSocket query string.
-    return f"""<!DOCTYPE html>
-<html>
-<head><title>Shadow Fight Server</title></head>
-<body style="font-family:monospace;background:#111;color:#eee;padding:2rem">
-<h1>Shadow Fight Server</h1>
-<p>Status: running</p>
-<p>Room code: <strong>{code}</strong></p>
-<p>Player 1: <a href="/mobile?server={server_url}&room={code}&slot=1" style="color:#7af">/mobile?server={server_url}&room={code}&slot=1</a></p>
-<p>Player 2: <a href="/mobile?server={server_url}&room={code}&slot=2" style="color:#7af">/mobile?server={server_url}&room={code}&slot=2</a></p>
-<p>Overlay: <a href="/overlay?server={server_url}&room={code}" style="color:#7af">/overlay?server={server_url}&room={code}</a></p>
+def landing():
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spectre</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: monospace; background: #0a0a0a; color: #eee; min-height: 100vh;
+           display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2rem; }
+    h1 { font-size: 3.5rem; letter-spacing: 0.4em; }
+    .sub { color: #555; letter-spacing: 0.15em; font-size: 0.9rem; }
+    .btn-create { background: #0e2a3a; border: 1px solid #2a6a8a; border-radius: 6px;
+                  padding: 0.9rem 2.5rem; color: #5af; cursor: pointer; font-family: monospace;
+                  font-size: 1rem; letter-spacing: 0.1em; }
+    .btn-create:hover { background: #183a4a; }
+    .btn-create:disabled { opacity: 0.5; cursor: default; }
+    .join { display: flex; gap: 0.5rem; }
+    input { background: #141414; border: 1px solid #2a2a2a; border-radius: 4px;
+            padding: 0.65rem 0.75rem; color: #eee; font-family: monospace; font-size: 1rem;
+            letter-spacing: 0.25em; text-transform: uppercase; width: 130px; text-align: center; outline: none; }
+    input:focus { border-color: #2a6a8a; }
+    .btn-join { background: #1a1a1a; border: 1px solid #333; border-radius: 4px;
+                padding: 0.65rem 1rem; color: #aaa; cursor: pointer; font-family: monospace; }
+    .btn-join:hover { background: #252525; }
+    .err { color: #a44; font-size: 0.8rem; height: 1em; }
+  </style>
+</head>
+<body>
+  <h1>SPECTRE</h1>
+  <p class="sub">real punches. real fights.</p>
+  <button class="btn-create" id="create">Create New Game</button>
+  <div class="join">
+    <input id="code" maxlength="6" placeholder="ROOM CODE">
+    <button class="btn-join" id="join">Join</button>
+  </div>
+  <div class="err" id="err"></div>
+  <script>
+    document.getElementById('create').addEventListener('click', async () => {
+      const btn = document.getElementById('create');
+      btn.textContent = 'Creating...';
+      btn.disabled = true;
+      try {
+        const res = await fetch('/rooms', { method: 'POST' });
+        const { code } = await res.json();
+        window.location.href = '/rooms/' + code;
+      } catch {
+        btn.textContent = 'Create New Game';
+        btn.disabled = false;
+      }
+    });
+    function goJoin() {
+      const code = document.getElementById('code').value.trim().toUpperCase();
+      if (code.length === 6) {
+        window.location.href = '/rooms/' + code;
+      } else {
+        document.getElementById('err').textContent = 'Enter a 6-character room code.';
+      }
+    }
+    document.getElementById('join').addEventListener('click', goJoin);
+    document.getElementById('code').addEventListener('keydown', e => {
+      if (e.key === 'Enter') goJoin();
+      document.getElementById('err').textContent = '';
+    });
+    document.getElementById('code').addEventListener('input', e => {
+      e.target.value = e.target.value.toUpperCase();
+    });
+  </script>
 </body>
 </html>"""
 
@@ -138,9 +193,108 @@ def create_room():
     return {"code": code}
 
 
+@app.get("/rooms/{room_code}", response_class=HTMLResponse)
+def room_page(room_code: str, request: Request):
+    room = room_manager.get_room(room_code)
+    if room is None:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    server_url = str(request.base_url).rstrip("/")
+    p1_url = f"{server_url}/mobile?server={server_url}&room={room_code}&slot=1"
+    p2_url = f"{server_url}/mobile?server={server_url}&room={room_code}&slot=2"
+    ov_url = f"{server_url}/overlay?server={server_url}&room={room_code}"
+
+    p1_qr = make_qr_b64(p1_url)
+    p2_qr = make_qr_b64(p2_url)
+    ov_qr = make_qr_b64(ov_url)
+
+    urls_js = f"""
+    const P1 = {_json.dumps(p1_url)};
+    const P2 = {_json.dumps(p2_url)};
+    const OV = {_json.dumps(ov_url)};
+    """
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spectre — {room_code}</title>
+  <style>
+    *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{ font-family: monospace; background: #0a0a0a; color: #eee; min-height: 100vh;
+            display: flex; flex-direction: column; align-items: center; padding: 2rem; gap: 1.5rem; }}
+    h1 {{ font-size: 2rem; letter-spacing: 0.3em; }}
+    .code {{ font-size: 2.5rem; font-weight: bold; letter-spacing: 0.4em; color: #5af; }}
+    .cards {{ display: flex; gap: 1.5rem; flex-wrap: wrap; justify-content: center; }}
+    .card {{ background: #141414; border: 1px solid #2a2a2a; border-radius: 10px;
+             padding: 1.5rem; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; width: 220px; }}
+    .card h2 {{ font-size: 0.75rem; letter-spacing: 0.15em; text-transform: uppercase; color: #777; }}
+    .card img {{ width: 160px; height: 160px; border-radius: 6px; }}
+    .url {{ width: 100%; background: #0e0e0e; border: 1px solid #1e1e1e; border-radius: 4px;
+            padding: 0.4rem 0.6rem; font-size: 0.6rem; word-break: break-all; color: #5af; line-height: 1.4; }}
+    .btn {{ width: 100%; border-radius: 4px; padding: 0.5rem; cursor: pointer;
+            font-family: monospace; font-size: 0.8rem; border: 1px solid #2a2a2a; background: #1a1a1a; color: #bbb; }}
+    .btn:hover {{ background: #242424; }}
+    .btn-open {{ background: #0e2a3a; border-color: #1e5a7a; color: #5af; }}
+    .btn-open:hover {{ background: #183a4a; }}
+    .notice {{ font-size: 0.7rem; color: #3a3; height: 1em; }}
+    a.back {{ font-size: 0.8rem; color: #444; text-decoration: none; align-self: flex-start; }}
+    a.back:hover {{ color: #777; }}
+  </style>
+</head>
+<body>
+  <a class="back" href="/">← New game</a>
+  <h1>SPECTRE</h1>
+  <div class="code">{room_code}</div>
+  <div class="cards">
+    <div class="card">
+      <h2>Player 1</h2>
+      <img src="data:image/png;base64,{p1_qr}" alt="QR Player 1">
+      <div class="url" id="u1"></div>
+      <div class="notice" id="n1"></div>
+      <button class="btn" id="cp1">Copy link</button>
+      <a id="a1" target="_blank" style="width:100%"><button class="btn btn-open" style="width:100%">Open</button></a>
+    </div>
+    <div class="card">
+      <h2>Player 2</h2>
+      <img src="data:image/png;base64,{p2_qr}" alt="QR Player 2">
+      <div class="url" id="u2"></div>
+      <div class="notice" id="n2"></div>
+      <button class="btn" id="cp2">Copy link</button>
+      <a id="a2" target="_blank" style="width:100%"><button class="btn btn-open" style="width:100%">Open</button></a>
+    </div>
+    <div class="card">
+      <h2>Overlay</h2>
+      <img src="data:image/png;base64,{ov_qr}" alt="QR Overlay">
+      <div class="url" id="u3"></div>
+      <div class="notice" id="n3"></div>
+      <button class="btn" id="cp3">Copy link</button>
+      <a id="a3" target="_blank" style="width:100%"><button class="btn btn-open" style="width:100%">Open</button></a>
+    </div>
+  </div>
+  <script>
+    {urls_js}
+    function setup(url, uid, aid, cpid, nid) {{
+      document.getElementById(uid).textContent = url;
+      document.getElementById(aid).href = url;
+      document.getElementById(cpid).addEventListener('click', () => {{
+        navigator.clipboard.writeText(url);
+        const n = document.getElementById(nid);
+        n.textContent = 'Copied!';
+        setTimeout(() => {{ n.textContent = ''; }}, 2000);
+      }});
+    }}
+    setup(P1, 'u1', 'a1', 'cp1', 'n1');
+    setup(P2, 'u2', 'a2', 'cp2', 'n2');
+    setup(OV, 'u3', 'a3', 'cp3', 'n3');
+  </script>
+</body>
+</html>"""
+
+
 @app.post("/rooms/{room_code}/rematch")
 async def rematch(room_code: str):
-    from fastapi import HTTPException
     room = room_manager.get_room(room_code)
     if room is None:
         raise HTTPException(status_code=404, detail="Room not found")

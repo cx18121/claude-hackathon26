@@ -1,6 +1,14 @@
 from __future__ import annotations
+import base64
+import io
 import time
 import qrcode
+
+
+def make_qr_b64(url: str) -> str:
+    buf = io.BytesIO()
+    qrcode.make(url).save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode()
 
 
 def print_startup_info(public_url: str, room_code: str) -> None:
