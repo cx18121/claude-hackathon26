@@ -32,8 +32,8 @@ export function ConnectionScreen({
 
   return (
     <form className="connection-screen" onSubmit={submit}>
-      <h1 className="title">Shadow Fight</h1>
-      <p className="subtitle">Connect to a match</p>
+      <h1 className="title">Spectre</h1>
+      <p className="subtitle">Join a match</p>
 
       <label className="field">
         <span>Server URL</span>

@@ -183,7 +183,7 @@ export function GameScreen({
 
       {phase === 'calibration' && !isReady ? (
         <div className="ready-overlay">
-          <p className="ready-title">Shadow Fight</p>
+          <p className="ready-title">Spectre</p>
           <p className="ready-hint">
             {playerSlot === 1
               ? 'Face RIGHT and stand in front of your camera.'

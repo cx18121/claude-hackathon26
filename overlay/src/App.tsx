@@ -19,6 +19,7 @@ function App() {
     disconnectedPlayer,
     gameState,
     matchWinner,
+    wins,
     roundState,
     poseStreamRef,
     socket,
@@ -61,6 +62,7 @@ function App() {
         disconnectedPlayer={disconnectedPlayer}
         highLatency={gameState?.high_latency ?? false}
         hp={hp}
+        wins={wins}
         remainingTime={remainingTime}
         round={roundNumber}
         roomCode={roomCode}

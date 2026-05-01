@@ -9,7 +9,7 @@ export function MatchEndScreen({ winner, playerSlot, onPlayAgain }: MatchEndScre
   return (
     <div className="match-end">
       <div className={`match-end-title ${youWon ? 'win' : 'lose'}`}>
-        {youWon ? 'You win!' : 'You lose!'}
+        {youWon ? 'Victory' : 'Defeat'}
       </div>
       <button className="big-button" onClick={onPlayAgain}>
         Play again
