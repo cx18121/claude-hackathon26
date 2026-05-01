@@ -20,6 +20,7 @@ function App() {
     gameState,
     matchWinner,
     wins,
+    maxWins,
     roundState,
     poseStreamRef,
     socket,
@@ -63,6 +64,7 @@ function App() {
         highLatency={gameState?.high_latency ?? false}
         hp={hp}
         wins={wins}
+        maxWins={maxWins}
         remainingTime={remainingTime}
         round={roundNumber}
         roomCode={roomCode}

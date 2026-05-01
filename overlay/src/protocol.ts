@@ -26,6 +26,7 @@ export interface MsgGameState {
   recent_hits: HitEvent[];
   high_latency: boolean;
   remaining_time: number;
+  max_wins: number;
 }
 
 export interface MsgPoseUpdate {

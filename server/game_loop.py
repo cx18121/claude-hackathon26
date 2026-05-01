@@ -140,6 +140,7 @@ class GameLoop:
                 recent_hits=[],
                 high_latency=max(rtt_a, rtt_b) > 150,
                 remaining_time=_ROUND_DURATION,
+                max_wins=room.max_wins,
             )
             state_json = state.model_dump_json()
             dead: set = set()
@@ -251,7 +252,7 @@ class GameLoop:
             )
             if round_winner is not None:
                 room.wins[round_winner - 1] += 1
-            if max(room.wins) >= 2:
+            if max(room.wins) >= room.max_wins:
                 match_winner = 1 if room.wins[0] >= 1 else 2
                 room.match_over = True
                 self.commentator.event(
@@ -304,6 +305,7 @@ class GameLoop:
             recent_hits=recent_hits,
             high_latency=max(rtt_a, rtt_b) > 150,
             remaining_time=remaining_time,
+            max_wins=room.max_wins,
         )
 
         state_json = state.model_dump_json()

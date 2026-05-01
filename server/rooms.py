@@ -48,18 +48,19 @@ class RoomState:
     round_start_time: float | None = None
     match_over: bool = False
     disconnect_timers: dict = field(default_factory=dict)  # slot_num -> asyncio.Task
+    max_wins: int = 2  # 1=BO1, 2=BO3, 3=BO5
 
 
 class RoomManager:
     def __init__(self) -> None:
         self._rooms: dict[str, RoomState] = {}
 
-    def create_room(self) -> str:
+    def create_room(self, max_wins: int = 2) -> str:
         while True:
             code = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
             if code not in self._rooms:
                 break
-        self._rooms[code] = RoomState(code=code)
+        self._rooms[code] = RoomState(code=code, max_wins=max_wins)
         return code
 
     def get_room(self, code: str) -> RoomState | None:

@@ -121,6 +121,7 @@ export interface MsgGameState {
   recent_hits: HitEvent[];
   high_latency: boolean;
   remaining_time: number;
+  max_wins: number;
 }
 
 // Pushed to spectators the moment a pose_frame arrives from a mobile client,

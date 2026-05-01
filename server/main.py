@@ -148,6 +148,12 @@ def landing():
                   font-size: 1rem; letter-spacing: 0.1em; }
     .btn-create:hover { background: #183a4a; }
     .btn-create:disabled { opacity: 0.5; cursor: default; }
+    .format-group { display: flex; gap: 0.5rem; }
+    .fmt { background: #141414; border: 1px solid #2a2a2a; border-radius: 4px;
+           padding: 0.5rem 1rem; color: #777; cursor: pointer; font-family: monospace;
+           font-size: 0.85rem; letter-spacing: 0.08em; }
+    .fmt:hover { border-color: #444; color: #aaa; }
+    .fmt.active { border-color: #2a6a8a; color: #5af; background: #0e2a3a; }
     .join { display: flex; gap: 0.5rem; }
     input { background: #141414; border: 1px solid #2a2a2a; border-radius: 4px;
             padding: 0.65rem 0.75rem; color: #eee; font-family: monospace; font-size: 1rem;
@@ -162,6 +168,11 @@ def landing():
 <body>
   <h1>SPECTRE</h1>
   <p class="sub">real punches. real fights.</p>
+  <div class="format-group">
+    <button class="fmt" data-fmt="bo1">BO1</button>
+    <button class="fmt active" data-fmt="bo3">BO3</button>
+    <button class="fmt" data-fmt="bo5">BO5</button>
+  </div>
   <button class="btn-create" id="create">Create New Game</button>
   <div class="join">
     <input id="code" maxlength="6" placeholder="ROOM CODE">
@@ -169,12 +180,20 @@ def landing():
   </div>
   <div class="err" id="err"></div>
   <script>
+    let selectedFmt = 'bo3';
+    document.querySelectorAll('.fmt').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.fmt').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedFmt = btn.dataset.fmt;
+      });
+    });
     document.getElementById('create').addEventListener('click', async () => {
       const btn = document.getElementById('create');
       btn.textContent = 'Creating...';
       btn.disabled = true;
       try {
-        const res = await fetch('/rooms', { method: 'POST' });
+        const res = await fetch('/rooms?format=' + selectedFmt, { method: 'POST' });
         const { code } = await res.json();
         window.location.href = '/rooms/' + code;
       } catch {
@@ -203,9 +222,12 @@ def landing():
 </html>"""
 
 
+_FORMAT_TO_WINS = {"bo1": 1, "bo3": 2, "bo5": 3}
+
 @app.post("/rooms")
-def create_room():
-    code = room_manager.create_room()
+def create_room(format: str = "bo3"):
+    max_wins = _FORMAT_TO_WINS.get(format, 2)
+    code = room_manager.create_room(max_wins=max_wins)
     return {"code": code}
 
 
@@ -226,6 +248,8 @@ def room_page(room_code: str, request: Request):
     ov_qr = make_qr_b64(ov_url)
 
     safe_code = _html.escape(room_code)
+    best_of = room.max_wins * 2 - 1
+    format_label = _html.escape(f"BEST OF {best_of}")
     urls_js = f"""
     const P1 = {json.dumps(p1_url)};
     const P2 = {json.dumps(p2_url)};
@@ -260,12 +284,14 @@ def room_page(room_code: str, request: Request):
     .notice {{ font-size: 0.7rem; color: #3a3; height: 1em; }}
     a.back {{ font-size: 0.8rem; color: #444; text-decoration: none; align-self: flex-start; }}
     a.back:hover {{ color: #777; }}
+    .format {{ font-size: 0.7rem; letter-spacing: 0.18em; color: #555; text-transform: uppercase; margin-top: -0.5rem; }}
   </style>
 </head>
 <body>
   <a class="back" href="/">← New game</a>
   <h1>SPECTRE</h1>
   <div class="code">{safe_code}</div>
+  <div class="format">{format_label}</div>
   <div class="cards">
     <div class="card">
       <h2>Player 1</h2>

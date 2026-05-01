@@ -89,6 +89,7 @@ class MsgGameState(BaseModel):
     recent_hits: list[HitEvent]
     high_latency: bool
     remaining_time: float
+    max_wins: int = 2
 
 
 class MsgPoseUpdate(BaseModel):

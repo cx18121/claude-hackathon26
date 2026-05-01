@@ -7,13 +7,13 @@ interface HudLayerProps {
   highLatency: boolean
   hp: HpPair
   wins: [number, number]
+  maxWins: number
   remainingTime: number
   round: number
   roomCode: string
 }
 
 const MAX_HP = 800
-const MAX_WINS = 2
 
 function clampHp(value: number): number {
   return Math.max(0, Math.min(MAX_HP, value))
@@ -26,10 +26,10 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-function WinDots({ wins, player }: { wins: number; player: 1 | 2 }) {
+function WinDots({ wins, maxWins, player }: { wins: number; maxWins: number; player: 1 | 2 }) {
   return (
     <div className="win-dots">
-      {Array.from({ length: MAX_WINS }).map((_, i) => (
+      {Array.from({ length: maxWins }).map((_, i) => (
         <div key={i} className={`win-dot${i < wins ? ` filled-p${player}` : ''}`} />
       ))}
     </div>
@@ -42,6 +42,7 @@ export function HudLayer({
   highLatency,
   hp,
   wins,
+  maxWins,
   remainingTime,
   round,
   roomCode,
@@ -59,7 +60,7 @@ export function HudLayer({
       <div className="top-bar">
         <div className="hp-wrap">
           <div className="player-label">Player 1</div>
-          <WinDots wins={wins[0]} player={1} />
+          <WinDots wins={wins[0]} maxWins={maxWins} player={1} />
           <div className="hp-track">
             <div className={`hp-fill hp-fill-p1${p1Low ? ' pulse' : ''}`} style={p1FillStyle} />
           </div>
@@ -70,7 +71,7 @@ export function HudLayer({
         </div>
         <div className="hp-wrap hp-wrap-right">
           <div className="player-label">Player 2</div>
-          <WinDots wins={wins[1]} player={2} />
+          <WinDots wins={wins[1]} maxWins={maxWins} player={2} />
           <div className="hp-track">
             <div className={`hp-fill hp-fill-p2${p2Low ? ' pulse' : ''}`} style={p2FillStyle} />
           </div>
