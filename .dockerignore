@@ -8,7 +8,5 @@ server/.env
 .git
 docs
 scripts
-mobile/src
 mobile/node_modules
-overlay/src
 overlay/node_modules
