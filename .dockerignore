@@ -1,0 +1,14 @@
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.venv
+**/venv
+**/node_modules
+server/.env
+.git
+docs
+scripts
+mobile/src
+mobile/node_modules
+overlay/src
+overlay/node_modules
