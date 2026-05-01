@@ -1,10 +1,12 @@
 from __future__ import annotations
 import random
-import statistics
 import string
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
+
+# Re-export for backwards compatibility — logic now lives in input_delay.py.
+from input_delay import median_rtt, record_pong
 
 if TYPE_CHECKING:
     from fastapi import WebSocket
@@ -22,20 +24,6 @@ class PlayerSlot:
     rtt_samples: list[float] = field(default_factory=list)
 
 
-def median_rtt(slot: PlayerSlot) -> float:
-    if not slot.rtt_samples:
-        return 0.0
-    return statistics.median(slot.rtt_samples)
-
-
-def record_pong(slot: PlayerSlot, original_t: float) -> float:
-    rtt = (time.time() - original_t) * 1000
-    slot.rtt_samples.append(rtt)
-    if len(slot.rtt_samples) > 10:
-        slot.rtt_samples = slot.rtt_samples[-10:]
-    return rtt
-
-
 @dataclass
 class RoomState:
     code: str
@@ -49,18 +37,48 @@ class RoomState:
     match_over: bool = False
     disconnect_timers: dict = field(default_factory=dict)  # slot_num -> asyncio.Task
     max_wins: int = 2  # 1=BO1, 2=BO3, 3=BO5
+    solo: bool = False
+    bot_difficulty: str = "normal"
+
+    # ------------------------------------------------------------------
+    # Spectator membership helpers
+    # ------------------------------------------------------------------
+
+    def add_spectator(self, ws) -> None:
+        self.spectators.add(ws)
+
+    def remove_spectator(self, ws) -> None:
+        self.spectators.discard(ws)
+
+    # ------------------------------------------------------------------
+    # Match lifecycle helpers
+    # ------------------------------------------------------------------
+
+    def reset_for_rematch(self) -> None:
+        """Reset all match state for a rematch.
+
+        Intentionally does NOT clear ``reference_velocity`` — calibration
+        carries over so players don't have to recalibrate between rematches.
+        """
+        self.match_over = False
+        self.round_number = 1
+        self.wins = [0, 0]
+        self.round_start_time = None
+        for timer in self.disconnect_timers.values():
+            timer.cancel()
+        self.disconnect_timers.clear()
 
 
 class RoomManager:
     def __init__(self) -> None:
         self._rooms: dict[str, RoomState] = {}
 
-    def create_room(self, max_wins: int = 2) -> str:
+    def create_room(self, max_wins: int = 2, solo: bool = False, bot_difficulty: str = "normal") -> str:
         while True:
             code = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
             if code not in self._rooms:
                 break
-        self._rooms[code] = RoomState(code=code, max_wins=max_wins)
+        self._rooms[code] = RoomState(code=code, max_wins=max_wins, solo=solo, bot_difficulty=bot_difficulty)
         return code
 
     def get_room(self, code: str) -> RoomState | None:

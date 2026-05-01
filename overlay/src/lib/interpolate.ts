@@ -1,4 +1,4 @@
-import type { PoseKeypoint } from '../protocol'
+import type { PoseKeypoint } from '@shared/protocol'
 
 function hermite(a: number, b: number, t: number) {
   const clamped = Math.max(0, Math.min(1, t))

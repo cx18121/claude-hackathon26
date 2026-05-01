@@ -11,3 +11,7 @@ build/
 node_modules/
 dist/
 .DS_Store
+.scratch/
+CLAUDE.md
+AGENTS.md
+docs/agents/

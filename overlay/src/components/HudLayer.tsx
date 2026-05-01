@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import type { HpPair, PlayerSlot } from '../protocol'
+import type { HpPair, PlayerSlot } from '@shared/protocol'
 
 interface HudLayerProps {
   connected: boolean

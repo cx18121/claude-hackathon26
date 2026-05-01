@@ -1,6 +1,6 @@
 import { useEffect, useState, type RefObject } from 'react';
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
-import type { PoseKeypoint } from '../protocol';
+import type { PoseKeypoint } from '@shared/protocol';
 
 export type ModelStatus = 'idle' | 'loading' | 'ready' | 'error';
 

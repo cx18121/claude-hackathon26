@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { PoseKeypoint } from '../protocol';
+import type { PoseKeypoint } from '@shared/protocol';
 
 interface PoseOverlayProps {
   keypoints: PoseKeypoint[] | null;

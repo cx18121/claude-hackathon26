@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { CONNECTIONS, REGION_KEYPOINTS } from '../lib/skeleton'
-import type { PoseKeypoint } from '../protocol'
+import type { PoseKeypoint } from '@shared/protocol'
 
 const VISIBILITY_THRESHOLD = 0.3
 const HIT_DURATION_MS = 700

@@ -74,11 +74,17 @@ class MsgPlayerDisconnected(BaseModel):
 
 # Server -> Overlay (spectator)
 
+class Position(BaseModel):
+    x: float
+    y: float
+    z: float
+
+
 class HitEvent(BaseModel):
     player: Literal[1, 2]
     region: str
     damage: int
-    position: dict[str, float]  # {"x": ..., "y": ..., "z": ...}
+    position: Position
 
 
 class MsgGameState(BaseModel):
@@ -115,6 +121,42 @@ class MsgRoundEnd(BaseModel):
 class MsgMatchEnd(BaseModel):
     type: Literal["match_end"] = "match_end"
     winner: Literal[1, 2]
+
+
+class MsgRematchStart(BaseModel):
+    type: Literal["rematch_start"] = "rematch_start"
+
+
+class MsgLobbyUpdate(BaseModel):
+    type: Literal["lobby_update"] = "lobby_update"
+    p1: bool
+    p2: bool
+
+
+# Commentator messages (server -> overlay only)
+
+class MsgCommentaryStart(BaseModel):
+    type: Literal["commentary_start"] = "commentary_start"
+    id: int
+
+
+class MsgCommentaryText(BaseModel):
+    type: Literal["commentary_text"] = "commentary_text"
+    id: int
+    delta: str
+
+
+class MsgCommentaryAudio(BaseModel):
+    type: Literal["commentary_audio"] = "commentary_audio"
+    id: int
+    idx: int
+    mime: str
+    audio_b64: str
+
+
+class MsgCommentaryEnd(BaseModel):
+    type: Literal["commentary_end"] = "commentary_end"
+    id: int
 
 
 # Union type for parsing inbound mobile messages

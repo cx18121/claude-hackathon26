@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import type { PoseKeypoint } from '../protocol';
+import type { PoseKeypoint } from '@shared/protocol';
 import {
   computeWristVelocity,
   computeWristPeakSpeed,

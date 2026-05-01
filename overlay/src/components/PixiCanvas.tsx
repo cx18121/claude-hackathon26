@@ -4,7 +4,7 @@ import { extrapolatePosesInto } from '../lib/interpolate'
 import { sfx } from '../lib/sfx'
 import { SparkEmitter } from '../lib/sparks'
 import type { PoseStream } from '../hooks/useSpectatorSocket'
-import type { HitEvent, MsgGameState, PoseKeypoint } from '../protocol'
+import type { HitEvent, MsgGameState, PoseKeypoint } from '@shared/protocol'
 
 interface PixiCanvasProps {
   gameState: MsgGameState | null

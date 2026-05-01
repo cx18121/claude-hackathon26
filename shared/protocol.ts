@@ -1,6 +1,5 @@
-// Canonical protocol definitions for Shadow Fight.
-// Server's protocol.py mirrors this file as Pydantic models.
-// Mobile and overlay each import their own copy to avoid cross-package paths.
+// Generated from server/protocol.py — do not edit by hand.
+// Run: python scripts/gen_protocol.py
 
 export type PlayerSlot = 1 | 2;
 export type HpPair = [number, number];
@@ -10,6 +9,12 @@ export interface PoseKeypoint {
   y: number;
   z: number;
   visibility: number;
+}
+
+export interface Position {
+  x: number;
+  y: number;
+  z: number;
 }
 
 // ============================================================================
@@ -24,8 +29,8 @@ export interface MsgJoin {
 
 export interface MsgPoseFrame {
   type: "pose_frame";
-  timestamp: number; // seconds
-  keypoints: PoseKeypoint[]; // always 33
+  timestamp: number;
+  keypoints: PoseKeypoint[];
 }
 
 export interface MsgCalibrationDone {
@@ -35,11 +40,6 @@ export interface MsgCalibrationDone {
 
 export interface MsgPing {
   type: "ping";
-  t: number;
-}
-
-export interface MsgPong {
-  type: "pong";
   t: number;
 }
 
@@ -61,13 +61,8 @@ export interface MsgJoined {
   opponent_connected: boolean;
 }
 
-export interface MsgPongFromServer {
+export interface MsgPong {
   type: "pong";
-  t: number;
-}
-
-export interface MsgPingFromServer {
-  type: "ping";
   t: number;
 }
 
@@ -106,11 +101,15 @@ export interface MsgMatchEnd {
   winner: 1 | 2;
 }
 
+// ============================================================================
+// Server -> Overlay
+// ============================================================================
+
 export interface HitEvent {
   player: 1 | 2;
   region: string;
   damage: number;
-  position: { x: number; y: number; z: number };
+  position: Position;
 }
 
 export interface MsgGameState {
@@ -124,16 +123,15 @@ export interface MsgGameState {
   max_wins: number;
 }
 
-// Pushed to spectators the moment a pose_frame arrives from a mobile client,
-// decoupled from the 60Hz game-state tick so the overlay can render at the
-// mobile capture rate (~60Hz) without waiting on the server tick.
+// Pushed to spectators the moment a pose_frame arrives — decoupled from
+// the 60 Hz game-state tick so the overlay renders at mobile capture rate.
 export interface MsgPoseUpdate {
   type: "pose_update";
   player: 1 | 2;
   keypoints: PoseKeypoint[];
 }
 
-// Live commentator messages. Server -> overlay only.
+// Commentator messages (server -> overlay only).
 export interface MsgCommentaryStart {
   type: "commentary_start";
   id: number;
@@ -149,8 +147,8 @@ export interface MsgCommentaryAudio {
   type: "commentary_audio";
   id: number;
   idx: number;
-  mime: string; // "audio/mpeg"
-  audio_b64: string; // base64-encoded mp3 from ElevenLabs
+  mime: string;
+  audio_b64: string;
 }
 
 export interface MsgCommentaryEnd {
@@ -158,10 +156,20 @@ export interface MsgCommentaryEnd {
   id: number;
 }
 
+export interface MsgLobbyUpdate {
+  type: "lobby_update";
+  p1: boolean;
+  p2: boolean;
+}
+
+export interface MsgRematchStart {
+  type: "rematch_start";
+}
+
 export type InboundServerMsg =
   | MsgJoined
-  | MsgPongFromServer
-  | MsgPingFromServer
+  | MsgPing
+  | MsgPong
   | MsgCalibrationStart
   | MsgMatchStart
   | MsgYouWereHit
@@ -176,12 +184,6 @@ export type InboundServerMsg =
   | MsgCommentaryAudio
   | MsgCommentaryEnd;
 
-export interface MsgLobbyUpdate {
-  type: "lobby_update";
-  p1: boolean;
-  p2: boolean;
-}
-
 export type ServerMessage =
   | MsgLobbyUpdate
   | MsgGameState
@@ -189,6 +191,7 @@ export type ServerMessage =
   | MsgRoundStart
   | MsgRoundEnd
   | MsgMatchEnd
+  | MsgRematchStart
   | MsgCommentaryStart
   | MsgCommentaryText
   | MsgCommentaryAudio

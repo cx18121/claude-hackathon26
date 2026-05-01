@@ -5,7 +5,7 @@ import {
   LANDMARK,
   type TimedFrame,
 } from './velocity';
-import type { PoseKeypoint } from '../protocol';
+import type { PoseKeypoint } from '@shared/protocol';
 
 function makeKeypoints(overrides: Partial<Record<number, Partial<PoseKeypoint>>> = {}): PoseKeypoint[] {
   // 33 default keypoints, all at origin with full visibility.

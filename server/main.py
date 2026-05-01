@@ -13,10 +13,12 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
+from broadcast import broadcast_to_spectators
 from game_loop import GameLoop
 from protocol import (
     MsgCalibrationStart, MsgJoined, MsgMatchEnd, MsgMatchStart,
     MsgPing, MsgPong, MsgPlayerDisconnected, MsgPoseUpdate,
+    MsgRematchStart,
     parse_mobile_msg,
 )
 from qr import make_qr_b64, print_startup_info
@@ -230,24 +232,16 @@ def _lobby_update_json(room) -> str:
     })
 
 async def _broadcast_lobby_update(room) -> None:
-    if not room.spectators:
-        return
-    msg = _lobby_update_json(room)
-    dead: set = set()
-    for ws in room.spectators:
-        try:
-            await ws.send_text(msg)
-        except Exception:
-            dead.add(ws)
-    room.spectators -= dead
+    await broadcast_to_spectators(room, _lobby_update_json(room))
 
 
 _FORMAT_TO_WINS = {"bo1": 1, "bo3": 2, "bo5": 3}
 
 @app.post("/rooms")
-def create_room(format: str = "bo3"):
+def create_room(format: str = "bo3", mode: str = "pvp", difficulty: str = "normal"):
     max_wins = _FORMAT_TO_WINS.get(format, 2)
-    code = room_manager.create_room(max_wins=max_wins)
+    solo = mode == "solo"
+    code = room_manager.create_room(max_wins=max_wins, solo=solo, bot_difficulty=difficulty)
     return {"code": code}
 
 
@@ -369,16 +363,12 @@ async def rematch(room_code: str):
         room.game_loop.stop()
         room.game_loop = None
 
-    # Reset all match state
-    room.match_over = False
-    room.round_number = 1
-    room.wins = [0, 0]
-    room.round_start_time = None
-    for timer in room.disconnect_timers.values():
-        timer.cancel()
-    room.disconnect_timers.clear()
-    for slot in room.players.values():
-        slot.reference_velocity = None
+    # Reset all match state (calibration is intentionally preserved)
+    room.reset_for_rematch()
+
+    # Notify spectators so the overlay resets to the waiting screen
+    await broadcast_to_spectators(room, MsgRematchStart().model_dump_json())
+    await _broadcast_lobby_update(room)
 
     # Send calibration_start to all connected players
     cal_json = MsgCalibrationStart().model_dump_json()
@@ -449,7 +439,8 @@ async def ws_player(websocket: WebSocket, room_code: str):
         MsgJoined(
             room_code=room_code,
             player_slot=slot_num,
-            opponent_connected=opponent.connected,
+            # In solo mode the bot is always "present", so skip the waiting lobby.
+            opponent_connected=room.solo or opponent.connected,
         ).model_dump_json()
     )
 
@@ -463,6 +454,9 @@ async def ws_player(websocket: WebSocket, room_code: str):
             log.info("Game loop resumed for room %s after player %d reconnect", room_code, slot_num)
         # Re-send match_start so the reconnected client restores the match phase
         await websocket.send_text(MsgMatchStart().model_dump_json())
+    elif room.solo and slot_num == 1:
+        # Solo mode: bot is always ready, start calibration immediately.
+        await websocket.send_text(MsgCalibrationStart().model_dump_json())
     else:
         if opponent.connected:
             # Both players now connected — kick off calibration for both simultaneously
@@ -515,6 +509,9 @@ async def ws_player(websocket: WebSocket, room_code: str):
             elif msg.type == "calibration_done":
                 slot.reference_velocity = msg.reference_velocity
                 log.info("Player %d calibrated, ref_velocity=%.2f", slot_num, msg.reference_velocity)
+                if room.solo and slot_num == 1:
+                    # Bot inherits P1's reference velocity so hit thresholds scale correctly.
+                    room.players[2].reference_velocity = msg.reference_velocity
                 if (
                     all(p.reference_velocity is not None for p in room.players.values())
                     and room.game_loop is None
@@ -604,7 +601,7 @@ async def ws_spectator(websocket: WebSocket, room_code: str):
         return
 
     await websocket.accept()
-    room.spectators.add(websocket)
+    room.add_spectator(websocket)
     log.info("Spectator connected to room %s", room_code)
     await websocket.send_text(_lobby_update_json(room))
 
@@ -614,7 +611,7 @@ async def ws_spectator(websocket: WebSocket, room_code: str):
     except WebSocketDisconnect:
         pass
     finally:
-        room.spectators.discard(websocket)
+        room.remove_spectator(websocket)
         log.info("Spectator disconnected from room %s", room_code)
 
 

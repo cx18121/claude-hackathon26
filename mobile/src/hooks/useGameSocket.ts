@@ -3,7 +3,7 @@ import type {
   InboundServerMsg,
   MsgYouWereHit,
   OutboundMobileMsg,
-} from '../protocol';
+} from '@shared/protocol';
 
 export type SocketStatus =
   | 'disconnected'

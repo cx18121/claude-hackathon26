@@ -1,4 +1,4 @@
-import type { PoseKeypoint } from '../protocol';
+import type { PoseKeypoint } from '@shared/protocol';
 
 export interface TimedFrame {
   keypoints: PoseKeypoint[];
