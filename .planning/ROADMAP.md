@@ -45,13 +45,14 @@ Plans:
   3. Calibration established in the first round persists across rematches — players are never forced to recalibrate within the same room session
   4. Solo/bot mode starts when only one player joins; the bot operates at three selectable difficulty tiers
   5. Box<dyn GamePlugin + Send + Sync> compiles and the trait is confirmed object-safe; all plugin methods are synchronous with no async-trait allocations in the hot path
-**Plans**: 4 plans
+**Plans**: 5 plans
 
 Plans:
 - [ ] 02-01-PLAN.md — plugin-trait crate: GamePlugin trait, TickContext, GameEvent (5 variants), BodyRegion (9 variants), PoseFrame/PoseKeypoint; workspace update
 - [ ] 02-02-PLAN.md — boxing-plugin utility modules: hit_detection.rs (punch/kick, guard, body regions), damage.rs (velocity-scaled); unit tests
 - [ ] 02-03-PLAN.md — boxing-plugin lib.rs: BoxingPlugin impl, BoxingState, bot.rs (BOT_KPS, tick_bot, difficulty); FIX-01 regression test
 - [ ] 02-04-PLAN.md — engine-core wiring: PLUG-06 normalization, TickContext construction, plugin.on_tick, dispatch_events, lifecycle hooks; cargo test --workspace
+- [ ] 02-05-PLAN.md — BOX-10 gap closure: solo/bot mode gate in game_loop.rs and room.rs; solo mode unit tests
 
 ### Phase 3: Second Game + SDK
 **Goal**: A second game plugin is implemented using only the public GamePlugin trait with zero engine changes; the SDK documentation is sufficient for a developer (or LLM) to add a new game from scratch
@@ -71,5 +72,5 @@ Phases execute in numeric order: 1 → 2 → 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Engine Core | 0/5 | Not started | - |
-| 2. Plugin Trait + Boxing | 0/4 | Not started | - |
+| 2. Plugin Trait + Boxing | 0/5 | Not started | - |
 | 3. Second Game + SDK | 0/TBD | Not started | - |
