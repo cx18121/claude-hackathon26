@@ -160,6 +160,7 @@ impl GamePlugin for BoxingPlugin {
                     slot: (defender_idx + 1) as u8,
                     payload: json!({
                         "type": "you_were_hit",
+                        "region": h.region.to_wire(), // CR-04: include region to match bot path and protocol struct
                         "damage": dmg,
                     }),
                 });
