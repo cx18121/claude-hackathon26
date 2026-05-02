@@ -377,7 +377,7 @@ let mut game_rx = state.game_tx.subscribe();
 
 **What goes wrong:** The wire protocol uses `"type"` as the discriminator field on all messages (matching Python's `Literal["pose_frame"]` etc.). Using `#[ts(tag = "type")]` on a Rust *enum* generates externally-tagged TypeScript. Using `#[serde(tag = "type")]` on individual *structs* (one struct per message type, not a union enum) is what the protocol requires.
 
-**Why it happens:** Developers assume a Rust enum maps naturally to a TypeScript discriminated union, but the Python protocol uses separate classes — each with a `type` literal field. The Rust equivalent is separate structs with a `"type"` literal field baked in via `#[serde(rename = "type")] #[serde(default = "...")]` or `rename_all`.
+**Why it happens:** Developers assume a Rust enum maps naturally to a TypeScript discriminated union, but the Python protocol uses separate classes — each with a `type` literal field. The Rust equivalent is separate structs with a `"type"` literal field baked in via `#[serde(rename = "type")]` or `rename_all`.
 
 **How to avoid:** Model each message as its own `struct` in `protocol.rs`. The union is only relevant for the inbound message parser (`InboundMobileMsg`), which can be an enum with `#[serde(tag = "type")]` at the enum level. For outbound messages, serialize each struct directly — no union enum needed.
 
@@ -490,6 +490,7 @@ pub struct MsgGameState {
     pub msg_type: String,  // always "game_state"
     pub tick: u64,
     pub hp: (u32, u32),
+    pub wins: (u32, u32),  // FIX-02: win counter in snapshot
     pub poses: (Vec<PoseKeypoint>, Vec<PoseKeypoint>),
     pub recent_hits: Vec<HitEvent>,
     pub high_latency: bool,
@@ -578,22 +579,22 @@ pub fn compute_cutoff(
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **FIX-02 — what messages constitute a complete snapshot?**
    - What we know: The CONTEXT.md says "snapshot of current HP, wins, round number, and elapsed time". The Python protocol has no dedicated snapshot message.
    - What's unclear: Should Phase 1 add a new message type (e.g. `MsgSpectatorSnapshot`) or synthesize existing messages (`game_state` + `round_start` with state)? A new message type would require a TypeScript client change (which is forbidden). Synthesizing `game_state` + some lobby state via existing messages keeps the client unchanged.
-   - Recommendation: Compose existing messages in the correct sequence — `lobby_update`, then if match in progress: `round_start{round_number}` followed by a `game_state` tick with current HP/remaining_time. The overlay already handles these messages; receiving them on connect is idempotent.
+   - RESOLVED: Compose existing messages in the correct sequence — `lobby_update`, then if match in progress: `round_start{round_number}` followed by a `game_state` tick with current HP/remaining_time/wins. The overlay already handles these messages; receiving them on connect is idempotent. `MsgGameState` was extended with a `wins: (u32, u32)` field (Plan 01 Task 2) so the snapshot always includes the win counter.
 
 2. **Game loop placeholder in Phase 1**
    - What we know: Phase 1 has no boxing plugin. Claude's Discretion allows a no-op tick or minimal warmup counter.
    - What's unclear: If `game_loop.rs` sends no `game_state` messages, spectators will see no HUD updates. A minimal game loop that sends `game_state{hp:[800,800], remaining_time}` at 60Hz allows the overlay to render correctly even without hit detection.
-   - Recommendation: Implement the full game loop skeleton (warmup, round lifecycle, round timer, `game_state` broadcast) without hit detection. This satisfies ENG-04 and ENG-09 and allows end-to-end testing of the spectator path.
+   - RESOLVED: Implement the full game loop skeleton (warmup gate, round lifecycle, round timer, `game_state` broadcast) without hit detection (Plan 04 Task 1). This satisfies ENG-04 and ENG-09 and allows end-to-end testing of the spectator path.
 
 3. **ts-rs output path relative to workspace root**
    - What we know: `TS_RS_EXPORT_DIR` defaults to `./bindings` relative to `Cargo.toml`. The project wants bindings written to `shared/`.
    - What's unclear: Whether to use `export_to = "../../shared/"` per-struct or set `TS_RS_EXPORT_DIR` globally.
-   - Recommendation: Set `TS_RS_EXPORT_DIR = { value = "../../shared", relative = true }` in `engine/.cargo/config.toml`. This is less error-prone than per-struct `export_to` annotations.
+   - RESOLVED: Set `TS_RS_EXPORT_DIR = { value = "../../shared", relative = true }` in `engine/.cargo/config.toml` (Plan 01 Task 1). This is less error-prone than per-struct `export_to` annotations and avoids duplicating the path on every struct.
 
 ---
 
