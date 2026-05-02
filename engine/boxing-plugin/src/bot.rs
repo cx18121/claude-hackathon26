@@ -110,7 +110,7 @@ pub fn tick_bot(
             slot: 1,
             payload: json!({
                 "type": "you_were_hit",
-                "region": format!("{:?}", region).to_lowercase(),
+                "region": region.to_wire(), // CR-05: snake_case via to_wire()
                 "damage": dmg
             }),
         },

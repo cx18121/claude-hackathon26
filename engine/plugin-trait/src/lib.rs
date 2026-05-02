@@ -34,7 +34,8 @@ pub struct PoseFrame {
 // ---------------------------------------------------------------------------
 
 /// Nine body regions for hit classification.
-/// Naming: PascalCase variants; maps to "head_chin" etc. in wire messages via Debug formatting.
+/// Use `to_wire()` for JSON wire format (snake_case). Do NOT use `format!("{:?}", r).to_lowercase()`
+/// as Debug emits PascalCase which collapses to concatenated lowercase (CR-05).
 #[derive(Debug, Clone, PartialEq)]
 pub enum BodyRegion {
     HeadFace,
@@ -46,6 +47,24 @@ pub enum BodyRegion {
     BlockForearm,
     LegThigh,
     LegShin,
+}
+
+impl BodyRegion {
+    /// Returns the canonical snake_case wire string for JSON messages (CR-05).
+    /// Replaces `format!("{:?}", region).to_lowercase()` at all call sites.
+    pub fn to_wire(&self) -> &'static str {
+        match self {
+            BodyRegion::HeadFace     => "head_face",
+            BodyRegion::HeadChin     => "head_chin",
+            BodyRegion::HeadThroat   => "head_throat",
+            BodyRegion::TorsoUpper   => "torso_upper",
+            BodyRegion::TorsoLower   => "torso_lower",
+            BodyRegion::BlockHand    => "block_hand",
+            BodyRegion::BlockForearm => "block_forearm",
+            BodyRegion::LegThigh     => "leg_thigh",
+            BodyRegion::LegShin      => "leg_shin",
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -102,6 +121,8 @@ pub struct SlotView {
 /// Plugin uses this to detect solo/bot mode (D-04): slots[1].connected == false.
 pub struct RoomView {
     pub slots: [SlotView; 2],
+    /// True if the match started in solo/bot mode (WR-01: set once at CalibrationDone, not re-derived per tick).
+    pub solo_mode: bool,
 }
 
 /// All inputs delivered to the plugin for one 60Hz tick.
@@ -138,6 +159,10 @@ pub trait GamePlugin: Send + Sync {
     /// Returns a vec of side-effects; engine dispatches them after this returns.
     /// This is a pure function: inputs in, events out. No network calls, no async.
     fn on_tick(&self, ctx: &TickContext, state: &mut dyn Any) -> Vec<GameEvent>;
+
+    /// Returns the number of round wins required to win the match (CR-02).
+    /// Default: 2. Override in your plugin to use config-driven values.
+    fn max_wins(&self) -> u32 { 2 }
 
     /// Called when a player's WebSocket connects to the room.
     fn on_player_join(&self, _slot: u8, _state: &mut dyn Any) {}

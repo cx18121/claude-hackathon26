@@ -14,7 +14,8 @@ pub struct RoomHandle {
     pub join_handle: JoinHandle<()>,      // ENG-13: abort on teardown
     /// Shared Arc with RoomState — set to true by game_loop when match ends (CR-03).
     pub match_over: Arc<std::sync::atomic::AtomicBool>,
-    pub last_player_disconnected_at: std::sync::Mutex<Option<Instant>>,
+    /// Shared Arc with RoomState — set when last player disconnects (CR-01).
+    pub last_player_disconnected_at: Arc<std::sync::Mutex<Option<Instant>>>,
     pub pose_tx: broadcast::Sender<String>,
     pub game_tx: broadcast::Sender<String>,
     pub created_at: Instant,
@@ -59,12 +60,15 @@ impl RoomManager {
                     let (game_tx, _) = broadcast::channel::<String>(128);  // ENG-08 slow path
                     // Shared flag between RoomState and RoomHandle — set by game_loop on match end (CR-03)
                     let match_over_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
+                    // Shared disconnect timestamp between RoomState and RoomHandle — set when last player disconnects (CR-01)
+                    let last_disconnect = Arc::new(std::sync::Mutex::new(None::<Instant>));
                     let state = RoomState::new(
                         code.clone(),
-                        2, // default max_wins
+                        plugin.max_wins(), // CR-02: use value from plugin config
                         pose_tx.clone(),
                         game_tx.clone(),
                         Arc::clone(&match_over_flag),
+                        Arc::clone(&last_disconnect),
                         Arc::clone(&plugin),
                     );
                     // Spawn actor — DO NOT hold DashMap guard across this spawn (Pitfall 4).
@@ -74,7 +78,7 @@ impl RoomManager {
                         cmd_tx,
                         join_handle,
                         match_over: match_over_flag,
-                        last_player_disconnected_at: std::sync::Mutex::new(None),
+                        last_player_disconnected_at: last_disconnect,
                         pose_tx,
                         game_tx,
                         created_at: Instant::now(),

@@ -93,8 +93,8 @@ impl GamePlugin for BoxingPlugin {
         let mut events: Vec<GameEvent> = Vec::new();
 
         // --- Bot mode (D-04, BOX-10) ---
-        // Solo mode = slot 1 connected, slot 2 not connected.
-        let solo_mode = ctx.room.slots[0].connected && !ctx.room.slots[1].connected;
+        // WR-01: use stable solo_mode from RoomView (set once at match start, not re-derived per tick)
+        let solo_mode = ctx.room.solo_mode;
         if solo_mode {
             let mut bot_events = bot::tick_bot(
                 self.config.bot_difficulty,
@@ -160,6 +160,7 @@ impl GamePlugin for BoxingPlugin {
                     slot: (defender_idx + 1) as u8,
                     payload: json!({
                         "type": "you_were_hit",
+                        "region": h.region.to_wire(), // CR-04: include region to match bot path and protocol struct
                         "damage": dmg,
                     }),
                 });
@@ -193,6 +194,10 @@ impl GamePlugin for BoxingPlugin {
         s.first_blood_pending = true;
         // bot_next_hit_at is intentionally NOT reset — bot continues its timer from the round break
         // This matches Python _tick_bot behavior which does not reset the interval on rematch.
+    }
+
+    fn max_wins(&self) -> u32 {
+        self.config.max_wins
     }
 
     fn on_player_join(&self, slot: u8, state: &mut dyn Any) {
@@ -430,6 +435,7 @@ mod tests {
                     SlotView { connected: true, reference_velocity: Some(3.0) },
                     SlotView { connected: true, reference_velocity: Some(3.0) },
                 ],
+                solo_mode: false,
             },
         };
         let events = plugin.on_tick(&ctx, &mut *state);

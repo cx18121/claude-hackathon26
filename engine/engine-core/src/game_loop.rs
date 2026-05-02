@@ -42,9 +42,10 @@ fn normalize_to_y_up(frame: &crate::protocol::MsgPoseFrame) -> PoseFrame {
 /// Implements: warmup gate (ENG-09), round lifecycle (ENG-10), MsgGameState broadcast.
 /// Phase 2: calls plugin.on_tick and dispatches all 5 GameEvent variants.
 pub fn game_tick(state: &mut RoomState) {
-    // Solo mode: player 2 is not connected (bot mode). One calibrated player suffices.
-    // Two-player mode: both players must be calibrated before the match begins.
-    let solo_mode = !state.players[1].connected;
+    // WR-01: use the solo_mode flag set once at match start (CalibrationDone handler in room.rs).
+    // Do NOT re-derive from !state.players[1].connected per tick — P2 disconnect during a live
+    // two-player match must not silently activate bot mode.
+    let solo_mode = state.solo_mode;
     let calibrated_ok = if solo_mode {
         // In solo mode, only player 0 must have calibrated (player 1 is a bot)
         state.players[0].reference_velocity.is_some()
@@ -130,6 +131,7 @@ pub fn game_tick(state: &mut RoomState) {
                     reference_velocity: state.players[1].reference_velocity,
                 },
             ],
+            solo_mode: state.solo_mode, // WR-01: propagate stable solo_mode to plugin
         },
     };
 
@@ -197,7 +199,7 @@ fn dispatch_events(state: &mut RoomState, events: Vec<GameEvent>) {
                 // Accumulate hit for MsgGameState.recent_hits broadcast
                 state.recent_hits.push(crate::protocol::HitEvent {
                     player: attacker,
-                    region: format!("{:?}", region).to_lowercase(),
+                    region: region.to_wire().to_string(), // CR-05: snake_case via to_wire()
                     damage: damage as f64,
                     position: crate::protocol::Position {
                         x: position[0] as f64,
@@ -338,6 +340,7 @@ mod solo_mode_tests {
         let (pose_tx, _) = broadcast::channel(64);
         let (game_tx, _) = broadcast::channel(64);
         let match_over_flag = Arc::new(AtomicBool::new(false));
+        let last_disconnect = Arc::new(std::sync::Mutex::new(None::<std::time::Instant>));
         let plugin: Arc<dyn plugin_trait::GamePlugin + Send + Sync> = Arc::new(
             BoxingPlugin::new(BoxingConfig {
                 hp: 800,
@@ -352,6 +355,7 @@ mod solo_mode_tests {
             pose_tx,
             game_tx,
             match_over_flag,
+            last_disconnect,
             plugin,
         )
     }

@@ -86,13 +86,13 @@ async fn handle_player(
         Some(Ok(Message::Text(raw))) => {
             match serde_json::from_str::<InboundMobileMsg>(&raw) {
                 Ok(InboundMobileMsg::Join(msg)) => {
-                    // player_slot is 1 or 2; convert to 0-indexed
-                    let slot = (msg.player_slot as usize).saturating_sub(1);
-                    if slot >= 2 {
+                    // WR-05: reject slot=0 explicitly; saturating_sub(1) would silently map 0→0 (same as slot 1)
+                    if msg.player_slot == 0 || msg.player_slot > 2 {
                         tracing::warn!("handle_player: invalid player_slot {}, closing", msg.player_slot);
                         return;
                     }
-                    slot
+                    // player_slot is 1 or 2; convert to 0-indexed
+                    (msg.player_slot as usize) - 1
                 }
                 Ok(_) | Err(_) => {
                     tracing::warn!("handle_player: first message was not a join, closing {}", room_code);
