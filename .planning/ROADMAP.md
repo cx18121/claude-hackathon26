@@ -26,7 +26,14 @@ Three phases carry the engine from a working Rust server (protocol-compatible, r
   3. A spectator who reconnects mid-round receives a snapshot of current HP, wins, round number, and elapsed time before entering the live broadcast stream
   4. The 60Hz game loop runs continuously inside each room actor task; the server handles multiple rooms concurrently without cross-room locks
   5. All message types serialize to JSON that is byte-for-byte compatible with the golden-file fixtures derived from shared/protocol.ts
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Cargo workspace, protocol.rs (all wire types), Axum router skeleton
+- [ ] 01-02-PLAN.md — Golden-file fixtures, protocol roundtrip tests, capture_fixtures.py
+- [ ] 01-03-PLAN.md — input_delay.rs, room actor, room_manager (DashMap + expiry), player WS handler
+- [ ] 01-04-PLAN.md — game_loop.rs (60Hz, warmup, round lifecycle), broadcast.rs, spectator WS with FIX-02
+- [ ] 01-05-PLAN.md — Dockerfile cutover (Rust stage + debian:bookworm-slim final), integration verification
 
 ### Phase 2: Plugin Trait + Boxing
 **Goal**: The GamePlugin trait is the only interface a game developer needs; the boxing game is a fully working first plugin that proves the trait surface is correct; the calibration-persist bug is fixed
@@ -57,6 +64,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Engine Core | 0/TBD | Not started | - |
+| 1. Engine Core | 0/5 | Not started | - |
 | 2. Plugin Trait + Boxing | 0/TBD | Not started | - |
 | 3. Second Game + SDK | 0/TBD | Not started | - |
