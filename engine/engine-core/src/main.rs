@@ -6,6 +6,7 @@ use axum::{
 };
 use tower_http::services::ServeDir;
 use std::sync::Arc;
+use futures_util::{SinkExt, StreamExt};
 
 mod protocol;
 mod room;
@@ -48,11 +49,148 @@ async fn ws_player(
 async fn handle_player(
     socket: axum::extract::ws::WebSocket,
     room_code: String,
-    _app: Arc<AppState>,
+    app: Arc<AppState>,
 ) {
-    tracing::info!("player connected to room {}", room_code);
-    // TODO: wire to room actor in Plan 03
-    let _ = socket;
+    use axum::extract::ws::Message;
+    use tokio::sync::oneshot;
+    use crate::room::RoomCmd;
+    use crate::protocol::InboundMobileMsg;
+
+    let (mut ws_sink, mut ws_stream) = socket.split();
+
+    // ENG-05: dedicated outbound Tokio task with bounded mpsc channel (capacity 32)
+    let (player_tx, mut player_rx) = tokio::sync::mpsc::channel::<String>(32);
+    tokio::spawn(async move {
+        while let Some(msg) = player_rx.recv().await {
+            if ws_sink.send(Message::Text(msg.into())).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    // PROTO-01 / join-first: read the first message — must be MsgJoin.
+    // Extract player_slot (1-indexed from client, convert to 0-indexed).
+    let slot_idx: usize = match ws_stream.next().await {
+        Some(Ok(Message::Text(raw))) => {
+            match serde_json::from_str::<InboundMobileMsg>(&raw) {
+                Ok(InboundMobileMsg::Join(msg)) => {
+                    // player_slot is 1 or 2; convert to 0-indexed
+                    (msg.player_slot as usize).saturating_sub(1)
+                }
+                Ok(_) | Err(_) => {
+                    tracing::warn!("handle_player: first message was not a join, closing {}", room_code);
+                    return; // Close connection — join must be first
+                }
+            }
+        }
+        _ => {
+            tracing::warn!("handle_player: connection closed before join message, room {}", room_code);
+            return;
+        }
+    };
+
+    // ENG-02 room-on-demand: get cmd_tx, creating the room if it doesn't exist yet.
+    // Clone immediately — do NOT hold DashMap guard across await (Pitfall 4).
+    let cmd_tx = match app.rooms.get_cmd_tx(&room_code) {
+        Some(tx) => tx,
+        None => {
+            // Room does not exist — create it on demand using the client-provided code.
+            let actual_code = app.rooms.create_room(room_code.clone());
+            tracing::info!("room {} created on demand for player {}", actual_code, slot_idx + 1);
+            match app.rooms.get_cmd_tx(&actual_code) {
+                Some(tx) => tx,
+                None => {
+                    tracing::error!("room {} missing after create_room — logic error", actual_code);
+                    return;
+                }
+            }
+        }
+    };
+    let pose_tx = match app.rooms.rooms.get(&room_code).map(|h| h.pose_tx.clone()) {
+        Some(tx) => tx,
+        None => return,
+    };
+
+    // Send PlayerConnect to actor — slot is determined by the join message.
+    let (reply_tx, reply_rx) = oneshot::channel();
+    if cmd_tx.send(RoomCmd::PlayerConnect {
+        slot: slot_idx,
+        tx: player_tx.clone(),
+        reply: reply_tx,
+    }).await.is_err() {
+        return;
+    }
+    let connect_result = match reply_rx.await {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            tracing::warn!("room {} slot {} already occupied", room_code, slot_idx + 1);
+            return;
+        }
+        Err(_) => return,
+    };
+
+    tracing::info!("player {} connected to room {}", connect_result.slot + 1, room_code);
+
+    // Send MsgJoined back to client
+    use crate::protocol::MsgJoined;
+    if let Ok(json) = serde_json::to_string(&MsgJoined {
+        msg_type: "joined".to_string(),
+        room_code: room_code.clone(),
+        player_slot: (connect_result.slot + 1) as u8,
+        opponent_connected: connect_result.opponent_connected,
+    }) {
+        let _ = player_tx.send(json).await;
+    }
+
+    // Receive loop: parse, dispatch (log-and-continue on bad input)
+    while let Some(Ok(msg)) = ws_stream.next().await {
+        match msg {
+            Message::Text(raw) => {
+                match serde_json::from_str::<InboundMobileMsg>(&raw) {
+                    Ok(InboundMobileMsg::PoseFrame(frame)) => {
+                        let arrived_at = std::time::Instant::now();
+                        // Immediate pose fan-out to spectators (ENG-07) — before sending to actor
+                        use crate::protocol::MsgPoseUpdate;
+                        let pu = MsgPoseUpdate {
+                            msg_type: "pose_update".to_string(),
+                            player: (slot_idx + 1) as u8,
+                            keypoints: frame.keypoints.clone(),
+                        };
+                        if let Ok(json) = serde_json::to_string(&pu) {
+                            let _ = pose_tx.send(json);
+                        }
+                        // Then route to actor for game loop processing
+                        let _ = cmd_tx.send(RoomCmd::PoseFrame { slot: slot_idx, frame, arrived_at }).await;
+                    }
+                    Ok(InboundMobileMsg::Ping(ping)) => {
+                        use crate::protocol::MsgPong;
+                        if let Ok(json) = serde_json::to_string(&MsgPong { msg_type: "pong".to_string(), t: ping.t }) {
+                            let _ = player_tx.send(json).await;
+                        }
+                    }
+                    Ok(InboundMobileMsg::Pong(pong)) => {
+                        let _ = cmd_tx.send(RoomCmd::RecordPong { slot: slot_idx, original_t: pong.t }).await;
+                    }
+                    Ok(InboundMobileMsg::CalibrationDone(cal)) => {
+                        let _ = cmd_tx.send(RoomCmd::CalibrationDone { slot: slot_idx, reference_velocity: cal.reference_velocity }).await;
+                    }
+                    Ok(InboundMobileMsg::Join(_)) => {
+                        // Ignore re-join messages during session (join was already processed above)
+                    }
+                    Err(e) => {
+                        tracing::warn!("player {} bad message in room {}: {}", slot_idx + 1, room_code, e);
+                        // log-and-continue (Python pattern)
+                    }
+                }
+            }
+            Message::Close(_) => break,
+            _ => {}
+        }
+    }
+
+    // Disconnect
+    let _ = cmd_tx.send(RoomCmd::PlayerDisconnect { slot: slot_idx }).await;
+    tracing::info!("player {} disconnected from room {}", slot_idx + 1, room_code);
 }
 
 async fn ws_spectator(
