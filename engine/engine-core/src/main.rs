@@ -75,7 +75,12 @@ async fn handle_player(
             match serde_json::from_str::<InboundMobileMsg>(&raw) {
                 Ok(InboundMobileMsg::Join(msg)) => {
                     // player_slot is 1 or 2; convert to 0-indexed
-                    (msg.player_slot as usize).saturating_sub(1)
+                    let slot = (msg.player_slot as usize).saturating_sub(1);
+                    if slot >= 2 {
+                        tracing::warn!("handle_player: invalid player_slot {}, closing", msg.player_slot);
+                        return;
+                    }
+                    slot
                 }
                 Ok(_) | Err(_) => {
                     tracing::warn!("handle_player: first message was not a join, closing {}", room_code);
@@ -91,24 +96,35 @@ async fn handle_player(
 
     // ENG-02 room-on-demand: get cmd_tx, creating the room if it doesn't exist yet.
     // Clone immediately — do NOT hold DashMap guard across await (Pitfall 4).
+    // actual_code is the real room code (may differ from room_code if collision occurred).
+    let actual_code: String;
     let cmd_tx = match app.rooms.get_cmd_tx(&room_code) {
-        Some(tx) => tx,
+        Some(tx) => {
+            actual_code = room_code.clone();
+            tx
+        }
         None => {
             // Room does not exist — create it on demand using the client-provided code.
-            let actual_code = app.rooms.create_room(room_code.clone());
-            tracing::info!("room {} created on demand for player {}", actual_code, slot_idx + 1);
-            match app.rooms.get_cmd_tx(&actual_code) {
-                Some(tx) => tx,
+            let created_code = app.rooms.create_room(room_code.clone());
+            tracing::info!("room {} created on demand for player {}", created_code, slot_idx + 1);
+            match app.rooms.get_cmd_tx(&created_code) {
+                Some(tx) => {
+                    actual_code = created_code;
+                    tx
+                }
                 None => {
-                    tracing::error!("room {} missing after create_room — logic error", actual_code);
+                    tracing::error!("room {} missing after create_room — logic error", created_code);
                     return;
                 }
             }
         }
     };
-    let pose_tx = match app.rooms.rooms.get(&room_code).map(|h| h.pose_tx.clone()) {
+    let pose_tx = match app.rooms.rooms.get(&actual_code).map(|h| h.pose_tx.clone()) {
         Some(tx) => tx,
-        None => return,
+        None => {
+            tracing::error!("room {} missing pose_tx after create_room — logic error", actual_code);
+            return;
+        }
     };
 
     // Send PlayerConnect to actor — slot is determined by the join message.
