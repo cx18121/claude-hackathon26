@@ -243,9 +243,19 @@ fn handle_cmd(state: &mut RoomState, cmd: RoomCmd) {
             state.players[slot].reference_velocity = Some(reference_velocity);
             state.plugin.on_calibration_complete(slot as u8, reference_velocity, &mut *state.plugin_state);
             tracing::info!("player {} calibrated ref_vel={:.2}", slot + 1, reference_velocity);
-            // Check if both players are calibrated
-            let both_calibrated = state.players.iter().all(|p| p.reference_velocity.is_some());
-            if both_calibrated && state.round_start_time.is_none() {
+            // Determine if match can start.
+            // Solo mode: player 2 is not connected — one calibrated player (slot 0) suffices.
+            // Two-player mode: both players must have calibrated.
+            let solo_mode = !state.players[1].connected;
+            let ready_to_start = if solo_mode {
+                // In solo mode, the connecting player (slot 0) calibrating is sufficient.
+                // Player 1 (the bot) never connects and never calibrates.
+                state.players[0].reference_velocity.is_some()
+            } else {
+                // In two-player mode, both players must have calibrated.
+                state.players.iter().all(|p| p.reference_velocity.is_some())
+            };
+            if ready_to_start && state.round_start_time.is_none() {
                 // Start match — game_loop will handle warmup gate
                 use crate::protocol::*;
                 if let Ok(json) = serde_json::to_string(&MsgMatchStart { msg_type: "match_start".to_string() }) {
@@ -255,7 +265,11 @@ fn handle_cmd(state: &mut RoomState, cmd: RoomCmd) {
                     broadcast_all(state, &json);
                 }
                 state.round_start_time = Some(Instant::now());
-                tracing::info!("room {} match started", state.code);
+                if solo_mode {
+                    tracing::info!("room {} solo/bot match started", state.code);
+                } else {
+                    tracing::info!("room {} match started", state.code);
+                }
             }
         }
         RoomCmd::RecordPong { slot, original_t } => {
