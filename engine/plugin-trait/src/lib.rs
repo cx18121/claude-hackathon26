@@ -36,7 +36,7 @@ pub struct PoseFrame {
 /// Nine body regions for hit classification.
 /// Use `to_wire()` for JSON wire format (snake_case). Do NOT use `format!("{:?}", r).to_lowercase()`
 /// as Debug emits PascalCase which collapses to concatenated lowercase (CR-05).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BodyRegion {
     HeadFace,
     HeadChin,
