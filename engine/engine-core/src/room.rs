@@ -37,6 +37,8 @@ pub struct RoomState {
     pub match_over: bool,
     /// Shared with RoomHandle so the expiry task can observe match completion (CR-03).
     pub match_over_flag: Arc<std::sync::atomic::AtomicBool>,
+    /// Shared with RoomHandle — set to Some(Instant::now()) when last player disconnects (CR-01).
+    pub last_player_disconnected_at: Arc<std::sync::Mutex<Option<Instant>>>,
     pub max_wins: u32,
     pub hp: [u32; 2],
     // Broadcast channel senders (rx subscribed by spectator handlers and outbound tasks)
@@ -59,6 +61,7 @@ impl RoomState {
         pose_tx: broadcast::Sender<String>,
         game_tx: broadcast::Sender<String>,
         match_over_flag: Arc<std::sync::atomic::AtomicBool>,
+        last_player_disconnected_at: Arc<std::sync::Mutex<Option<Instant>>>,
         plugin: Arc<dyn GamePlugin + Send + Sync>,
     ) -> Self {
         let plugin_state = plugin.init_state();
@@ -70,6 +73,7 @@ impl RoomState {
             round_start_time: None,
             match_over: false,
             match_over_flag,
+            last_player_disconnected_at,
             max_wins,
             hp: [800, 800],
             pose_tx,
@@ -292,6 +296,13 @@ fn handle_cmd(state: &mut RoomState, cmd: RoomCmd) {
             state.players[slot].tx = None;
             state.plugin.on_player_leave(slot as u8, &mut *state.plugin_state);
             tracing::info!("player {} disconnected from room {}", slot + 1, state.code);
+            // CR-01: record disconnect time when the last player leaves so the expiry task fires
+            let any_connected = state.players.iter().any(|p| p.connected);
+            if !any_connected {
+                if let Ok(mut guard) = state.last_player_disconnected_at.lock() {
+                    *guard = Some(Instant::now());
+                }
+            }
             // Broadcast lobby update
             if let Ok(json) = serde_json::to_string(&MsgLobbyUpdate {
                 msg_type: "lobby_update".to_string(),
@@ -322,6 +333,7 @@ mod player_connect_tests {
         let (pose_tx, _) = broadcast::channel(64);
         let (game_tx, _) = broadcast::channel(64);
         let flag = Arc::new(AtomicBool::new(false));
+        let last_disconnect = Arc::new(std::sync::Mutex::new(None::<std::time::Instant>));
         let plugin: Arc<dyn plugin_trait::GamePlugin + Send + Sync> = Arc::new(
             BoxingPlugin::new(BoxingConfig {
                 hp: 800,
@@ -330,7 +342,7 @@ mod player_connect_tests {
                 bot_difficulty: Difficulty::Normal,
             })
         );
-        RoomState::new("T01".to_string(), 3, pose_tx, game_tx, flag, plugin)
+        RoomState::new("T01".to_string(), 3, pose_tx, game_tx, flag, last_disconnect, plugin)
     }
 
     fn drain_channel(rx: &mut mpsc::Receiver<String>) -> Vec<String> {

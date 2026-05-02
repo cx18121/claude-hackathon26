@@ -338,6 +338,7 @@ mod solo_mode_tests {
         let (pose_tx, _) = broadcast::channel(64);
         let (game_tx, _) = broadcast::channel(64);
         let match_over_flag = Arc::new(AtomicBool::new(false));
+        let last_disconnect = Arc::new(std::sync::Mutex::new(None::<std::time::Instant>));
         let plugin: Arc<dyn plugin_trait::GamePlugin + Send + Sync> = Arc::new(
             BoxingPlugin::new(BoxingConfig {
                 hp: 800,
@@ -352,6 +353,7 @@ mod solo_mode_tests {
             pose_tx,
             game_tx,
             match_over_flag,
+            last_disconnect,
             plugin,
         )
     }
