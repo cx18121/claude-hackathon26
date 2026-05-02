@@ -100,55 +100,53 @@
 
 ## Traceability
 
-*Populated during roadmap creation.*
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ENG-01 | — | Pending |
-| ENG-02 | — | Pending |
-| ENG-03 | — | Pending |
-| ENG-04 | — | Pending |
-| ENG-05 | — | Pending |
-| ENG-06 | — | Pending |
-| ENG-07 | — | Pending |
-| ENG-08 | — | Pending |
-| ENG-09 | — | Pending |
-| ENG-10 | — | Pending |
-| ENG-11 | — | Pending |
-| ENG-12 | — | Pending |
-| ENG-13 | — | Pending |
-| PROTO-01 | — | Pending |
-| PROTO-02 | — | Pending |
-| PROTO-03 | — | Pending |
-| PLUG-01 | — | Pending |
-| PLUG-02 | — | Pending |
-| PLUG-03 | — | Pending |
-| PLUG-04 | — | Pending |
-| PLUG-05 | — | Pending |
-| PLUG-06 | — | Pending |
-| BOX-01 | — | Pending |
-| BOX-02 | — | Pending |
-| BOX-03 | — | Pending |
-| BOX-04 | — | Pending |
-| BOX-05 | — | Pending |
-| BOX-06 | — | Pending |
-| BOX-07 | — | Pending |
-| BOX-08 | — | Pending |
-| BOX-09 | — | Pending |
-| BOX-10 | — | Pending |
-| FIX-01 | — | Pending |
-| FIX-02 | — | Pending |
-| GAME2-01 | — | Pending |
-| GAME2-02 | — | Pending |
-| SDK-01 | — | Pending |
-| SDK-02 | — | Pending |
-| SDK-03 | — | Pending |
+| ENG-01 | Phase 1 | Pending |
+| ENG-02 | Phase 1 | Pending |
+| ENG-03 | Phase 1 | Pending |
+| ENG-04 | Phase 1 | Pending |
+| ENG-05 | Phase 1 | Pending |
+| ENG-06 | Phase 1 | Pending |
+| ENG-07 | Phase 1 | Pending |
+| ENG-08 | Phase 1 | Pending |
+| ENG-09 | Phase 1 | Pending |
+| ENG-10 | Phase 1 | Pending |
+| ENG-11 | Phase 1 | Pending |
+| ENG-12 | Phase 1 | Pending |
+| ENG-13 | Phase 1 | Pending |
+| PROTO-01 | Phase 1 | Pending |
+| PROTO-02 | Phase 1 | Pending |
+| PROTO-03 | Phase 1 | Pending |
+| FIX-02 | Phase 1 | Pending |
+| PLUG-01 | Phase 2 | Pending |
+| PLUG-02 | Phase 2 | Pending |
+| PLUG-03 | Phase 2 | Pending |
+| PLUG-04 | Phase 2 | Pending |
+| PLUG-05 | Phase 2 | Pending |
+| PLUG-06 | Phase 2 | Pending |
+| BOX-01 | Phase 2 | Pending |
+| BOX-02 | Phase 2 | Pending |
+| BOX-03 | Phase 2 | Pending |
+| BOX-04 | Phase 2 | Pending |
+| BOX-05 | Phase 2 | Pending |
+| BOX-06 | Phase 2 | Pending |
+| BOX-07 | Phase 2 | Pending |
+| BOX-08 | Phase 2 | Pending |
+| BOX-09 | Phase 2 | Pending |
+| BOX-10 | Phase 2 | Pending |
+| FIX-01 | Phase 2 | Pending |
+| GAME2-01 | Phase 3 | Pending |
+| GAME2-02 | Phase 3 | Pending |
+| SDK-01 | Phase 3 | Pending |
+| SDK-02 | Phase 3 | Pending |
+| SDK-03 | Phase 3 | Pending |
 
 **Coverage:**
-- v1 requirements: 38 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 38
+- v1 requirements: 39 total
+- Mapped to phases: 39/39
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-05-01*
-*Last updated: 2026-05-01 after initial definition*
+*Last updated: 2026-05-01 — traceability populated after roadmap creation*
