@@ -267,8 +267,14 @@ pub fn detect_kick(
     let kick_threshold_y = REL_KICK_MID_Y * def_scale;
     if ankle_pos.y < kick_threshold_y { return None; }
 
-    // Kicks land in lower body regions
-    let region = if ankle_pos.y >= 0.0 { BodyRegion::LegThigh } else { BodyRegion::LegShin };
+    // WR-04: classify kick region against defender's body frame, then constrain to leg regions.
+    // Using attacker's raw ankle_pos.y >= 0.0 incorrectly depends on attacker's own frame height.
+    let raw_region = classify_region(ankle_pos.y, def_scale);
+    let region = match raw_region {
+        BodyRegion::LegThigh | BodyRegion::LegShin => raw_region,
+        BodyRegion::TorsoLower => BodyRegion::LegThigh, // high kick contacts thigh
+        _ => BodyRegion::LegThigh,
+    };
 
     Some(HitResult {
         region,
