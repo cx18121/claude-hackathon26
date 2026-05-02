@@ -197,7 +197,7 @@ fn dispatch_events(state: &mut RoomState, events: Vec<GameEvent>) {
                 // Accumulate hit for MsgGameState.recent_hits broadcast
                 state.recent_hits.push(crate::protocol::HitEvent {
                     player: attacker,
-                    region: format!("{:?}", region).to_lowercase(),
+                    region: region.to_wire().to_string(), // CR-05: snake_case via to_wire()
                     damage: damage as f64,
                     position: crate::protocol::Position {
                         x: position[0] as f64,

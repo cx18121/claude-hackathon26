@@ -34,7 +34,8 @@ pub struct PoseFrame {
 // ---------------------------------------------------------------------------
 
 /// Nine body regions for hit classification.
-/// Naming: PascalCase variants; maps to "head_chin" etc. in wire messages via Debug formatting.
+/// Use `to_wire()` for JSON wire format (snake_case). Do NOT use `format!("{:?}", r).to_lowercase()`
+/// as Debug emits PascalCase which collapses to concatenated lowercase (CR-05).
 #[derive(Debug, Clone, PartialEq)]
 pub enum BodyRegion {
     HeadFace,
@@ -46,6 +47,24 @@ pub enum BodyRegion {
     BlockForearm,
     LegThigh,
     LegShin,
+}
+
+impl BodyRegion {
+    /// Returns the canonical snake_case wire string for JSON messages (CR-05).
+    /// Replaces `format!("{:?}", region).to_lowercase()` at all call sites.
+    pub fn to_wire(&self) -> &'static str {
+        match self {
+            BodyRegion::HeadFace     => "head_face",
+            BodyRegion::HeadChin     => "head_chin",
+            BodyRegion::HeadThroat   => "head_throat",
+            BodyRegion::TorsoUpper   => "torso_upper",
+            BodyRegion::TorsoLower   => "torso_lower",
+            BodyRegion::BlockHand    => "block_hand",
+            BodyRegion::BlockForearm => "block_forearm",
+            BodyRegion::LegThigh     => "leg_thigh",
+            BodyRegion::LegShin      => "leg_shin",
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
