@@ -309,3 +309,117 @@ fn handle_cmd(state: &mut RoomState, cmd: RoomCmd) {
         }
     }
 }
+
+#[cfg(test)]
+mod player_connect_tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicBool;
+    use tokio::sync::{broadcast, mpsc};
+    use boxing_plugin::{BoxingPlugin, BoxingConfig, Difficulty};
+
+    fn make_state() -> RoomState {
+        let (pose_tx, _) = broadcast::channel(64);
+        let (game_tx, _) = broadcast::channel(64);
+        let flag = Arc::new(AtomicBool::new(false));
+        let plugin: Arc<dyn plugin_trait::GamePlugin + Send + Sync> = Arc::new(
+            BoxingPlugin::new(BoxingConfig {
+                hp: 800,
+                round_secs: 90.0,
+                max_wins: 3,
+                bot_difficulty: Difficulty::Normal,
+            })
+        );
+        RoomState::new("T01".to_string(), 3, pose_tx, game_tx, flag, plugin)
+    }
+
+    fn drain_channel(rx: &mut mpsc::Receiver<String>) -> Vec<String> {
+        let mut msgs = Vec::new();
+        while let Ok(msg) = rx.try_recv() {
+            msgs.push(msg);
+        }
+        msgs
+    }
+
+    fn has_calibration_start(msgs: &[String]) -> bool {
+        msgs.iter().any(|m| m.contains("\"calibration_start\""))
+    }
+
+    /// BOX-10 / CR-01: solo player (slot 0) must receive calibration_start on connect
+    /// when player 1 is not present.
+    #[test]
+    fn box10_solo_player_connect_sends_calibration_start() {
+        let mut state = make_state();
+        // Slot 0 outbound channel (capacity 16 — enough for lobby_update + calibration_start)
+        let (tx0, mut rx0) = mpsc::channel::<String>(16);
+
+        // Player 0 connects; player 1 is never connected.
+        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+        handle_cmd(
+            &mut state,
+            RoomCmd::PlayerConnect { slot: 0, tx: tx0, reply: reply_tx },
+        );
+        // reply_rx is a oneshot; we don't need the value, just confirm handle_cmd ran.
+        drop(reply_rx);
+
+        let msgs = drain_channel(&mut rx0);
+        assert!(
+            has_calibration_start(&msgs),
+            "BOX-10/CR-01: solo player 0 must receive calibration_start on connect; got: {:?}",
+            msgs
+        );
+    }
+
+    /// Two-player mode: calibration_start sent to both slots after both connect.
+    #[test]
+    fn two_player_connect_sends_calibration_start_to_both() {
+        let mut state = make_state();
+        let (tx0, mut rx0) = mpsc::channel::<String>(16);
+        let (tx1, mut rx1) = mpsc::channel::<String>(16);
+
+        // Player 0 connects first — solo_mode is true at this point, so calibration_start is
+        // sent to slot 0 alone (solo path). We drain and discard these early messages.
+        let (r0_tx, r0_rx) = tokio::sync::oneshot::channel();
+        handle_cmd(&mut state, RoomCmd::PlayerConnect { slot: 0, tx: tx0, reply: r0_tx });
+        drop(r0_rx);
+        let _early = drain_channel(&mut rx0); // discard solo calibration_start
+
+        // Player 1 connects — now both are connected. Two-player calibration_start sent to both.
+        let (r1_tx, r1_rx) = tokio::sync::oneshot::channel();
+        handle_cmd(&mut state, RoomCmd::PlayerConnect { slot: 1, tx: tx1, reply: r1_tx });
+        drop(r1_rx);
+
+        let msgs0 = drain_channel(&mut rx0);
+        let msgs1 = drain_channel(&mut rx1);
+        assert!(
+            has_calibration_start(&msgs0),
+            "two-player: slot 0 must receive calibration_start after both connect; got: {:?}",
+            msgs0
+        );
+        assert!(
+            has_calibration_start(&msgs1),
+            "two-player: slot 1 must receive calibration_start after both connect; got: {:?}",
+            msgs1
+        );
+    }
+
+    /// Idempotency: solo player reconnects after match has started — no second calibration_start.
+    #[test]
+    fn solo_reconnect_after_match_started_does_not_resend_calibration_start() {
+        let mut state = make_state();
+        // Simulate match already in progress (round_start_time is set)
+        state.round_start_time = Some(std::time::Instant::now());
+
+        let (tx0, mut rx0) = mpsc::channel::<String>(16);
+        let (r_tx, r_rx) = tokio::sync::oneshot::channel();
+        handle_cmd(&mut state, RoomCmd::PlayerConnect { slot: 0, tx: tx0, reply: r_tx });
+        drop(r_rx);
+
+        let msgs = drain_channel(&mut rx0);
+        assert!(
+            !has_calibration_start(&msgs),
+            "solo reconnect after match start must NOT re-send calibration_start; got: {:?}",
+            msgs
+        );
+    }
+}
