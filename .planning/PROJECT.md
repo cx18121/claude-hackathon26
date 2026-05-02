@@ -6,7 +6,7 @@ A real-time multiplayer game engine written in Rust (Axum + Tokio) for pose-base
 
 ## Core Value
 
-The engine's plugin interface must be minimal and self-contained enough that Claude can implement a new game from a plain-English description in a single API call, with no knowledge of the engine internals.
+The engine must make it trivially easy to add a new pose-based game by implementing a well-defined plugin interface — without touching the engine core or understanding its internals.
 
 ## Requirements
 
@@ -30,7 +30,7 @@ The engine's plugin interface must be minimal and self-contained enough that Cla
 - [ ] Fix win counter lost on spectator reconnect (server sends cumulative state on join)
 - [ ] Reference second game plugin (dance/score or pose-match) to stress-test the interface
 - [ ] SDK documentation: trait interface + boxing as example, enough for a developer (or LLM) to add a new game
-- [ ] AI game generation (stretch): Claude generates a game plugin from a natural language description
+- [ ] AI game generation (stretch): Claude generates a game plugin from a natural language description — deferred until engine and SDK are proven
 
 ### Out of Scope
 
@@ -57,7 +57,7 @@ The game plugin abstraction is the most architecturally important decision in th
 - **Protocol**: Wire format must be byte-for-byte compatible with existing `shared/protocol.ts` — no client changes
 - **Deployment**: Docker multi-stage build + Railway; same `railway.toml` shape
 - **Game loop**: 60Hz authoritative tick must be maintained; RTT fairness input delay preserved
-- **Plugin interface**: Game trait must be small enough to implement without engine internals knowledge — target ≤5 methods, ≤150 lines for a simple game
+- **Plugin interface**: Game trait must be well-defined enough that a developer (or LLM) can implement a new game without knowing engine internals — no artificial method count limit, but the engine/game boundary must be explicit and non-leaky
 
 ## Key Decisions
 
@@ -65,7 +65,7 @@ The game plugin abstraction is the most architecturally important decision in th
 |----------|-----------|---------|
 | Rust for full server rewrite (not PyO3 shim) | Python GIL prevents parallelism; Pydantic/NumPy overhead in hot path; clean break is simpler than hybrid | — Pending |
 | Axum + Tokio (not Actix) | Better ecosystem ergonomics, `tower` middleware composability, user preference | — Pending |
-| Game plugin as Rust trait (not scripting/WASM) | Keeps the hot path native; LLMs can generate Rust; compile-time safety over runtime flexibility | — Pending |
+| Game plugin as Rust trait (not scripting/WASM) | Keeps the hot path native; compile-time safety; runtime flexibility not needed for this use case | — Pending |
 | Boxing is first plugin, not built into engine | Forces the engine/game boundary to be real before a second game tests it | — Pending |
 | Wire protocol unchanged | TypeScript clients are not part of this rewrite; preserving them eliminates a whole class of risk | — Pending |
 | Commentary ported last | Async HTTP (reqwest + tokio) is straightforward in Rust, but it's a separate concern from game engine correctness | — Pending |
@@ -88,4 +88,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-01 after initialization*
+*Last updated: 2026-05-02 — Phase 02 (plugin-trait-boxing) complete: BoxingPlugin wired into engine-core, solo calibration_start fix (BOX-10/CR-01) closed, 91 tests passing*
