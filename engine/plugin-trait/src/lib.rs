@@ -121,6 +121,8 @@ pub struct SlotView {
 /// Plugin uses this to detect solo/bot mode (D-04): slots[1].connected == false.
 pub struct RoomView {
     pub slots: [SlotView; 2],
+    /// True if the match started in solo/bot mode (WR-01: set once at CalibrationDone, not re-derived per tick).
+    pub solo_mode: bool,
 }
 
 /// All inputs delivered to the plugin for one 60Hz tick.

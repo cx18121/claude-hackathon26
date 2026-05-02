@@ -40,6 +40,9 @@ pub struct RoomState {
     /// Shared with RoomHandle — set to Some(Instant::now()) when last player disconnects (CR-01).
     pub last_player_disconnected_at: Arc<std::sync::Mutex<Option<Instant>>>,
     pub max_wins: u32,
+    /// Set once at CalibrationDone when match starts (WR-01: avoid re-deriving per tick which
+    /// would silently activate bot mode if P2 disconnects during a two-player match).
+    pub solo_mode: bool,
     pub hp: [u32; 2],
     // Broadcast channel senders (rx subscribed by spectator handlers and outbound tasks)
     pub pose_tx: broadcast::Sender<String>,          // fast path (ENG-07, ENG-08)
@@ -75,6 +78,7 @@ impl RoomState {
             match_over_flag,
             last_player_disconnected_at,
             max_wins,
+            solo_mode: false,
             hp: [800, 800],
             pose_tx,
             game_tx,
@@ -272,6 +276,8 @@ fn handle_cmd(state: &mut RoomState, cmd: RoomCmd) {
                 state.players.iter().all(|p| p.reference_velocity.is_some())
             };
             if ready_to_start && state.round_start_time.is_none() {
+                // WR-01: record solo_mode once at match start; do not re-derive per tick
+                state.solo_mode = solo_mode;
                 // Start match — game_loop will handle warmup gate
                 use crate::protocol::*;
                 if let Ok(json) = serde_json::to_string(&MsgMatchStart { msg_type: "match_start".to_string() }) {

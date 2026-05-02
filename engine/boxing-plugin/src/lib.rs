@@ -93,8 +93,8 @@ impl GamePlugin for BoxingPlugin {
         let mut events: Vec<GameEvent> = Vec::new();
 
         // --- Bot mode (D-04, BOX-10) ---
-        // Solo mode = slot 1 connected, slot 2 not connected.
-        let solo_mode = ctx.room.slots[0].connected && !ctx.room.slots[1].connected;
+        // WR-01: use stable solo_mode from RoomView (set once at match start, not re-derived per tick)
+        let solo_mode = ctx.room.solo_mode;
         if solo_mode {
             let mut bot_events = bot::tick_bot(
                 self.config.bot_difficulty,
@@ -435,6 +435,7 @@ mod tests {
                     SlotView { connected: true, reference_velocity: Some(3.0) },
                     SlotView { connected: true, reference_velocity: Some(3.0) },
                 ],
+                solo_mode: false,
             },
         };
         let events = plugin.on_tick(&ctx, &mut *state);
