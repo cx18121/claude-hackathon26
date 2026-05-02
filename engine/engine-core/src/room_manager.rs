@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use dashmap::DashMap;
+use dashmap::mapref::entry::Entry;
 use rand::{distributions::Alphanumeric, Rng};
 use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinHandle;
@@ -41,50 +42,55 @@ impl RoomManager {
     /// the provided code is already taken). Returns the actual room code used.
     /// The caller provides the client-supplied 6-char code from the URL; we
     /// use it directly if available to match Python server on-demand semantics.
+    ///
+    /// Uses DashMap entry API to atomically claim the slot and prevent TOCTOU
+    /// races between concurrent join requests for the same new room (WR-01).
     pub fn create_room(&self, room_code: String) -> String {
-        // If the requested code is free, use it directly.
-        // Otherwise fall back to generating a new unique code.
-        let code = if !self.rooms.contains_key(&room_code) {
-            room_code
-        } else {
-            loop {
-                let generated: String = rand::thread_rng()
-                    .sample_iter(&Alphanumeric)
-                    .take(6)
-                    .map(|c| char::from(c).to_ascii_uppercase())
-                    .collect();
-                if !self.rooms.contains_key(&generated) {
-                    break generated;
+        // Candidate codes: try the requested code first, then random fallbacks.
+        let mut candidate = room_code.clone();
+        loop {
+            match self.rooms.entry(candidate.clone()) {
+                Entry::Vacant(slot) => {
+                    // Atomically claimed — build channels, state, and actor.
+                    let code = candidate.clone();
+                    let (cmd_tx, cmd_rx) = mpsc::channel::<RoomCmd>(128);
+                    let (pose_tx, _) = broadcast::channel::<String>(64);   // ENG-08 fast path
+                    let (game_tx, _) = broadcast::channel::<String>(128);  // ENG-08 slow path
+                    // Shared flag between RoomState and RoomHandle — set by game_loop on match end (CR-03)
+                    let match_over_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
+                    let state = RoomState::new(
+                        code.clone(),
+                        2, // default max_wins
+                        pose_tx.clone(),
+                        game_tx.clone(),
+                        Arc::clone(&match_over_flag),
+                    );
+                    // Spawn actor — DO NOT hold DashMap guard across this spawn (Pitfall 4).
+                    // We drop the entry guard after insert, so the guard is held only during insert.
+                    let join_handle = tokio::spawn(room_actor(cmd_rx, state));
+                    let handle = RoomHandle {
+                        cmd_tx,
+                        join_handle,
+                        match_over: match_over_flag,
+                        last_player_disconnected_at: std::sync::Mutex::new(None),
+                        pose_tx,
+                        game_tx,
+                        created_at: Instant::now(),
+                    };
+                    slot.insert(handle);
+                    tracing::info!("room {} created", code);
+                    return code;
+                }
+                Entry::Occupied(_) => {
+                    // Slot occupied — generate a new random candidate and retry.
+                    candidate = rand::thread_rng()
+                        .sample_iter(&Alphanumeric)
+                        .take(6)
+                        .map(|c| char::from(c).to_ascii_uppercase())
+                        .collect();
                 }
             }
-        };
-        // Create channels
-        let (cmd_tx, cmd_rx) = mpsc::channel::<RoomCmd>(128);
-        let (pose_tx, _) = broadcast::channel::<String>(64);   // ENG-08 fast path
-        let (game_tx, _) = broadcast::channel::<String>(128);  // ENG-08 slow path
-        // Shared flag between RoomState and RoomHandle — set by game_loop on match end (CR-03)
-        let match_over_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let state = RoomState::new(
-            code.clone(),
-            2, // default max_wins
-            pose_tx.clone(),
-            game_tx.clone(),
-            Arc::clone(&match_over_flag),
-        );
-        // Spawn actor — DO NOT hold DashMap guard across this spawn (Pitfall 4)
-        let join_handle = tokio::spawn(room_actor(cmd_rx, state));
-        let handle = RoomHandle {
-            cmd_tx,
-            join_handle,
-            match_over: match_over_flag,
-            last_player_disconnected_at: std::sync::Mutex::new(None),
-            pose_tx,
-            game_tx,
-            created_at: Instant::now(),
-        };
-        self.rooms.insert(code.clone(), handle);
-        tracing::info!("room {} created", code);
-        code
+        }
     }
 
     /// Clone the cmd_tx for a room without holding the DashMap guard across await (Pitfall 4).
