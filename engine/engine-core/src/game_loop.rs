@@ -42,8 +42,17 @@ fn normalize_to_y_up(frame: &crate::protocol::MsgPoseFrame) -> PoseFrame {
 /// Implements: warmup gate (ENG-09), round lifecycle (ENG-10), MsgGameState broadcast.
 /// Phase 2: calls plugin.on_tick and dispatches all 5 GameEvent variants.
 pub fn game_tick(state: &mut RoomState) {
-    // Only tick if match is in progress (both players calibrated)
-    let match_in_progress = state.players.iter().all(|p| p.reference_velocity.is_some())
+    // Solo mode: player 2 is not connected (bot mode). One calibrated player suffices.
+    // Two-player mode: both players must be calibrated before the match begins.
+    let solo_mode = !state.players[1].connected;
+    let calibrated_ok = if solo_mode {
+        // In solo mode, only player 0 must have calibrated (player 1 is a bot)
+        state.players[0].reference_velocity.is_some()
+    } else {
+        // In two-player mode, both players must have calibrated
+        state.players.iter().all(|p| p.reference_velocity.is_some())
+    };
+    let match_in_progress = calibrated_ok
         && state.round_start_time.is_some()
         && !state.match_over;
 
