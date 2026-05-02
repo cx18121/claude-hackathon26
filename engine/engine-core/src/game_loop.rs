@@ -79,10 +79,12 @@ pub fn game_tick(state: &mut RoomState) {
         };
         if let Ok(json) = serde_json::to_string(&round_end) {
             let _ = state.game_tx.send(json.clone());
-            // Also send to players
-            for player in &state.players {
+            // Also send to players — log if channel full so we don't silently drop (WR-02)
+            for (slot, player) in state.players.iter().enumerate() {
                 if let Some(tx) = &player.tx {
-                    let _ = tx.try_send(json.clone());
+                    if tx.try_send(json.clone()).is_err() {
+                        tracing::warn!("room {} player {} outbound channel full, dropping round_end", state.code, slot + 1);
+                    }
                 }
             }
         }
@@ -107,9 +109,12 @@ pub fn game_tick(state: &mut RoomState) {
             };
             if let Ok(json) = serde_json::to_string(&match_end) {
                 let _ = state.game_tx.send(json.clone());
-                for player in &state.players {
+                // Log if channel full — match_end must not be silently dropped (WR-02)
+                for (slot, player) in state.players.iter().enumerate() {
                     if let Some(tx) = &player.tx {
-                        let _ = tx.try_send(json.clone());
+                        if tx.try_send(json.clone()).is_err() {
+                            tracing::warn!("room {} player {} outbound channel full, dropping match_end", state.code, slot + 1);
+                        }
                     }
                 }
             }
@@ -136,9 +141,12 @@ pub fn game_tick(state: &mut RoomState) {
         };
         if let Ok(json) = serde_json::to_string(&round_start) {
             let _ = state.game_tx.send(json.clone());
-            for player in &state.players {
+            // Log if channel full — round_start must not be silently dropped (WR-02)
+            for (slot, player) in state.players.iter().enumerate() {
                 if let Some(tx) = &player.tx {
-                    let _ = tx.try_send(json.clone());
+                    if tx.try_send(json.clone()).is_err() {
+                        tracing::warn!("room {} player {} outbound channel full, dropping round_start", state.code, slot + 1);
+                    }
                 }
             }
         }
