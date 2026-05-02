@@ -58,6 +58,10 @@ pub fn game_tick(state: &mut RoomState) {
                 break;
             }
         }
+        // Phase 1 has no hit-detection consumer for processed_frames; clear immediately
+        // to bound memory (~5 400 frames × ~1 KB/frame = ~5 MB unbounded per round) (WR-05).
+        // Phase 2 will process these frames before clearing.
+        player.processed_frames.clear();
     }
 
     // ENG-10: Check round over (time limit only in Phase 1; KO added in Phase 2)
