@@ -28,9 +28,9 @@ Phase 2 defines the `GamePlugin` trait and implements the boxing game as its fir
 ### Plugin Registration
 - **D-05:** Hardcoded in `engine-core/src/main.rs` for Phase 2:
   ```rust
-  let plugin: Box<dyn GamePlugin + Send> = Box::new(BoxingPlugin::new(config));
+  let plugin: Arc<dyn GamePlugin + Send + Sync> = Arc::new(BoxingPlugin::new(config));
   ```
-  The engine is already generic (`Box<dyn GamePlugin + Send>`); Phase 3 adds a match branch or CLI flag when a second game exists. No Cargo feature flags or config-file routing in Phase 2.
+  Note: Originally specified as `Box<dyn GamePlugin + Send>`. Upgraded to `Arc<dyn GamePlugin + Send + Sync>` because the plugin instance must be cloned into each room actor at creation time (multi-room sharing). `Arc` requires `Sync` on the inner type; `BoxingPlugin` is stateless (all mutable state lives in per-room `plugin_state: Box<dyn Any + Send>`) so implementing `Sync` is safe. The engine is already generic over the trait object; Phase 3 adds a match branch or CLI flag when a second game exists. No Cargo feature flags or config-file routing in Phase 2.
 
 ### Plugin Init Config
 - **D-06:** `BoxingPlugin::new(config: BoxingConfig)` where `BoxingConfig` is a boxing-specific struct. `GamePlugin::init_state()` takes no arguments — the trait stays clean. Config values are set at construction time in `main.rs`. Phase 2 defaults: `{ hp: 800, round_secs: 90.0, max_wins: 3, bot_difficulty: Difficulty::Normal }`.

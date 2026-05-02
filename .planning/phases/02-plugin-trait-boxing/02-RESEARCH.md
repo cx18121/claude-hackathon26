@@ -756,22 +756,25 @@ impl GamePlugin for BoxingPlugin {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Where does `plugin_state: Box<dyn Any + Send>` live on `RoomState`?**
    - What we know: Phase 1 `RoomState` has no plugin state field.
    - What's unclear: Whether to store `plugin_state` directly on `RoomState` or in a separate per-room wrapper.
    - Recommendation: Add `plugin_state: Box<dyn Any + Send>` directly to `RoomState`. Initialized in `create_room` by calling `plugin.init_state()`. Passed as `&mut dyn Any` to all plugin methods.
+   - RESOLVED: `plugin_state: Box<dyn Any + Send>` is added directly to `RoomState` in `engine-core/src/room.rs` (Plan 04, Task 1). Initialized by calling `plugin.init_state()` in `create_room`; passed as `&mut dyn Any` to every plugin method call in `game_loop.rs`.
 
 2. **How is the plugin instance threaded into room_actor?**
    - What we know: `room_actor(cmd_rx, state)` in Phase 1 takes only those two args. The plugin is constructed in `main.rs`.
    - What's unclear: Whether to pass `Arc<Box<dyn GamePlugin + Send>>` as a third arg to `room_actor`, or store it on `RoomState`.
    - Recommendation: Add `plugin: Arc<dyn GamePlugin + Send>` as a field on `RoomState` (or pass as arg to `room_actor`). Using `Arc<dyn GamePlugin + Send>` (not `Arc<Box<...>>`) is idiomatic — `Arc<dyn Trait>` is fat-pointer already.
+   - RESOLVED: `plugin: Arc<dyn GamePlugin + Send + Sync>` is stored on `RoomState` (Plan 04, Task 1). Constructed as `Arc::new(BoxingPlugin::new(config))` in `main.rs` and cloned into each room at creation time. `Arc` is required because the same plugin instance is shared across potentially multiple rooms; `Sync` is required by `Arc`.
 
 3. **Does `TickContext` use `plugin-trait`'s own `PoseFrame` type or re-export `engine-core::protocol::MsgPoseFrame`?**
    - What we know: `plugin-trait` must not depend on `engine-core` (dependency flows: engine-core → plugin-trait, boxing-plugin → plugin-trait).
    - What's unclear: Whether `PoseFrame` in plugin-trait is a thin wrapper or a re-declaration.
    - Recommendation: `plugin-trait` defines its own `PoseFrame { timestamp: f64, keypoints: Vec<PoseKeypoint> }`. `engine-core`'s `game_loop.rs` converts `MsgPoseFrame` to plugin-trait's `PoseFrame` when building `TickContext`. This keeps the plugin-trait crate dependency-free.
+   - RESOLVED: `plugin-trait` declares its own `PoseFrame` and `PoseKeypoint` types (Plan 01, Task 1). `game_loop.rs` converts `MsgPoseFrame` → plugin-trait `PoseFrame` during `TickContext` construction (Plan 04, Task 2). The `plugin-trait` crate remains free of any `engine-core` dependency.
 
 ---
 
