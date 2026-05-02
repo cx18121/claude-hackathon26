@@ -1,8 +1,10 @@
+use std::any::Any;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::{broadcast, mpsc, oneshot};
 use crate::protocol::{MsgPoseFrame, MsgLobbyUpdate, MsgGameState};
+use plugin_trait::GamePlugin;
 
 pub struct PlayerSlot {
     pub tx: Option<mpsc::Sender<String>>,           // outbound task channel (ENG-05)
@@ -40,6 +42,14 @@ pub struct RoomState {
     // Broadcast channel senders (rx subscribed by spectator handlers and outbound tasks)
     pub pose_tx: broadcast::Sender<String>,          // fast path (ENG-07, ENG-08)
     pub game_tx: broadcast::Sender<String>,          // slow path (ENG-08)
+    /// Plugin instance shared across all rooms (one boxing plugin, many rooms). Arc for Clone.
+    pub plugin: Arc<dyn GamePlugin + Send + Sync>,
+    /// Per-room plugin state (opaque Box<dyn Any + Send>). Only the plugin downcasts this.
+    pub plugin_state: Box<dyn Any + Send>,
+    /// Monotonic tick counter (replaces hardcoded 0 in Phase 1 build_game_state). (PLUG-02)
+    pub tick: u64,
+    /// Hits accumulated this tick; broadcast in MsgGameState.recent_hits, then cleared.
+    pub recent_hits: Vec<crate::protocol::HitEvent>,
 }
 
 impl RoomState {
@@ -49,7 +59,9 @@ impl RoomState {
         pose_tx: broadcast::Sender<String>,
         game_tx: broadcast::Sender<String>,
         match_over_flag: Arc<std::sync::atomic::AtomicBool>,
+        plugin: Arc<dyn GamePlugin + Send + Sync>,
     ) -> Self {
+        let plugin_state = plugin.init_state();
         Self {
             code,
             players: [PlayerSlot::new(), PlayerSlot::new()],
@@ -62,6 +74,10 @@ impl RoomState {
             hp: [800, 800],
             pose_tx,
             game_tx,
+            plugin,
+            plugin_state,
+            tick: 0,
+            recent_hits: Vec::new(),
         }
     }
 }
@@ -142,11 +158,11 @@ fn build_snapshot(state: &RoomState) -> RoomSnapshot {
         let remaining = (90.0_f64 - elapsed).max(0.0);
         let gs = MsgGameState {
             msg_type: "game_state".to_string(),
-            tick: 0,
+            tick: state.tick,
             hp: (state.hp[0], state.hp[1]),
             wins: (state.wins[0], state.wins[1]),  // FIX-02: include wins in snapshot
             poses: (vec![], vec![]),
-            recent_hits: vec![],
+            recent_hits: state.recent_hits.clone(),
             high_latency: false,
             remaining_time: remaining,
             max_wins: state.max_wins,
@@ -188,6 +204,7 @@ fn handle_cmd(state: &mut RoomState, cmd: RoomCmd) {
             }
             state.players[slot].tx = Some(tx);
             state.players[slot].connected = true;
+            state.plugin.on_player_join(slot as u8, &mut *state.plugin_state);
             let opponent_idx = 1 - slot;
             let result = ConnectResult {
                 slot,
@@ -224,6 +241,7 @@ fn handle_cmd(state: &mut RoomState, cmd: RoomCmd) {
         }
         RoomCmd::CalibrationDone { slot, reference_velocity } => {
             state.players[slot].reference_velocity = Some(reference_velocity);
+            state.plugin.on_calibration_complete(slot as u8, reference_velocity, &mut *state.plugin_state);
             tracing::info!("player {} calibrated ref_vel={:.2}", slot + 1, reference_velocity);
             // Check if both players are calibrated
             let both_calibrated = state.players.iter().all(|p| p.reference_velocity.is_some());
@@ -246,6 +264,7 @@ fn handle_cmd(state: &mut RoomState, cmd: RoomCmd) {
         RoomCmd::PlayerDisconnect { slot } => {
             state.players[slot].connected = false;
             state.players[slot].tx = None;
+            state.plugin.on_player_leave(slot as u8, &mut *state.plugin_state);
             tracing::info!("player {} disconnected from room {}", slot + 1, state.code);
             // Broadcast lobby update
             if let Ok(json) = serde_json::to_string(&MsgLobbyUpdate {

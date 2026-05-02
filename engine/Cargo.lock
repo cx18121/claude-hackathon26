@@ -175,8 +175,10 @@ name = "engine-core"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "boxing-plugin",
  "dashmap",
  "futures-util",
+ "plugin-trait",
  "rand 0.8.6",
  "serde",
  "serde_json",

@@ -24,3 +24,5 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 rand = "0.8.6"
 futures-util = "0.3"
 tokio-stream = "0.1"
+plugin-trait = { path = "../plugin-trait" }
+boxing-plugin = { path = "../boxing-plugin" }

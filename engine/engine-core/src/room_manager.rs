@@ -7,6 +7,7 @@ use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinHandle;
 
 use crate::room::{RoomCmd, RoomState, room_actor};
+use plugin_trait::GamePlugin;
 
 pub struct RoomHandle {
     pub cmd_tx: mpsc::Sender<RoomCmd>,
@@ -45,7 +46,7 @@ impl RoomManager {
     ///
     /// Uses DashMap entry API to atomically claim the slot and prevent TOCTOU
     /// races between concurrent join requests for the same new room (WR-01).
-    pub fn create_room(&self, room_code: String) -> String {
+    pub fn create_room(&self, room_code: String, plugin: Arc<dyn GamePlugin + Send + Sync>) -> String {
         // Candidate codes: try the requested code first, then random fallbacks.
         let mut candidate = room_code.clone();
         loop {
@@ -64,6 +65,7 @@ impl RoomManager {
                         pose_tx.clone(),
                         game_tx.clone(),
                         Arc::clone(&match_over_flag),
+                        Arc::clone(&plugin),
                     );
                     // Spawn actor — DO NOT hold DashMap guard across this spawn (Pitfall 4).
                     // We drop the entry guard after insert, so the guard is held only during insert.

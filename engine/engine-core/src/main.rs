@@ -7,6 +7,9 @@ use axum::{
 use tower_http::services::ServeDir;
 use std::sync::Arc;
 use futures_util::{SinkExt, StreamExt};
+use plugin_trait::GamePlugin;
+use boxing_plugin::{BoxingPlugin, BoxingConfig};
+use boxing_plugin::Difficulty;
 
 mod protocol;
 mod room;
@@ -17,13 +20,22 @@ mod game_loop;
 
 pub struct AppState {
     pub rooms: Arc<room_manager::RoomManager>,
+    pub plugin: Arc<dyn GamePlugin + Send + Sync>,
 }
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
+    let boxing_config = BoxingConfig {
+        hp: 800,
+        round_secs: 90.0,
+        max_wins: 3,
+        bot_difficulty: Difficulty::Normal,
+    };
+    let plugin: Arc<dyn GamePlugin + Send + Sync> = Arc::new(BoxingPlugin::new(boxing_config));
     let state = Arc::new(AppState {
         rooms: Arc::new(room_manager::RoomManager::new()),
+        plugin: Arc::clone(&plugin),
     });
     // Spawn room expiry background task (D-08)
     tokio::spawn(room_manager::expiry_task(state.rooms.rooms.clone()));
@@ -105,7 +117,7 @@ async fn handle_player(
         }
         None => {
             // Room does not exist — create it on demand using the client-provided code.
-            let created_code = app.rooms.create_room(room_code.clone());
+            let created_code = app.rooms.create_room(room_code.clone(), Arc::clone(&app.plugin));
             tracing::info!("room {} created on demand for player {}", created_code, slot_idx + 1);
             match app.rooms.get_cmd_tx(&created_code) {
                 Some(tx) => {
