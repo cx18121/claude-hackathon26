@@ -23,6 +23,8 @@ const fn kp(x: f64, y: f64) -> PoseKeypoint {
 }
 
 pub struct TargetPose {
+    /// Human-readable pose name (used in Broadcast payload and SDK documentation).
+    #[allow(dead_code)]
     pub name: &'static str,
     pub keypoints: [PoseKeypoint; 33],
 }
