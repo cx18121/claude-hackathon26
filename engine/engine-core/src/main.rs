@@ -1,15 +1,18 @@
 use axum::{
-    extract::{Path, State, WebSocketUpgrade},
+    extract::{Path, Query, State, WebSocketUpgrade},
     response::IntoResponse,
-    routing::get,
-    Router,
+    routing::{get, post},
+    Json, Router,
 };
 use tower_http::services::ServeDir;
 use std::sync::Arc;
+use std::collections::HashMap;
 use futures_util::{SinkExt, StreamExt};
+use serde::{Deserialize, Serialize};
 use plugin_trait::GamePlugin;
 use boxing_plugin::{BoxingPlugin, BoxingConfig};
 use boxing_plugin::Difficulty;
+use dance_plugin::{DancePlugin, DanceConfig};
 
 mod protocol;
 mod room;
@@ -20,7 +23,7 @@ mod game_loop;
 
 pub struct AppState {
     pub rooms: Arc<room_manager::RoomManager>,
-    pub plugin: Arc<dyn GamePlugin + Send + Sync>,
+    pub plugins: HashMap<String, Arc<dyn GamePlugin + Send + Sync>>,
 }
 
 #[tokio::main]
@@ -32,14 +35,20 @@ async fn main() {
         max_wins: 3,
         bot_difficulty: Difficulty::Normal,
     };
-    let plugin: Arc<dyn GamePlugin + Send + Sync> = Arc::new(BoxingPlugin::new(boxing_config));
+    let dance_config = DanceConfig { max_wins: 3 };
+    // Build plugin registry before Arc::new — cannot insert after wrapping (Pitfall 2)
+    let mut plugins: HashMap<String, Arc<dyn GamePlugin + Send + Sync>> = HashMap::new();
+    plugins.insert("boxing".to_string(), Arc::new(BoxingPlugin::new(boxing_config)));
+    plugins.insert("dance".to_string(), Arc::new(DancePlugin::new(dance_config)));
     let state = Arc::new(AppState {
         rooms: Arc::new(room_manager::RoomManager::new()),
-        plugin: Arc::clone(&plugin),
+        plugins,
     });
     // Spawn room expiry background task (D-08)
     tokio::spawn(room_manager::expiry_task(state.rooms.rooms.clone()));
     let app = Router::new()
+        .route("/", get(lobby_html))
+        .route("/rooms", post(create_room))
         .route("/ws/player/{room_code}", get(ws_player))
         .route("/ws/spectator/{room_code}", get(ws_spectator))
         .nest_service("/mobile", ServeDir::new("mobile/dist"))
@@ -106,9 +115,8 @@ async fn handle_player(
         }
     };
 
-    // ENG-02 room-on-demand: get cmd_tx, creating the room if it doesn't exist yet.
+    // Option A: room must be pre-created via POST /rooms — no on-demand creation.
     // Clone immediately — do NOT hold DashMap guard across await (Pitfall 4).
-    // actual_code is the real room code (may differ from room_code if collision occurred).
     let actual_code: String;
     let cmd_tx = match app.rooms.get_cmd_tx(&room_code) {
         Some(tx) => {
@@ -116,25 +124,17 @@ async fn handle_player(
             tx
         }
         None => {
-            // Room does not exist — create it on demand using the client-provided code.
-            let created_code = app.rooms.create_room(room_code.clone(), Arc::clone(&app.plugin));
-            tracing::info!("room {} created on demand for player {}", created_code, slot_idx + 1);
-            match app.rooms.get_cmd_tx(&created_code) {
-                Some(tx) => {
-                    actual_code = created_code;
-                    tx
-                }
-                None => {
-                    tracing::error!("room {} missing after create_room — logic error", created_code);
-                    return;
-                }
-            }
+            tracing::warn!(
+                "handle_player: room {} not found; rooms must be pre-created via POST /rooms",
+                room_code
+            );
+            return;
         }
     };
     let pose_tx = match app.rooms.rooms.get(&actual_code).map(|h| h.pose_tx.clone()) {
         Some(tx) => tx,
         None => {
-            tracing::error!("room {} missing pose_tx after create_room — logic error", actual_code);
+            tracing::error!("room {} missing pose_tx — logic error", actual_code);
             return;
         }
     };
@@ -284,4 +284,149 @@ async fn handle_spectator(
     // Spectator disconnected — abort the forward task
     forward_handle.abort();
     tracing::info!("spectator disconnected from room {}", room_code);
+}
+
+const LOBBY_HTML: &str = r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PoseEngine Lobby</title>
+  <style>
+    :root {
+      --bg-deep: oklch(7% 0.008 22);
+      --bg-mid: oklch(11% 0.009 22);
+      --bg-surface: oklch(17% 0.01 22);
+      --accent: oklch(44% 0.22 22);
+      --accent-bright: oklch(60% 0.25 22);
+      --text-primary: oklch(95% 0.008 85);
+      --text-secondary: oklch(65% 0.008 85);
+      --text-dim: oklch(38% 0.006 85);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      max-width: 480px;
+      margin: 48px auto;
+      padding: 0 16px;
+    }
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 32px;
+    }
+    p.subtitle {
+      font-size: 0.8rem;
+      font-weight: 800;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 16px;
+    }
+    .btn-row { display: flex; gap: 8px; }
+    button {
+      min-height: 52px;
+      padding: 16px 24px;
+      background: var(--bg-surface);
+      border: 1px solid var(--text-dim);
+      color: var(--text-primary);
+      font-size: 1rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    button:hover { background: var(--accent); border-color: var(--accent-bright); }
+    button:active { transform: scale(0.98); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    #room-code {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: 0.2em;
+      margin-top: 16px;
+      color: var(--text-primary);
+    }
+    #room-code.error {
+      color: #ff9b9b;
+      background: rgba(226, 91, 91, 0.15);
+      border: 1px solid rgba(226, 91, 91, 0.4);
+      padding: 8px 12px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Choose a Game</h1>
+  <p class="subtitle">Create a room, then enter the code in the mobile app</p>
+  <div class="btn-row">
+    <button id="btn-boxing" onclick="createRoom('boxing')">Boxing</button>
+    <button id="btn-dance" onclick="createRoom('dance')">Dance</button>
+  </div>
+  <div id="room-code"></div>
+  <script>
+    async function createRoom(game) {
+      const buttons = document.querySelectorAll('button');
+      buttons.forEach(b => b.disabled = true);
+      const rc = document.getElementById('room-code');
+      rc.className = '';
+      rc.textContent = '';
+      try {
+        const res = await fetch('/rooms?game=' + game, { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) {
+          rc.textContent = data.room_code;
+        } else {
+          rc.className = 'error';
+          rc.textContent = data.error ?? 'Server error';
+        }
+      } catch (_) {
+        rc.className = 'error';
+        rc.textContent = 'Could not reach server';
+      } finally {
+        buttons.forEach(b => b.disabled = false);
+      }
+    }
+  </script>
+</body>
+</html>"#;
+
+async fn lobby_html() -> impl IntoResponse {
+    axum::response::Html(LOBBY_HTML)
+}
+
+#[derive(Deserialize)]
+struct CreateRoomParams {
+    game: Option<String>,
+}
+
+#[derive(Serialize)]
+struct CreateRoomResponse {
+    room_code: String,
+}
+
+async fn create_room(
+    Query(params): Query<CreateRoomParams>,
+    State(app): State<Arc<AppState>>,
+) -> impl IntoResponse {
+    let game = params.game.as_deref().unwrap_or("boxing");
+    match app.plugins.get(game) {
+        Some(plugin) => {
+            // Pass empty string — room_manager generates a random 6-char code
+            let code = app.rooms.create_room(String::new(), Arc::clone(plugin));
+            (
+                axum::http::StatusCode::CREATED,
+                Json(CreateRoomResponse { room_code: code }),
+            ).into_response()
+        }
+        None => (
+            axum::http::StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": format!("unknown game: {}", game) })),
+        ).into_response(),
+    }
 }
