@@ -8,6 +8,7 @@ use tower_http::services::ServeDir;
 use std::sync::Arc;
 use std::collections::HashMap;
 use futures_util::{SinkExt, StreamExt};
+use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
 use plugin_trait::GamePlugin;
 use boxing_plugin::{BoxingPlugin, BoxingConfig};
@@ -417,8 +418,14 @@ async fn create_room(
     let game = params.game.as_deref().unwrap_or("boxing");
     match app.plugins.get(game) {
         Some(plugin) => {
-            // Pass empty string — room_manager generates a random 6-char code
-            let code = app.rooms.create_room(String::new(), Arc::clone(plugin));
+            // Generate a random 6-char code upfront — passing "" would claim the "" slot
+            // on the first call since create_room only retries on key collision, not on empty input.
+            let initial_code: String = rand::thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(6)
+                .map(|c| char::from(c).to_ascii_uppercase())
+                .collect();
+            let code = app.rooms.create_room(initial_code, Arc::clone(plugin));
             (
                 axum::http::StatusCode::CREATED,
                 Json(CreateRoomResponse { room_code: code }),
