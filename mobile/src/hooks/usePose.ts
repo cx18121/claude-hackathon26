@@ -26,6 +26,11 @@ type RvfcVideoElement = HTMLVideoElement & {
   cancelVideoFrameCallback?: (id: number) => void;
 };
 
+// FIX #4: feature-detect async frame-capture fallback at module level so the
+// check doesn't run every frame.
+const supportsOffscreen = typeof OffscreenCanvas !== 'undefined';
+const supportsCreateImageBitmap = typeof createImageBitmap !== 'undefined';
+
 export function usePose(
   videoRef: RefObject<HTMLVideoElement | null>,
   cameraReady: boolean,
@@ -49,9 +54,6 @@ export function usePose(
     let frameCount = 0;
     let fpsWindowStart = performance.now();
 
-    // OffscreenCanvas on the main thread: synchronous zero-copy frame capture.
-    // Falls back to async createImageBitmap on browsers without OffscreenCanvas.
-    const supportsOffscreen = typeof OffscreenCanvas !== 'undefined';
     let captureCanvas: OffscreenCanvas | null = null;
     let captureCtx: OffscreenCanvasRenderingContext2D | null = null;
 
@@ -79,8 +81,10 @@ export function usePose(
         const w = video.videoWidth;
         const h = video.videoHeight;
         if (w > 0 && h > 0) {
-          try {
-            if (supportsOffscreen) {
+          if (supportsOffscreen) {
+            // FIX #5: wrap OffscreenCanvas path in its own try/catch and surface
+            // failures as a modelError rather than silently resetting busy.
+            try {
               // Lazy-init / resize the capture canvas
               if (!captureCanvas || captureCanvas.width !== w || captureCanvas.height !== h) {
                 captureCanvas = new OffscreenCanvas(w, h);
@@ -96,24 +100,44 @@ export function usePose(
                   [bitmap],
                 );
               }
-            } else {
-              // Fallback: async capture (adds ~1ms but works everywhere)
-              workerBusyRef.current = true;
-              const ts = Math.floor(now);
-              createImageBitmap(video).then((bitmap) => {
-                if (cancelled || !workerRef.current) {
-                  bitmap.close();
-                  workerBusyRef.current = false;
-                  return;
-                }
-                workerRef.current.postMessage(
-                  { type: 'detect', bitmap, timestampMs: ts },
-                  [bitmap],
-                );
-              }).catch(() => { workerBusyRef.current = false; });
+            } catch (err) {
+              workerBusyRef.current = false;
+              if (!cancelled) {
+                setModelStatus('error');
+                setModelError(err instanceof Error ? err.message : 'Frame capture failed');
+              }
             }
-          } catch {
-            workerBusyRef.current = false;
+          } else if (supportsCreateImageBitmap) {
+            // FIX #4: async fallback with diagnostic error on failure
+            workerBusyRef.current = true;
+            const ts = Math.floor(now);
+            createImageBitmap(video).then((bitmap) => {
+              if (cancelled || !workerRef.current) {
+                bitmap.close();
+                workerBusyRef.current = false;
+                return;
+              }
+              workerRef.current.postMessage(
+                { type: 'detect', bitmap, timestampMs: ts },
+                [bitmap],
+              );
+            }).catch((err: unknown) => {
+              workerBusyRef.current = false;
+              if (!cancelled) {
+                setModelStatus('error');
+                setModelError(
+                  err instanceof Error
+                    ? err.message
+                    : 'createImageBitmap failed — frame capture not supported on this browser',
+                );
+              }
+            });
+          } else {
+            // Neither capture API available — report once
+            if (!cancelled) {
+              setModelStatus('error');
+              setModelError('Frame capture requires OffscreenCanvas or createImageBitmap (not available on this browser)');
+            }
           }
         }
       }
@@ -139,7 +163,12 @@ export function usePose(
     workerBusyRef.current = false;
 
     worker.onmessage = (e: MessageEvent) => {
-      const msg = e.data as { type: string; message?: string; worldLandmarks?: PoseKeypoint[]; landmarks?: PoseKeypoint[] };
+      const msg = e.data as {
+        type: string;
+        message?: string;
+        worldLandmarks?: PoseKeypoint[] | null;
+        landmarks?: PoseKeypoint[] | null;
+      };
 
       if (msg.type === 'ready') {
         if (!cancelled) {
@@ -150,9 +179,12 @@ export function usePose(
       }
 
       if (msg.type === 'error') {
+        // FIX #2 (hook side): worker errors always unblock the busy flag so the
+        // loop doesn't stall permanently after a failed detectForVideo call.
+        workerBusyRef.current = false;
         if (!cancelled) {
           setModelStatus('error');
-          setModelError(msg.message ?? 'Unknown error');
+          setModelError(msg.message ?? 'Unknown worker error');
         }
         return;
       }
@@ -160,13 +192,18 @@ export function usePose(
       if (msg.type === 'result') {
         workerBusyRef.current = false;
         if (!cancelled) {
-          if (msg.worldLandmarks) setKeypoints(msg.worldLandmarks);
-          if (msg.landmarks) setImageKeypoints(msg.landmarks);
+          // FIX #1: use unconditional assignment so null (person left frame) clears
+          // stale keypoints. Truthiness check would retain previous-frame poses
+          // indefinitely when MediaPipe loses tracking.
+          setKeypoints(msg.worldLandmarks ?? null);
+          setImageKeypoints(msg.landmarks ?? null);
         }
       }
     };
 
     worker.onerror = (e) => {
+      // FIX #6: reset busy on fatal worker error so the loop doesn't stall
+      workerBusyRef.current = false;
       if (!cancelled) {
         setModelStatus('error');
         setModelError(e.message);

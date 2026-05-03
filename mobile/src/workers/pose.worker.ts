@@ -11,6 +11,8 @@ type OutMessage =
   | { type: 'error'; message: string }
   | { type: 'result'; worldLandmarks: PoseKeypoint[] | null; landmarks: PoseKeypoint[] | null };
 
+const post = (msg: OutMessage) => (self as DedicatedWorkerGlobalScope).postMessage(msg);
+
 let landmarker: PoseLandmarker | null = null;
 let lastTimestampMs = 0;
 
@@ -35,17 +37,24 @@ self.onmessage = async (e: MessageEvent<InMessage>) => {
           numPoses: 1,
         });
       }
-      (self as DedicatedWorkerGlobalScope).postMessage({ type: 'ready' } satisfies OutMessage);
+      post({ type: 'ready' });
     } catch (err) {
-      (self as DedicatedWorkerGlobalScope).postMessage({
-        type: 'error',
-        message: err instanceof Error ? err.message : String(err),
-      } satisfies OutMessage);
+      post({ type: 'error', message: err instanceof Error ? err.message : String(err) });
     }
     return;
   }
 
-  if (msg.type === 'detect' && landmarker) {
+  if (msg.type === 'detect') {
+    // FIX #3: guard against detect arriving before init completes — close the
+    // transferred bitmap to prevent a memory leak and unblock the hook.
+    if (!landmarker) {
+      msg.bitmap.close();
+      post({ type: 'error', message: 'detect received before landmarker initialized' });
+      return;
+    }
+
+    // FIX #2: always close the bitmap in finally (prevents memory leaks on any
+    // code path) and always post a result or error so the hook never stalls.
     try {
       // detectForVideo requires monotonically increasing timestamps
       let ts = msg.timestampMs;
@@ -53,8 +62,9 @@ self.onmessage = async (e: MessageEvent<InMessage>) => {
       lastTimestampMs = ts;
 
       const result = landmarker.detectForVideo(msg.bitmap, ts);
-      msg.bitmap.close();
 
+      // FIX #1 (worker side): always include worldLandmarks/landmarks in the
+      // result, even as null — the hook uses presence checks, not truthiness.
       const worldLandmarks: PoseKeypoint[] | null = result.worldLandmarks?.[0]
         ? result.worldLandmarks[0].map((lm) => ({
             x: lm.x, y: lm.y, z: lm.z, visibility: lm.visibility ?? 0,
@@ -67,10 +77,12 @@ self.onmessage = async (e: MessageEvent<InMessage>) => {
           }))
         : null;
 
-      (self as DedicatedWorkerGlobalScope).postMessage({
-        type: 'result', worldLandmarks, landmarks,
-      } satisfies OutMessage);
-    } catch {
+      post({ type: 'result', worldLandmarks, landmarks });
+    } catch (err) {
+      // Post error so the hook can reset workerBusy and surface it
+      post({ type: 'error', message: err instanceof Error ? err.message : String(err) });
+    } finally {
+      // Always release the transferred bitmap regardless of success or failure
       msg.bitmap.close();
     }
     return;
