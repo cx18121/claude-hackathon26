@@ -65,9 +65,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — dance-plugin crate: DancePlugin impl, DanceState, poses.rs (POSE_LIBRARY, Y-up coords), beat clock, cosine similarity scoring, unit tests; workspace update
-- [ ] 03-02-PLAN.md — engine-core wiring: AppState plugin registry (HashMap), POST /rooms endpoint, GET / lobby HTML (UI-SPEC compliant), ws_player Option A (no on-demand creation)
-- [ ] 03-03-PLAN.md — SDK docs: Rustdoc refresh on plugin-trait (all 7 methods + 8 types), docs/GAME-SDK.md (trait reference + boxing walkthrough + quick-start boilerplate + registration steps), README teaser
+- [x] 03-01-PLAN.md — dance-plugin crate: DancePlugin impl, DanceState, poses.rs (POSE_LIBRARY, Y-up coords), beat clock, cosine similarity scoring, unit tests; workspace update
+- [x] 03-02-PLAN.md — engine-core wiring: AppState plugin registry (HashMap), POST /rooms endpoint, GET / lobby HTML (UI-SPEC compliant), ws_player Option A (no on-demand creation)
+- [x] 03-03-PLAN.md — SDK docs: Rustdoc refresh on plugin-trait (all 7 methods + 8 types), docs/GAME-SDK.md (trait reference + boxing walkthrough + quick-start boilerplate + registration steps), README teaser
 
 ## Progress
 
