@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-# Shadow Fight local dev launcher.
+# Spectre local dev launcher — Rust engine edition.
 #
 # Starts:
-#   - Python server on :8000 (LAN, no Cloudflare tunnel)
+#   - Rust engine-core on :8000 (LAN, no Cloudflare tunnel)
 #   - Mobile Vite dev server on :5173
 #   - Overlay Vite dev server on :5174
-# Rebuilds the mobile and overlay production bundles first so the server's
-# /mobile and /overlay routes serve the latest code (otherwise phones on
-# the LAN load stale bundles).
+# Rebuilds the mobile and overlay production bundles first so the engine's
+# /mobile and /overlay routes serve the latest code.
 #
 # Usage:
 #   bash scripts/dev.sh
@@ -19,9 +18,9 @@ cd "$ROOT"
 
 # ---------- preflight ------------------------------------------------------
 
-if [ ! -d "$ROOT/server/.venv" ]; then
-  echo "ERROR: server/.venv not found."
-  echo "Run once:  cd server && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
+if ! command -v cargo &>/dev/null; then
+  echo "ERROR: cargo not found."
+  echo "Install Rust: https://rustup.rs"
   exit 1
 fi
 if [ ! -d "$ROOT/mobile/node_modules" ]; then
@@ -36,10 +35,7 @@ fi
 # Free the ports if a previous run left something behind.
 # lsof can return multiple PIDs (server + child workers), so we don't quote
 # $pids: word-splitting lets kill take all of them as separate arguments.
-# Then we wait long enough for the kernel to actually release the port.
 for port in 8000 5173 5174; do
-  # `|| true` is REQUIRED: lsof returns exit 1 when no process matches, and
-  # under `set -e` the empty subshell would abort the script silently.
   # shellcheck disable=SC2207
   pids=( $(lsof -ti :$port 2>/dev/null || true) )
   if [ "${#pids[@]}" -gt 0 ]; then
@@ -58,16 +54,23 @@ done
 # ---------- build bundles --------------------------------------------------
 
 echo "Building mobile bundle..."
-(cd "$ROOT/mobile" && npm run build > /tmp/shadowfight-mobile-build.log 2>&1) || {
-  echo "Mobile build FAILED. See /tmp/shadowfight-mobile-build.log"
-  tail -20 /tmp/shadowfight-mobile-build.log
+(cd "$ROOT/mobile" && npm run build > /tmp/spectre-mobile-build.log 2>&1) || {
+  echo "Mobile build FAILED. See /tmp/spectre-mobile-build.log"
+  tail -20 /tmp/spectre-mobile-build.log
   exit 1
 }
 
 echo "Building overlay bundle..."
-(cd "$ROOT/overlay" && npm run build > /tmp/shadowfight-overlay-build.log 2>&1) || {
-  echo "Overlay build FAILED. See /tmp/shadowfight-overlay-build.log"
-  tail -20 /tmp/shadowfight-overlay-build.log
+(cd "$ROOT/overlay" && npm run build > /tmp/spectre-overlay-build.log 2>&1) || {
+  echo "Overlay build FAILED. See /tmp/spectre-overlay-build.log"
+  tail -20 /tmp/spectre-overlay-build.log
+  exit 1
+}
+
+echo "Building Rust engine (release)..."
+(cd "$ROOT/engine" && cargo build --release -p engine-core > /tmp/spectre-engine-build.log 2>&1) || {
+  echo "Engine build FAILED. See /tmp/spectre-engine-build.log"
+  tail -20 /tmp/spectre-engine-build.log
   exit 1
 }
 
@@ -75,44 +78,47 @@ echo "Building overlay bundle..."
 
 cleanup() {
   echo ""
-  echo "Stopping all dev servers..."
-  kill "${server_pid:-}" "${mobile_pid:-}" "${overlay_pid:-}" 2>/dev/null || true
+  echo "Stopping all services..."
+  kill "${engine_pid:-}" "${mobile_pid:-}" "${overlay_pid:-}" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
-echo "Starting server..."
-cd "$ROOT/server"
-source .venv/bin/activate
-TUNNEL=false python main.py &
-server_pid=$!
+echo "Starting Rust engine..."
+PORT=8000 "$ROOT/engine/target/release/engine-core" &
+engine_pid=$!
 
 echo "Starting mobile dev server (Vite, hot reload)..."
 cd "$ROOT/mobile"
-npm run dev -- --port 5173 > /tmp/shadowfight-mobile-dev.log 2>&1 &
+npm run dev -- --port 5173 > /tmp/spectre-mobile-dev.log 2>&1 &
 mobile_pid=$!
 
 echo "Starting overlay dev server (Vite, hot reload)..."
 cd "$ROOT/overlay"
-npm run dev -- --port 5174 > /tmp/shadowfight-overlay-dev.log 2>&1 &
+npm run dev -- --port 5174 > /tmp/spectre-overlay-dev.log 2>&1 &
 overlay_pid=$!
 
-# Give the server a moment to print its startup banner.
+# Give the engine a moment to start.
 sleep 1.5
 
 # ---------- print URL guide -------------------------------------------------
 
-# Find the LAN IP so we can show phone-reachable URLs.
 LAN_IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || echo "<your-lan-ip>")
 
 cat <<EOF
 
 ============================================================
-All three services are up.
+All services are up.
 ============================================================
 
-For the room code, scroll up to the server's startup banner.
+Open the lobby to create a room:
+  http://localhost:8000/
+
+  Click "Boxing" or "Dance" to get a room code,
+  then enter it on your phone.
 
 URLs to play locally on this LAPTOP only:
+  Lobby (pick a game)
+    http://localhost:8000/
   Overlay (game view)
     http://localhost:8000/overlay?room=<CODE>
   Mobile player (built bundle)
@@ -121,6 +127,8 @@ URLs to play locally on this LAPTOP only:
     http://localhost:5173?server=ws://localhost:8000&room=<CODE>&slot=1
 
 URLs for OTHER DEVICES on the same WiFi (phones, friend's laptop):
+  Lobby
+    http://${LAN_IP}:8000/
   Overlay
     http://${LAN_IP}:8000/overlay?room=<CODE>
   Mobile player 1
@@ -129,15 +137,11 @@ URLs for OTHER DEVICES on the same WiFi (phones, friend's laptop):
     http://${LAN_IP}:8000/mobile?room=<CODE>&slot=2
 
 Tips:
-  * No Cloudflare tunnel is needed for same-WiFi play.
-    All three devices just need to share the LAN ($LAN_IP/24).
-  * The server's startup output also prints these URLs with a
-    cache-busting parameter -- prefer those if your phone has been
-    showing stale content.
-  * Hot reload only works for /mobile via :5173 and /overlay via
-    :5174. The :8000/mobile and :8000/overlay routes serve the
-    production bundle that this script just built; restart the
-    script to rebuild after code changes.
+  * No Cloudflare tunnel needed for same-WiFi play.
+    All devices just need to share the LAN (${LAN_IP}/24).
+  * Hot reload only works via :5173 (mobile) and :5174 (overlay).
+    The :8000 routes serve the production bundle built above;
+    restart the script to rebuild after code changes.
   * Two-player single-machine test: open two browser tabs to
     http://localhost:5173?... -- the server picks the slot.
 
