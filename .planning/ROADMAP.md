@@ -85,11 +85,12 @@ Plans:
   3. Scanning the P1 QR code on a phone opens the mobile app with server, room, and slot all prefilled — no typing required
   4. A guest can join an existing room from the landing page by entering a 6-char code
   5. The page matches DESIGN.md — correct OKLCH tokens, Inter font, no neon/glassmorphism
-**Plans**: 2 plans
+**Plans**: 3 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Rust: `GET /rooms/{code}` route, QR generation (`qrcode` crate), room page HTML with P1/P2/Overlay cards + prefilled URLs + copy buttons
-- [ ] 04-02-PLAN.md — Landing page rewrite: SPECTRE title + tagline, game picker (radio), Create Room, Join by code; full DESIGN.md token compliance
+- [ ] 04-01-PLAN.md — Extend DESIGN.md with Lobby section (game picker tiles, landing page layout, room cards, QR card spec, join section, typography and color treatments)
+- [ ] 04-02-PLAN.md — Rust: `GET /rooms/{code}` route, QR generation (`qrcode` crate), room page HTML with P1/P2/Overlay cards + prefilled URLs + copy buttons
+- [ ] 04-03-PLAN.md — Landing page rewrite: SPECTRE header, game picker tiles, Create Room flow, Join by code flow; follows DESIGN.md Lobby spec
 
 ### Phase 5: Mobile Connection UX
 **Goal**: A player who scans the QR code from the lobby room page arrives at a one-tap screen, not a form full of WebSocket URLs
@@ -178,7 +179,7 @@ Phase 9 depends on both Phase 7 and Phase 8.
 | 1. Engine Core | 5/5 | Complete | 2026-05-02 |
 | 2. Plugin Trait + Boxing | 5/5 | Complete | 2026-05-02 |
 | 3. Second Game + SDK | 3/3 | Complete | 2026-05-03 |
-| 4. Lobby UX | 0/2 | Not started | - |
+| 4. Lobby UX | 0/3 | Not started | - |
 | 5. Mobile Connection UX | 0/1 | Not started | - |
 | 6. Overlay Fidelity | 0/2 | Not started | - |
 | 7. Dance Engine + Protocol | 0/2 | Not started | - |
