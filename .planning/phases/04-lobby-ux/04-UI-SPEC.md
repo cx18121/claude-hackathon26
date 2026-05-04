@@ -56,19 +56,38 @@ Source: DESIGN.md spacing scale (4, 8, 12, 16, 24, 32, 48, 64) and existing `LOB
 
 Both pages use Inter exclusively for functional UI. Achafont appears only in game name display blocks on the room page title (BOXING / DANCE) rendered at `--type-hero` scale.
 
-| Role | Font | Size | Weight | Letter-spacing | Line Height | Usage |
-|------|------|------|--------|----------------|-------------|-------|
-| Page title / SPECTRE | Inter | 28px (`--type-hero` capped) | 900 | 0.12em | 1.1 | SPECTRE header on landing page |
-| Section label / subtitle | Inter | 12px (`--type-small`) | 700 | 0.08em | 1.3 | Section dividers ("Join a Room"), card role labels (PLAYER 1) |
-| Game tile label | Inter | 20px | 900 | 0.1em | 1.1 | BOXING / DANCE labels inside picker tiles |
-| Body / CTA button | Inter | 16px (`--type-body`) | 400 body, 800 buttons | 0.08em buttons, 0 body | 1.5 body | Button text, input text, URL links, copy button |
-| Room code display | Inter | 32px | 900 | 0.2em | 1.0 | Prominent room code on `/rooms/{code}` page header |
-| URL link text | Inter | 12px (`--type-small`) | 700 | 0.04em | 1.4 | Prefilled URL text under each QR code |
+**Font size scale (4 sizes):**
 
-Rules (from DESIGN.md):
+| Size | Token | Usage |
+|------|-------|-------|
+| 12px | `--type-small` | Section labels, role labels, URL link text, copy button text, separator "or", game type badge |
+| 16px | `--type-body` | Body text, button text, input text, back link, subtitles, game tile labels |
+| 28px | `--type-hero` | SPECTRE heading on landing page |
+| 32px | `--type-code` | Room code display on room page |
+
+**Font weight scale (2 weights):**
+
+| Weight | Usage |
+|--------|-------|
+| 400 | Body text, back link (`← Lobby`), subtitle (`Share these links...`), input placeholder, error message body |
+| 900 | All bold UI: SPECTRE heading, section labels, role labels, game tile labels, button labels, room code display, URL link text, copy button text, input text (typed value) |
+
+**Additional rules:**
 - All labels uppercase. Letter-spacing 0.08em minimum on any uppercase text.
 - No font-size below 12px anywhere.
+- Body line-height: 1.5. Heading line-height: 1.1–1.2.
 - Achafont at `clamp(32px, 6vw, 88px)` weight 900 for game-name display on room page only — not for functional UI.
+
+Source: DESIGN.md `## Typography`. Consolidated from 6 sizes to 4 and from 4 weights to 2 per checker requirements.
+
+---
+
+## Focal Points
+
+| Page | Primary Focal Point | Visual Treatment |
+|------|---------------------|-----------------|
+| Landing page | Game picker tiles | Two large tiles (min-height 80px, 50/50 split) are the dominant interactive region — placed immediately below the compact SPECTRE header. Size, contrast, and position direct attention here first. |
+| Room page (`/rooms/{code}`) | Room code display | Inter 900 32px letter-spacing 0.2em, `--text-primary` at full brightness, placed at the top of the page above the QR grid. The code is what the host reads aloud to latecomers; it must be legible at a glance from across a table. |
 
 ---
 
@@ -113,14 +132,14 @@ Structure (top to bottom, max-width 480px, centered, 48px top margin):
 
 1. **SPECTRE header block**
    - `<h1>` text: `SPECTRE` — Inter 900 28px, letter-spacing 0.12em, uppercase, `--text-primary`
-   - Tagline below: `real punches. real fights.` — Inter 700 12px, letter-spacing 0.08em, uppercase, `--text-secondary`
+   - Tagline below: `real punches. real fights.` — Inter 400 12px, letter-spacing 0.08em, uppercase, `--text-secondary`
    - Margin-bottom: 32px
 
-2. **Game picker section**
-   - Section label: `Select a Game` — Inter 700 12px, letter-spacing 0.08em, uppercase, `--text-secondary`, margin-bottom 12px
+2. **Game picker section** (PRIMARY FOCAL POINT)
+   - Section label: `Select a Game` — Inter 900 12px, letter-spacing 0.08em, uppercase, `--text-secondary`, margin-bottom 12px
    - Two tiles in a flex row, gap 8px, each tile: flex 1, min-height 80px
    - Tile default: background `--bg-surface`, border 1px `--text-dim`, border-radius 4px
-   - Tile label: Inter 900 20px uppercase letter-spacing 0.1em, `--text-primary`, centered
+   - Tile label: Inter 900 16px uppercase letter-spacing 0.1em, `--text-primary`, centered
    - Tile selected (P1=BOXING default): border 1px `--accent`, background `--accent` at 10% opacity
    - Tile selected (DANCE): border 1px `--accent-p2`, background `--accent-p2` at 10% opacity
    - Tile hover (unselected): border `--text-secondary`, background `--bg-mid`
@@ -133,7 +152,7 @@ Structure (top to bottom, max-width 480px, centered, 48px top margin):
    - Enabled (game selected): background `--accent` at 15%, border 1px `--accent`, `--text-primary`, cursor pointer
    - Hover: background `--accent` at 25%, border `--accent-bright`
    - Active: scale(0.97) 80ms ease-out
-   - Label: `Create Room` — Inter 800 16px uppercase letter-spacing 0.08em
+   - Label: `Create Room` — Inter 900 16px uppercase letter-spacing 0.08em
    - Loading state: label changes to `Creating...`, button disabled
    - Margin-bottom: 32px
 
@@ -142,23 +161,23 @@ Structure (top to bottom, max-width 480px, centered, 48px top margin):
    - Margin: 0 (separator itself provides visual break)
 
 5. **Join by code section**
-   - Section label: `Join a Room` — Inter 700 12px uppercase letter-spacing 0.08em, `--text-secondary`, margin-bottom 12px
-   - Row: text input + Join button, gap 8px
-   - Input: flex 1, min-height 52px, background `--bg-surface`, border 1px `--text-dim`, padding 16px, `--text-primary` Inter 800 16px letter-spacing 0.2em, uppercase transform, placeholder `Room Code` in `--text-dim`
+   - Section label: `Join a Room` — Inter 900 12px uppercase letter-spacing 0.08em, `--text-secondary`, margin-bottom 12px
+   - Row: text input + Join Room button, gap 8px
+   - Input: flex 1, min-height 52px, background `--bg-surface`, border 1px `--text-dim`, padding 16px, `--text-primary` Inter 900 16px letter-spacing 0.2em, uppercase transform, placeholder `Room Code` in `--text-dim` weight 400
    - Input focus: border `--accent`, outline none
-   - Join button: width 80px, min-height 52px, same default button style (bg-surface, text-dim border), text `Join` Inter 800 16px uppercase
-   - Join button hover: border `--accent` 60%, background `--accent` at 8%
-   - Join button active: scale(0.97) 80ms ease-out
+   - Join Room button: min-width 100px, min-height 52px, same default button style (bg-surface, text-dim border), text `Join Room` Inter 900 16px uppercase
+   - Join Room button hover: border `--accent` 60%, background `--accent` at 8%
+   - Join Room button active: scale(0.97) 80ms ease-out
 
 ### Room Page Layout (`/rooms/{code}`)
 
 Structure (max-width 720px, centered, 48px top margin, 24px horizontal padding):
 
 1. **Room page header**
-   - Back link: `← Lobby` — Inter 400 14px, `--text-secondary`, margin-bottom 24px
-   - Room code display: Inter 900 32px letter-spacing 0.2em uppercase, `--text-primary`
-   - Game type badge: inline pill below room code — `BOXING` or `DANCE`, Inter 700 12px letter-spacing 0.1em, `--text-secondary`, border 1px `--text-dim`, padding 4px 8px, border-radius 4px
-   - Subtitle: `Share these links with your players` — Inter 400 14px, `--text-secondary`
+   - Back link: `← Lobby` — Inter 400 16px, `--text-secondary`, margin-bottom 24px
+   - Room code display (PRIMARY FOCAL POINT): Inter 900 32px letter-spacing 0.2em uppercase, `--text-primary`
+   - Game type badge: inline pill below room code — `BOXING` or `DANCE`, Inter 900 12px letter-spacing 0.1em, `--text-secondary`, border 1px `--text-dim`, padding 4px 8px, border-radius 4px
+   - Subtitle: `Share these links with your players` — Inter 400 16px, `--text-secondary`
    - Margin-bottom: 32px
 
 2. **QR card grid**
@@ -170,10 +189,10 @@ Structure (max-width 720px, centered, 48px top margin, 24px horizontal padding):
    - Overlay card border: 1px `--gold` at 60% opacity
 
 3. **Card contents (each card)**
-   - Role label: Inter 700 12px uppercase letter-spacing 0.1em, `--text-secondary` — `PLAYER 1` / `PLAYER 2` / `OVERLAY`
+   - Role label: Inter 900 12px uppercase letter-spacing 0.1em, `--text-secondary` — `PLAYER 1` / `PLAYER 2` / `OVERLAY`
    - QR code: inline SVG (generated by `qrcode` Rust crate), 160px × 160px, dark module color `--bg-deep` (#0c0809), light module color `--text-primary` (#f5efe4) — inverted for dark theme
-   - URL link: `<a>` wrapping the prefilled URL — Inter 700 12px, `--text-secondary`, letter-spacing 0.04em, word-break break-all, text-decoration underline on hover, max 2 lines then truncate with ellipsis
-   - Copy button: full-width, min-height 36px, background `--bg-mid`, border 1px `--text-dim`, border-radius 4px, text `Copy Link` Inter 700 11px uppercase letter-spacing 0.08em, `--text-secondary`
+   - URL link: `<a>` wrapping the prefilled URL — Inter 900 12px, `--text-secondary`, letter-spacing 0.04em, word-break break-all, text-decoration underline on hover, max 2 lines then truncate with ellipsis
+   - Copy button: full-width, min-height 36px, background `--bg-mid`, border 1px `--text-dim`, border-radius 4px, text `Copy Link` Inter 900 12px uppercase letter-spacing 0.08em, `--text-secondary`
    - Copy button hover: border `--accent` 60%, background `--accent` at 8%
    - Copy success state (2s): border `--gold` 60%, text changes to `Copied!` in `--text-primary`
 
@@ -189,7 +208,7 @@ From DESIGN.md button spec:
 
 ### Error States
 
-- **Create Room server error**: Below the Create Room button, display a row with red-tinted background: `--accent-bright` 15% bg, border 1px `--accent-bright` 40%, padding 8px 12px, border-radius 4px. Text: `--text-primary` Inter 400 14px.
+- **Create Room server error**: Below the Create Room button, display a row with red-tinted background: `--accent-bright` 15% bg, border 1px `--accent-bright` 40%, padding 8px 12px, border-radius 4px. Text: `--text-primary` Inter 400 16px.
 - **Room not found (404)**: Full-page error on `/rooms/{code}` — centered in page, `--text-secondary` Inter 400 16px. See copywriting section.
 - **Join empty input**: Prevent navigation; no visual error — button stays disabled while input is empty.
 
@@ -206,9 +225,9 @@ From DESIGN.md button spec:
 | Click game tile (already selected) | No-op — tile stays selected (selection required, not a toggle) |
 | Click Create Room (disabled) | No-op |
 | Click Create Room (enabled) | Button shows `Creating...` + disabled; `POST /rooms?game={type}`; on success navigate to `/rooms/{code}`; on error show error message below button |
-| Type in room code input | Input uppercases value; Join button enables when input is non-empty |
-| Click Join (with code) | Navigate to `/mobile?room={CODE}&server={ORIGIN}` — standard `<a>` or `window.location.href` |
-| Click Join (empty input) | No-op (button disabled) |
+| Type in room code input | Input uppercases value; Join Room button enables when input is non-empty |
+| Click Join Room (with code) | Navigate to `/mobile?room={CODE}&server={ORIGIN}` — standard `<a>` or `window.location.href` |
+| Click Join Room (empty input) | No-op (button disabled) |
 
 ### Room Page Interactions
 
@@ -243,7 +262,7 @@ From DESIGN.md button spec:
 | Create Room button (loading) | `Creating...` |
 | Join section label | `Join a Room` |
 | Join input placeholder | `Room Code` |
-| Join button | `Join` |
+| Join button | `Join Room` |
 | Room page subtitle | `Share these links with your players` |
 | P1 card role label | `PLAYER 1` |
 | P2 card role label | `PLAYER 2` |
@@ -283,7 +302,7 @@ No component registry is used. All UI is custom CSS + HTML rendered server-side 
 |----------|--------|
 | OKLCH color tokens | DESIGN.md `## Color` → `### Palette` |
 | Inter + Achafont typefaces | DESIGN.md `## Typography` → `### Typefaces` |
-| Type scale (sizes + weights) | DESIGN.md `## Typography` → `### Scale` |
+| Type scale (sizes + weights) | DESIGN.md `## Typography` → `### Scale`; consolidated to 4 sizes / 2 weights per checker |
 | Spacing base unit (8px) | DESIGN.md `## Spacing` |
 | Button spec (border, hover, active, radius) | DESIGN.md `## Components` → `### Buttons` |
 | Elevation Level 1 spec | DESIGN.md `## Elevation` |
@@ -297,6 +316,10 @@ No component registry is used. All UI is custom CSS + HTML rendered server-side 
 | Tight utility feel, compact header | 04-CONTEXT.md D-06 |
 | DESIGN.md-first requirement | 04-CONTEXT.md D-01, D-02 |
 | No shadcn / no React on these pages | Existing codebase — pages are Rust-rendered HTML strings |
+| Font sizes consolidated (6 → 4) | Checker revision: removed 14px (→ 16px for back link/subtitles) and 20px (→ 16px for tile labels) |
+| Font weights consolidated (4 → 2) | Checker revision: removed 700 and 800; all bold UI uses 900 |
+| "Join Room" button label | Checker revision: added noun for clarity |
+| Focal point declarations | Checker revision: landing page (game tiles) and room page (room code) explicitly declared |
 
 ---
 
