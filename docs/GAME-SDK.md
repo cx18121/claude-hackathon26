@@ -794,7 +794,7 @@ Players then connect via the existing WebSocket endpoint:
 ws://host/ws/player/XYZ123
 ```
 
-No further engine changes are needed. The game lobby at `/` (GET) automatically shows your
-game as a button once you register it — edit the `LOBBY_HTML` constant in `main.rs` to add
-the button. That is it. The engine handles everything else.
+Almost done. The game lobby at `/` (GET) does **not** update automatically — you must manually
+add a button to the `LOBBY_HTML` constant in `engine/engine-core/src/main.rs`. That is the only
+engine file you need to touch. The engine handles everything else.
 

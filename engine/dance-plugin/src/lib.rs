@@ -28,8 +28,12 @@ pub struct DanceConfig {
 pub struct DanceState {
     /// Cumulative cosine-similarity score per slot. Cleared on round reset.
     pub scores: [f64; 2],
-    /// Index into POSE_LIBRARY for the next beat's target pose.
+    /// Index of the next target to announce (increments after each announcement).
     pub target_index: usize,
+    /// Index of the currently announced target — what players should be holding right now.
+    /// Set at round start so players have one full beat window before the first scoring event.
+    /// None before the first on_tick call.
+    pub current_target: Option<usize>,
     /// tick value when the round officially started. Captured on first on_tick call.
     /// Do NOT use 0 as the origin — tick counter may be in the hundreds by match start (Pitfall 1).
     pub round_start_tick: u64,
@@ -64,6 +68,7 @@ impl GamePlugin for DancePlugin {
         Box::new(DanceState {
             scores: [0.0; 2],
             target_index: 0,
+            current_target: None,
             round_start_tick: 0,
             round_started: false,
             beats_scored: 0,
@@ -84,6 +89,24 @@ impl GamePlugin for DancePlugin {
         if !s.round_started {
             s.round_start_tick = ctx.tick_info.tick;
             s.round_started = true;
+
+            // Announce the first target immediately so players have one full beat window
+            // to see and prepare for it before they are scored (WR-02 fix).
+            let first_idx = s.target_index % poses::POSE_LIBRARY.len();
+            let first_target = &poses::POSE_LIBRARY[first_idx];
+            s.current_target = Some(first_idx);
+            s.target_index += 1;
+
+            events.push(GameEvent::Broadcast {
+                payload: json!({
+                    "type": "dance_beat",
+                    "beat": 0,
+                    "total_beats": TOTAL_BEATS,
+                    "target_pose": first_target.keypoints.iter()
+                        .map(|kp| [kp.x, kp.y, kp.z, kp.visibility])
+                        .collect::<Vec<_>>(),
+                }),
+            });
         }
 
         // Beat clock: how many ticks have elapsed since round start
@@ -93,8 +116,10 @@ impl GamePlugin for DancePlugin {
         if elapsed_ticks > 0 && elapsed_ticks % BEAT_INTERVAL == 0
             && s.beats_scored < TOTAL_BEATS
         {
-            // Score player poses at this beat boundary
-            let target = &poses::POSE_LIBRARY[s.target_index % poses::POSE_LIBRARY.len()];
+            // Score player poses against the target announced at the previous beat boundary
+            // (or at round start for the first beat). Players had one full beat window to prepare.
+            let scored_idx = s.current_target.unwrap_or(0);
+            let target = &poses::POSE_LIBRARY[scored_idx % poses::POSE_LIBRARY.len()];
 
             for slot_idx in 0..2usize {
                 // Solo mode: skip slot 1 scoring entirely (D-04)
@@ -107,19 +132,26 @@ impl GamePlugin for DancePlugin {
             }
 
             s.beats_scored += 1;
-            s.target_index = (s.target_index + 1) % poses::POSE_LIBRARY.len();
 
-            // Broadcast beat event with target pose so overlay can display it
-            events.push(GameEvent::Broadcast {
-                payload: json!({
-                    "type": "dance_beat",
-                    "beat": s.beats_scored,
-                    "total_beats": TOTAL_BEATS,
-                    "target_pose": target.keypoints.iter()
-                        .map(|kp| [kp.x, kp.y, kp.z, kp.visibility])
-                        .collect::<Vec<_>>(),
-                }),
-            });
+            // Announce the next target (unless this was the final beat).
+            // Players will be scored against this target at the NEXT beat boundary.
+            if s.beats_scored < TOTAL_BEATS {
+                let next_idx = s.target_index % poses::POSE_LIBRARY.len();
+                let next_target = &poses::POSE_LIBRARY[next_idx];
+                s.current_target = Some(next_idx);
+                s.target_index += 1;
+
+                events.push(GameEvent::Broadcast {
+                    payload: json!({
+                        "type": "dance_beat",
+                        "beat": s.beats_scored,
+                        "total_beats": TOTAL_BEATS,
+                        "target_pose": next_target.keypoints.iter()
+                            .map(|kp| [kp.x, kp.y, kp.z, kp.visibility])
+                            .collect::<Vec<_>>(),
+                    }),
+                });
+            }
 
             // Broadcast live scores so overlay can display cumulative scores
             events.push(GameEvent::Broadcast {
@@ -135,7 +167,9 @@ impl GamePlugin for DancePlugin {
         if s.beats_scored >= TOTAL_BEATS {
             s.round_ended = true;
             let winner = if ctx.room.solo_mode {
-                Some(1u8) // solo: player 1 always "wins" (scores alone)
+                // Solo: player 1 wins only if they scored at least one beat (WR-01 fix).
+                // A zero score (all landmarks invisible or no poses matched) is not a win.
+                if s.scores[0] > 0.0 { Some(1u8) } else { None }
             } else if s.scores[0] > s.scores[1] {
                 Some(1)
             } else if s.scores[1] > s.scores[0] {
@@ -155,6 +189,7 @@ impl GamePlugin for DancePlugin {
         s.scores = [0.0; 2];
         s.beats_scored = 0;
         s.target_index = 0;
+        s.current_target = None;
         s.round_started = false;
         s.round_ended = false;
         // round_start_tick is NOT reset — it will be re-captured on first on_tick call
@@ -266,19 +301,27 @@ mod tests {
         let mut state = plugin.init_state();
         let (f0, f1) = empty_frames();
 
-        // Tick 1: round starts, round_start_tick locked to 1, elapsed=0 — no beat
+        // Tick 1: round starts — emits the round-start preview beat (beat=0) so players
+        // have a full beat window to prepare before the first scoring event.
         let ctx1 = make_ctx(1, &f0, &f1, false);
         let events1 = plugin.on_tick(&ctx1, &mut *state);
-        let has_beat1 = events1.iter().any(|e| {
+        let preview_event = events1.iter().find(|e| {
             if let GameEvent::Broadcast { payload } = e {
                 payload.get("type").and_then(|v| v.as_str()) == Some("dance_beat")
             } else {
                 false
             }
         });
-        assert!(!has_beat1, "tick 1 should not fire a beat (elapsed_ticks=0)");
+        assert!(preview_event.is_some(), "tick 1 should emit round-start preview dance_beat");
+        if let Some(GameEvent::Broadcast { payload }) = preview_event {
+            assert_eq!(
+                payload.get("beat").and_then(|v| v.as_u64()),
+                Some(0),
+                "round-start preview beat should be beat=0"
+            );
+        }
 
-        // Tick 61: elapsed_ticks = 61 - 1 = 60, which is 60 % 60 == 0 — beat fires
+        // Tick 61: elapsed_ticks = 61 - 1 = 60 — beat 1 scores and announces beat 2's target
         let ctx61 = make_ctx(61, &f0, &f1, false);
         let events61 = plugin.on_tick(&ctx61, &mut *state);
         let beat_event = events61.iter().find(|e| {
@@ -290,12 +333,12 @@ mod tests {
         });
         assert!(beat_event.is_some(), "tick 61 (elapsed=60) should fire a dance_beat event");
 
-        // Verify beat number is 1
+        // beat=1 means: beat 1 was just scored, target for beat 2 is being announced
         if let Some(GameEvent::Broadcast { payload }) = beat_event {
             assert_eq!(
                 payload.get("beat").and_then(|v| v.as_u64()),
                 Some(1),
-                "first beat should be beat=1"
+                "first scoring beat should announce beat=1 (next window)"
             );
         }
     }
@@ -320,9 +363,12 @@ mod tests {
             plugin.on_tick(&ctx, &mut *state);
         }
 
-        // After 6 beats, target_index should be back to 0 (6 % 6 == 0)
+        // After 6 beats: round-start announced idx 0 (target_index→1), then beats 1-6
+        // each announced the next index, so target_index = 7 and the last announced pose
+        // (current_target) has wrapped back to index 0 (6 % 6 == 0).
         let s = state.downcast_ref::<DanceState>().unwrap();
-        assert_eq!(s.target_index, 0, "after 6 beats target_index should cycle back to 0");
+        assert_eq!(s.target_index, 7, "target_index increments once per announcement (round start + 6 beats)");
+        assert_eq!(s.current_target, Some(0), "after 6 beats announced target should wrap back to index 0");
         assert_eq!(s.beats_scored, 6);
     }
 
@@ -406,6 +452,7 @@ mod tests {
         assert_eq!(s.scores, [0.0, 0.0], "scores must be cleared");
         assert_eq!(s.beats_scored, 0, "beats_scored must be 0");
         assert_eq!(s.target_index, 0, "target_index must be 0");
+        assert_eq!(s.current_target, None, "current_target must be None on reset");
         assert!(!s.round_started, "round_started must be false");
         assert!(!s.round_ended, "round_ended must be false");
     }
