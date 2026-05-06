@@ -524,7 +524,9 @@ const LOBBY_HTML: &str = r#"<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PoseEngine Lobby</title>
+  <title>SPECTRE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;900&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg-deep: oklch(7% 0.008 22);
@@ -532,98 +534,195 @@ const LOBBY_HTML: &str = r#"<!DOCTYPE html>
       --bg-surface: oklch(17% 0.01 22);
       --accent: oklch(44% 0.22 22);
       --accent-bright: oklch(60% 0.25 22);
+      --accent-p2: oklch(50% 0.18 250);
+      --gold: oklch(78% 0.11 85);
       --text-primary: oklch(95% 0.008 85);
       --text-secondary: oklch(65% 0.008 85);
       --text-dim: oklch(38% 0.006 85);
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
       background: var(--bg-deep);
       color: var(--text-primary);
       max-width: 480px;
       margin: 48px auto;
       padding: 0 16px;
     }
-    h1 {
-      font-size: 1.75rem;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
+    .site-heading {
+      font-size: 28px; font-weight: 900; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--text-primary); line-height: 1.1;
+    }
+    .tagline {
+      font-size: 12px; font-weight: 400; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-secondary); margin-top: 4px;
       margin-bottom: 32px;
     }
-    p.subtitle {
-      font-size: 0.8rem;
-      font-weight: 800;
-      color: var(--text-secondary);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 16px;
+    .section-label {
+      font-size: 12px; font-weight: 900; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-secondary); margin-bottom: 12px;
     }
-    .btn-row { display: flex; gap: 8px; }
-    button {
-      min-height: 52px;
-      padding: 16px 24px;
-      background: var(--bg-surface);
-      border: 1px solid var(--text-dim);
-      color: var(--text-primary);
-      font-size: 1rem;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      cursor: pointer;
-      border-radius: 4px;
+    .game-picker { display: flex; gap: 8px; margin-bottom: 16px; }
+    .game-tile {
+      flex: 1; min-height: 80px; display: flex; align-items: center; justify-content: center;
+      background: var(--bg-surface); border: 1px solid var(--text-dim); border-radius: 4px;
+      font-size: 16px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--text-primary); cursor: pointer; font-family: inherit;
+      transition: border-color 0.12s, background 0.12s; user-select: none;
+    }
+    .game-tile:hover { border-color: var(--text-secondary); background: var(--bg-mid); }
+    .game-tile:active { transform: scale(0.97); transition: transform 80ms ease-out; }
+    .game-tile.selected-boxing {
+      border-color: var(--accent);
+      background: color-mix(in oklch, var(--accent) 10%, transparent);
+    }
+    .game-tile.selected-dance {
+      border-color: var(--accent-p2);
+      background: color-mix(in oklch, var(--accent-p2) 10%, transparent);
+    }
+    .btn-create {
+      width: 100%; min-height: 52px; border-radius: 4px; border: 1px solid var(--text-dim);
+      background: var(--bg-surface); color: var(--text-primary); font-family: inherit;
+      font-size: 16px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase;
+      cursor: pointer; opacity: 0.5; pointer-events: none;
+      transition: background 0.15s, border-color 0.15s; margin-bottom: 32px;
+    }
+    .btn-create.enabled {
+      border-color: var(--accent);
+      background: color-mix(in oklch, var(--accent) 15%, transparent);
+      opacity: 1; pointer-events: auto; cursor: pointer;
+    }
+    .btn-create.enabled:hover {
+      background: color-mix(in oklch, var(--accent) 25%, transparent);
+      border-color: var(--accent-bright);
+    }
+    .btn-create.enabled:active { transform: scale(0.97); transition: transform 80ms ease-out; }
+    .separator {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 24px;
+    }
+    .separator::before, .separator::after {
+      content: ''; flex: 1; height: 1px;
+      background: color-mix(in oklch, var(--text-dim) 40%, transparent);
+    }
+    .separator span {
+      font-size: 12px; font-weight: 400; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em;
+    }
+    .join-row { display: flex; gap: 8px; }
+    .join-input {
+      flex: 1; min-height: 52px; background: var(--bg-surface); border: 1px solid var(--text-dim);
+      border-radius: 4px; padding: 0 16px; color: var(--text-primary); font-family: inherit;
+      font-size: 16px; font-weight: 900; letter-spacing: 0.2em; text-transform: uppercase;
+      outline: none; transition: border-color 0.12s;
+    }
+    .join-input::placeholder { color: var(--text-dim); font-weight: 400; letter-spacing: 0.04em; text-transform: none; }
+    .join-input:focus { border-color: var(--accent); }
+    .btn-join {
+      min-width: 100px; min-height: 52px; background: var(--bg-surface); border: 1px solid var(--text-dim);
+      border-radius: 4px; color: var(--text-primary); font-family: inherit; font-size: 16px;
+      font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
+      opacity: 0.5; pointer-events: none;
       transition: background 0.15s, border-color 0.15s;
     }
-    button:hover { background: var(--accent); border-color: var(--accent-bright); }
-    button:active { transform: scale(0.98); }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    #room-code {
-      font-size: 2rem;
-      font-weight: 800;
-      letter-spacing: 0.2em;
-      margin-top: 16px;
-      color: var(--text-primary);
+    .btn-join.enabled {
+      opacity: 1; pointer-events: auto; cursor: pointer;
     }
-    #room-code.error {
-      color: #ff9b9b;
-      background: rgba(226, 91, 91, 0.15);
-      border: 1px solid rgba(226, 91, 91, 0.4);
-      padding: 8px 12px;
-      border-radius: 4px;
+    .btn-join.enabled:hover {
+      border-color: color-mix(in oklch, var(--accent) 60%, transparent);
+      background: color-mix(in oklch, var(--accent) 8%, transparent);
     }
+    .btn-join.enabled:active { transform: scale(0.97); transition: transform 80ms ease-out; }
+    .error-msg {
+      display: none; margin-top: 8px; padding: 8px 12px; border-radius: 4px;
+      background: color-mix(in oklch, var(--accent-bright) 15%, transparent);
+      border: 1px solid color-mix(in oklch, var(--accent-bright) 40%, transparent);
+      font-size: 16px; font-weight: 400; color: var(--text-primary);
+    }
+    .error-msg.visible { display: block; }
   </style>
 </head>
 <body>
-  <h1>Choose a Game</h1>
-  <p class="subtitle">Create a room, then enter the code in the mobile app</p>
-  <div class="btn-row">
-    <button id="btn-boxing" onclick="createRoom('boxing')">Boxing</button>
-    <button id="btn-dance" onclick="createRoom('dance')">Dance</button>
+  <h1 class="site-heading">SPECTRE</h1>
+  <p class="tagline">real punches. real fights.</p>
+
+  <p class="section-label">Select a Game</p>
+  <div class="game-picker">
+    <button class="game-tile" id="tile-boxing" onclick="selectGame('boxing')">BOXING</button>
+    <button class="game-tile" id="tile-dance" onclick="selectGame('dance')">DANCE</button>
   </div>
-  <div id="room-code"></div>
+
+  <button class="btn-create" id="btn-create" onclick="createRoom()">Create Room</button>
+  <div class="error-msg" id="create-error"></div>
+
+  <div class="separator"><span>or</span></div>
+
+  <p class="section-label">Join a Room</p>
+  <div class="join-row">
+    <input
+      type="text"
+      id="join-input"
+      class="join-input"
+      placeholder="Room Code"
+      maxlength="6"
+      autocomplete="off"
+      spellcheck="false"
+      oninput="onJoinInput(this)"
+    />
+    <button class="btn-join" id="btn-join" onclick="joinRoom()">Join Room</button>
+  </div>
+
   <script>
-    async function createRoom(game) {
-      const buttons = document.querySelectorAll('button');
-      buttons.forEach(b => b.disabled = true);
-      const rc = document.getElementById('room-code');
-      rc.className = '';
-      rc.textContent = '';
+    var selectedGame = null;
+
+    function selectGame(game) {
+      if (selectedGame === game) return;
+      selectedGame = game;
+      document.getElementById('tile-boxing').className = 'game-tile' + (game === 'boxing' ? ' selected-boxing' : '');
+      document.getElementById('tile-dance').className = 'game-tile' + (game === 'dance' ? ' selected-dance' : '');
+      var btn = document.getElementById('btn-create');
+      btn.classList.add('enabled');
+    }
+
+    async function createRoom() {
+      if (!selectedGame) return;
+      var btn = document.getElementById('btn-create');
+      var errEl = document.getElementById('create-error');
+      btn.textContent = 'Creating...';
+      btn.classList.remove('enabled');
+      errEl.className = 'error-msg';
       try {
-        const res = await fetch('/rooms?game=' + game, { method: 'POST' });
-        const data = await res.json();
+        var res = await fetch('/rooms?game=' + selectedGame, { method: 'POST' });
+        var data = await res.json();
         if (res.ok) {
-          rc.textContent = data.room_code;
+          window.location.href = '/rooms/' + data.room_code;
         } else {
-          rc.className = 'error';
-          rc.textContent = data.error ?? 'Server error';
+          errEl.textContent = data.error ? data.error : 'Server error — try again';
+          errEl.className = 'error-msg visible';
+          btn.textContent = 'Create Room';
+          btn.classList.add('enabled');
         }
       } catch (_) {
-        rc.className = 'error';
-        rc.textContent = 'Could not reach server';
-      } finally {
-        buttons.forEach(b => b.disabled = false);
+        errEl.textContent = 'Could not reach server';
+        errEl.className = 'error-msg visible';
+        btn.textContent = 'Create Room';
+        btn.classList.add('enabled');
       }
+    }
+
+    function onJoinInput(input) {
+      input.value = input.value.toUpperCase();
+      var joinBtn = document.getElementById('btn-join');
+      if (input.value.length > 0) {
+        joinBtn.classList.add('enabled');
+      } else {
+        joinBtn.classList.remove('enabled');
+      }
+    }
+
+    function joinRoom() {
+      var code = document.getElementById('join-input').value.trim();
+      if (!code) return;
+      var server = window.location.origin;
+      window.location.href = '/mobile?room=' + encodeURIComponent(code) + '&server=' + encodeURIComponent(server);
     }
   </script>
 </body>
@@ -779,8 +878,9 @@ mod http_tests {
             .await.unwrap();
         let body = resp.into_body().collect().await.unwrap().to_bytes();
         let html = std::str::from_utf8(&body).unwrap();
-        assert!(html.contains("createRoom('boxing')"), "lobby missing boxing button");
-        assert!(html.contains("createRoom('dance')"), "lobby missing dance button");
+        assert!(html.contains("selectGame('boxing')"), "lobby missing boxing tile");
+        assert!(html.contains("selectGame('dance')"), "lobby missing dance tile");
+        assert!(html.contains("SPECTRE"), "lobby missing SPECTRE heading");
     }
 
     #[tokio::test]
