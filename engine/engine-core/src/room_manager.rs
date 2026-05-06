@@ -27,7 +27,20 @@ impl RoomHandle {
         if !self.match_over.load(std::sync::atomic::Ordering::Relaxed) {
             return false;
         }
-        let guard = self.last_player_disconnected_at.lock().unwrap();
+        // WR-06: recover gracefully from a poisoned mutex — a panic in any
+        // prior holder must not propagate panic into the expiry task and
+        // poison every subsequent expiry check. We treat a poisoned lock
+        // as "no expiry timestamp recorded" (false) so the room stays
+        // alive until normal cleanup catches it.
+        let guard = match self.last_player_disconnected_at.lock() {
+            Ok(g) => g,
+            Err(poisoned) => {
+                tracing::warn!(
+                    "is_expired: recovering from poisoned last_player_disconnected_at mutex"
+                );
+                poisoned.into_inner()
+            }
+        };
         guard.map_or(false, |t| t.elapsed() > Duration::from_secs(600)) // 10 minutes
     }
 }
@@ -197,14 +210,34 @@ mod tests {
 }
 
 /// Background task: scan for expired rooms every 60 seconds and remove them (D-08, ENG-13).
+///
+/// WR-06: previously this iterated `rooms.iter()` and called `is_expired()`
+/// inside the filter closure. `dashmap::iter()` holds a shard read-lock for
+/// the lifetime of each yielded entry, and `is_expired()` takes a
+/// `std::sync::Mutex` — so the predicate held both a DashMap shard read
+/// lock AND a per-room mutex simultaneously. That pairing creates a
+/// deadlock invariant for any caller that takes them in the opposite
+/// order, plus a poisoned-mutex panic propagation path.
+///
+/// Refactored to a two-phase scan: snapshot all candidate keys first
+/// (releasing every shard lock as the iterator drops), then re-acquire
+/// each key individually via `rooms.get()` for the `is_expired()` check.
+/// Each `get()` holds the shard lock only for the duration of that one
+/// call, and `is_expired()` runs against the per-room mutex without an
+/// outer DashMap lock alive.
 pub async fn expiry_task(rooms: Arc<DashMap<String, RoomHandle>>) {
     let mut interval = tokio::time::interval(Duration::from_secs(60));
     loop {
         interval.tick().await;
-        let expired_codes: Vec<String> = rooms
-            .iter()
-            .filter(|entry| entry.value().is_expired())
-            .map(|entry| entry.key().clone())
+        // Phase 1: snapshot the current set of keys. The iter() lock is
+        // released as soon as `candidates` is fully populated.
+        let candidates: Vec<String> = rooms.iter().map(|e| e.key().clone()).collect();
+        // Phase 2: per-key expiry check. Each rooms.get() acquires and
+        // releases its shard lock independently; is_expired() runs under
+        // its own per-room mutex with no outer lock held.
+        let expired_codes: Vec<String> = candidates
+            .into_iter()
+            .filter(|code| rooms.get(code).map(|h| h.is_expired()).unwrap_or(false))
             .collect();
         for code in expired_codes {
             if let Some((_, handle)) = rooms.remove(&code) {
