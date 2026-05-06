@@ -41,15 +41,50 @@ fn build_app(state: Arc<AppState>) -> Router {
         .with_state(state)
 }
 
+/// HTML-escape a string for safe interpolation into HTML attributes, text
+/// content, and (with the data-url indirection in `room_page_html`) JS string
+/// literals read from `dataset`. Covers the five characters that can break
+/// out of any of those contexts. (BLK-01 / WR-04 / WR-05)
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+     .replace('<', "&lt;")
+     .replace('>', "&gt;")
+     .replace('"', "&quot;")
+     .replace('\'', "&#39;")
+}
+
+/// Validate that a Host header value contains only characters that are legal
+/// in a hostname / authority. Anything outside `[A-Za-z0-9._:-]` is rejected
+/// and the caller falls back to `localhost:8000`. (BLK-01 mitigation layer 2)
+fn host_is_safe(host: &str) -> bool {
+    !host.is_empty()
+        && host.bytes().all(|b| {
+            b.is_ascii_alphanumeric()
+                || b == b'.'
+                || b == b'_'
+                || b == b'-'
+                || b == b':'
+        })
+}
+
 /// D-18: Prefer PUBLIC_URL env var (set in Railway); fall back to Host header for local dev.
+///
+/// BLK-01: validate the Host header against `host_is_safe` before
+/// concatenating it into URL strings; on failure, fall back to localhost.
 fn public_base_url(headers: &HeaderMap) -> String {
     if let Ok(url) = std::env::var("PUBLIC_URL") {
         return url.trim_end_matches('/').to_string();
     }
-    let host = headers
+    let host_raw = headers
         .get("host")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("localhost:8000");
+    let host = if host_is_safe(host_raw) {
+        host_raw
+    } else {
+        tracing::warn!("rejected unsafe Host header (falling back to localhost:8000)");
+        "localhost:8000"
+    };
     if host.starts_with("localhost") || host.starts_with("127.0.0.1") {
         format!("http://{}", host)
     } else {
@@ -81,21 +116,42 @@ fn generate_qr_svg(url: &str) -> String {
 }
 
 /// Build the room page HTML with three QR cards (P1, P2, Overlay).
+///
+/// BLK-01 / WR-04 / WR-05: every value derived from request input
+/// (`code`, `game_type`, `base_url` via `p1_url`/`p2_url`/`overlay_url`) is
+/// HTML-escaped before being interpolated into HTML attributes or text
+/// content. URLs for the Copy Link buttons are placed into `data-copy-url`
+/// attributes (HTML-escaped only) and read by a single delegated event
+/// listener, eliminating the JS-string-inside-HTML-attribute escaping
+/// requirement entirely.
 fn room_page_html(code: &str, game_type: &str, base_url: &str) -> String {
     let ws_url = ws_url_from_http(base_url);
     let p1_url = format!("{}/mobile?server={}&room={}&slot=1", base_url, ws_url, code);
     let p2_url = format!("{}/mobile?server={}&room={}&slot=2", base_url, ws_url, code);
     let overlay_url = format!("{}/overlay?server={}&room={}", base_url, ws_url, code);
+    // Escape every URL we splice into the rendered HTML — both the href/text
+    // sites and the data-copy-url attribute.
+    let p1_url_esc = html_escape(&p1_url);
+    let p2_url_esc = html_escape(&p2_url);
+    let overlay_url_esc = html_escape(&overlay_url);
+    // QR SVGs are generated from *raw* (unescaped) URLs because the QR encoder
+    // operates on bytes, not HTML. The SVG output itself is structured XML
+    // emitted by the qrcode crate — it is safe to splice into HTML body.
     let p1_svg = generate_qr_svg(&p1_url);
     let p2_svg = generate_qr_svg(&p2_url);
     let overlay_svg = generate_qr_svg(&overlay_url);
+    // WR-04: escape code and game_type even though create_room currently
+    // bounds them to alphanumeric — defends against a future code-injection
+    // path (e.g. vanity codes) becoming a stored XSS sink.
+    let code_esc = html_escape(code);
     let game_type_upper = game_type.to_ascii_uppercase();
+    let game_type_upper_esc = html_escape(&game_type_upper);
     format!(r#"<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Room {code} — SPECTRE</title>
+  <title>Room {code_esc} — SPECTRE</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;900&display=swap" rel="stylesheet">
   <style>
@@ -156,51 +212,58 @@ fn room_page_html(code: &str, game_type: &str, base_url: &str) -> String {
 </head>
 <body>
   <a href="/" class="back-link">← Lobby</a>
-  <div class="room-code">{code}</div>
-  <div class="game-badge">{game_type_upper}</div>
+  <div class="room-code">{code_esc}</div>
+  <div class="game-badge">{game_type_upper_esc}</div>
   <p class="subtitle">Share these links with your players</p>
   <div class="qr-grid">
     <div class="qr-card p1">
       <div class="role-label">PLAYER 1</div>
       <div class="qr-code">{p1_svg}</div>
-      <a href="{p1_url}" target="_blank" class="url-link">{p1_url}</a>
-      <button class="copy-btn" onclick="copyLink(this, '{p1_url}')">Copy Link</button>
+      <a href="{p1_url_esc}" target="_blank" class="url-link">{p1_url_esc}</a>
+      <button class="copy-btn" data-copy-url="{p1_url_esc}">Copy Link</button>
     </div>
     <div class="qr-card p2">
       <div class="role-label">PLAYER 2</div>
       <div class="qr-code">{p2_svg}</div>
-      <a href="{p2_url}" target="_blank" class="url-link">{p2_url}</a>
-      <button class="copy-btn" onclick="copyLink(this, '{p2_url}')">Copy Link</button>
+      <a href="{p2_url_esc}" target="_blank" class="url-link">{p2_url_esc}</a>
+      <button class="copy-btn" data-copy-url="{p2_url_esc}">Copy Link</button>
     </div>
     <div class="qr-card overlay">
       <div class="role-label">OVERLAY</div>
       <div class="qr-code">{overlay_svg}</div>
-      <a href="{overlay_url}" target="_blank" class="url-link">{overlay_url}</a>
-      <button class="copy-btn" onclick="copyLink(this, '{overlay_url}')">Copy Link</button>
+      <a href="{overlay_url_esc}" target="_blank" class="url-link">{overlay_url_esc}</a>
+      <button class="copy-btn" data-copy-url="{overlay_url_esc}">Copy Link</button>
     </div>
   </div>
   <script>
-    function copyLink(btn, url) {{
-      navigator.clipboard.writeText(url).then(function() {{
-        btn.textContent = 'Copied!';
-        btn.classList.add('copied');
-        setTimeout(function() {{
-          btn.textContent = 'Copy Link';
-          btn.classList.remove('copied');
-        }}, 2000);
+    // WR-05: single delegated listener reads the URL from data-copy-url
+    // instead of inlining it into an onclick attribute. This eliminates
+    // the JS-string-inside-HTML-attribute escaping requirement; HTML
+    // escaping of the data attribute alone is sufficient.
+    document.querySelectorAll('.copy-btn').forEach(function(btn) {{
+      btn.addEventListener('click', function() {{
+        var url = btn.dataset.copyUrl || '';
+        navigator.clipboard.writeText(url).then(function() {{
+          btn.textContent = 'Copied!';
+          btn.classList.add('copied');
+          setTimeout(function() {{
+            btn.textContent = 'Copy Link';
+            btn.classList.remove('copied');
+          }}, 2000);
+        }});
       }});
-    }}
+    }});
   </script>
 </body>
 </html>"#,
-        code = code,
-        game_type_upper = game_type_upper,
+        code_esc = code_esc,
+        game_type_upper_esc = game_type_upper_esc,
         p1_svg = p1_svg,
         p2_svg = p2_svg,
         overlay_svg = overlay_svg,
-        p1_url = p1_url,
-        p2_url = p2_url,
-        overlay_url = overlay_url,
+        p1_url_esc = p1_url_esc,
+        p2_url_esc = p2_url_esc,
+        overlay_url_esc = overlay_url_esc,
     )
 }
 
@@ -912,5 +975,121 @@ mod http_tests {
         assert_eq!(resp.status(), StatusCode::OK);
         let ct = resp.headers().get("content-type").unwrap().to_str().unwrap();
         assert!(ct.contains("text/html"));
+    }
+
+    /// BLK-01 regression: a malicious Host header value containing `'` and
+    /// `<` must not be able to break out of either the HTML attribute /
+    /// text context or the JS-string context in any rendered URL site.
+    /// Because URLs flow only through HTML-escaped variables AND copy URLs
+    /// live in `data-copy-url` (read by a delegated listener), neither
+    /// raw `'` nor `<` from the *input* should appear in the output (the
+    /// page's own legitimate `<script>` tag is allowed).
+    #[test]
+    fn room_page_url_html_escaping() {
+        // Simulate a hostile base_url derived from a poisoned Host header.
+        // The single-quote and `<` characters are exactly the ones that
+        // would have broken the old onclick="copyLink(this, '...')" sink
+        // and the old href="..." attribute respectively. We use a
+        // distinctive payload tag (`<scr1pt>...`) so we can grep for the
+        // verbatim attacker string and not collide with the page's own
+        // legitimate <script> element.
+        let hostile_base = "https://evil.com'),alert(document.cookie),copyLink(this,'<scr1pt>XSS</scr1pt>";
+        let html = room_page_html("ABCDEF", "boxing", hostile_base);
+
+        // Verbatim attacker payload (the hostile tag and the JS-string-
+        // breakout sequence) must NOT appear anywhere in the rendered
+        // HTML — escaping must transform every `'` into `&#39;`, every
+        // `<` into `&lt;`, every `>` into `&gt;` before interpolation.
+        assert!(
+            !html.contains(hostile_base),
+            "raw hostile base URL appears unescaped in rendered HTML"
+        );
+        assert!(
+            !html.contains("'),alert(document.cookie),copyLink(this,'"),
+            "raw single-quoted JS payload appears in rendered HTML"
+        );
+        assert!(
+            !html.contains("<scr1pt>"),
+            "raw <scr1pt> payload from hostile input appears unescaped"
+        );
+        assert!(
+            !html.contains("</scr1pt>"),
+            "raw </scr1pt> payload from hostile input appears unescaped"
+        );
+        // Positive check: escaped form is what we expect to see.
+        assert!(
+            html.contains("&#39;"),
+            "expected &#39; entity (escaped single-quote) in rendered HTML"
+        );
+        assert!(
+            html.contains("&lt;scr1pt&gt;"),
+            "expected &lt;scr1pt&gt; (escaped tag) in rendered HTML"
+        );
+        // Verify the old onclick-with-JS-string sink no longer exists at all.
+        assert!(
+            !html.contains("onclick=\"copyLink"),
+            "onclick=\"copyLink(...)\" sink must be removed in favor of data-copy-url"
+        );
+        // Verify the data-copy-url indirection is present.
+        assert!(
+            html.contains("data-copy-url=\""),
+            "expected data-copy-url attribute on copy buttons"
+        );
+    }
+
+    /// BLK-01 / WR-04 regression: malicious `code` and `game_type` (e.g.
+    /// injected via a future vanity-code path) must also be HTML-escaped
+    /// before being interpolated into <title>, .room-code, .game-badge.
+    #[test]
+    fn room_page_code_and_game_type_html_escaping() {
+        let html = room_page_html(
+            "ABC<>'",
+            "<img src=x onerror=alert(1)>",
+            "https://example.com",
+        );
+        assert!(
+            !html.contains("ABC<>'"),
+            "raw code with HTML metachars appears unescaped"
+        );
+        assert!(
+            !html.contains("<img src=x onerror=alert(1)>"),
+            "raw game_type with HTML payload appears unescaped"
+        );
+        assert!(
+            html.contains("ABC&lt;&gt;&#39;"),
+            "expected escaped form of code in rendered HTML"
+        );
+    }
+
+    /// BLK-01 regression: an unsafe Host header (containing characters
+    /// outside `[A-Za-z0-9._:-]`) must be rejected and fall back to
+    /// `localhost:8000` rather than being interpolated into URLs.
+    #[test]
+    fn public_base_url_rejects_unsafe_host_header() {
+        use std::sync::Mutex;
+        static ENV_LOCK: Mutex<()> = Mutex::new(());
+        let _guard = ENV_LOCK.lock().unwrap();
+
+        let prev = std::env::var("PUBLIC_URL").ok();
+        std::env::remove_var("PUBLIC_URL");
+
+        let mut headers = HeaderMap::new();
+        // Inject a hostile Host containing characters outside the safe set
+        // `[A-Za-z0-9._:-]`. `'` is a valid byte for HeaderValue but is
+        // rejected by `host_is_safe` and triggers the localhost fallback.
+        headers.insert(
+            "host",
+            "evil.com'/script".parse().unwrap(),
+        );
+        let url = public_base_url(&headers);
+        assert_eq!(
+            url, "http://localhost:8000",
+            "unsafe Host header must trigger localhost fallback"
+        );
+
+        match prev {
+            Some(v) => std::env::set_var("PUBLIC_URL", v),
+            None => std::env::remove_var("PUBLIC_URL"),
+        }
     }
 }
