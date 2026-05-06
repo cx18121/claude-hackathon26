@@ -69,11 +69,21 @@ fn host_is_safe(host: &str) -> bool {
 
 /// D-18: Prefer PUBLIC_URL env var (set in Railway); fall back to Host header for local dev.
 ///
+/// BLK-02: if PUBLIC_URL is set without a scheme, prepend `https://` and log
+/// an error rather than silently producing a malformed URL.
 /// BLK-01: validate the Host header against `host_is_safe` before
 /// concatenating it into URL strings; on failure, fall back to localhost.
 fn public_base_url(headers: &HeaderMap) -> String {
     if let Ok(url) = std::env::var("PUBLIC_URL") {
-        return url.trim_end_matches('/').to_string();
+        let url = url.trim_end_matches('/').to_string();
+        if url.starts_with("http://") || url.starts_with("https://") {
+            return url;
+        }
+        tracing::error!(
+            "PUBLIC_URL must include scheme (http:// or https://); got '{}'. Defaulting to https://.",
+            url
+        );
+        return format!("https://{}", url);
     }
     let host_raw = headers
         .get("host")
@@ -93,11 +103,22 @@ fn public_base_url(headers: &HeaderMap) -> String {
 }
 
 /// Convert https:// → wss:// and http:// → ws://.
+///
+/// BLK-02 defense-in-depth: if the input has neither scheme (which should be
+/// impossible after `public_base_url` normalization, but guard anyway), we
+/// prepend `wss://` so the output always begins with `ws://` or `wss://` and
+/// QR codes are never silently malformed.
 fn ws_url_from_http(http_url: &str) -> String {
     if http_url.starts_with("https://") {
         http_url.replacen("https://", "wss://", 1)
-    } else {
+    } else if http_url.starts_with("http://") {
         http_url.replacen("http://", "ws://", 1)
+    } else {
+        tracing::error!(
+            "ws_url_from_http received URL without http(s):// scheme: '{}'. Forcing wss://.",
+            http_url
+        );
+        format!("wss://{}", http_url)
     }
 }
 
@@ -1087,6 +1108,40 @@ mod http_tests {
             "unsafe Host header must trigger localhost fallback"
         );
 
+        match prev {
+            Some(v) => std::env::set_var("PUBLIC_URL", v),
+            None => std::env::remove_var("PUBLIC_URL"),
+        }
+    }
+
+    /// BLK-02 regression: PUBLIC_URL set without a scheme is normalized to
+    /// `https://...` rather than silently producing a malformed base URL
+    /// that would cascade into broken `ws://...` URLs in QR codes.
+    #[test]
+    fn public_base_url_handles_missing_scheme() {
+        // serialize against any other PUBLIC_URL test in this suite
+        use std::sync::Mutex;
+        static ENV_LOCK: Mutex<()> = Mutex::new(());
+        let _guard = ENV_LOCK.lock().unwrap();
+
+        let prev = std::env::var("PUBLIC_URL").ok();
+        std::env::set_var("PUBLIC_URL", "spectre.example.com");
+        let url = public_base_url(&HeaderMap::new());
+        assert_eq!(
+            url, "https://spectre.example.com",
+            "missing-scheme PUBLIC_URL must be normalized to https://"
+        );
+
+        // Also verify the ws_url_from_http defensive guard handles a
+        // schemeless URL by forcing wss://.
+        let ws = ws_url_from_http("spectre.example.com");
+        assert!(
+            ws.starts_with("wss://") || ws.starts_with("ws://"),
+            "ws_url_from_http output must start with ws:// or wss://, got: {}",
+            ws
+        );
+
+        // Restore prior env state.
         match prev {
             Some(v) => std::env::set_var("PUBLIC_URL", v),
             None => std::env::remove_var("PUBLIC_URL"),
