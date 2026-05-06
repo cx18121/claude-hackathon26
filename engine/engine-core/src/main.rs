@@ -1,5 +1,6 @@
 use axum::{
     extract::{Path, Query, State, WebSocketUpgrade},
+    http::HeaderMap,
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
@@ -32,11 +33,235 @@ fn build_app(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/", get(lobby_html))
         .route("/rooms", post(create_room))
+        .route("/rooms/{code}", get(get_room_page))
         .route("/ws/player/{room_code}", get(ws_player))
         .route("/ws/spectator/{room_code}", get(ws_spectator))
         .nest_service("/mobile", ServeDir::new("mobile/dist"))
         .nest_service("/overlay", ServeDir::new("overlay/dist"))
         .with_state(state)
+}
+
+/// D-18: Prefer PUBLIC_URL env var (set in Railway); fall back to Host header for local dev.
+fn public_base_url(headers: &HeaderMap) -> String {
+    if let Ok(url) = std::env::var("PUBLIC_URL") {
+        return url.trim_end_matches('/').to_string();
+    }
+    let host = headers
+        .get("host")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("localhost:8000");
+    if host.starts_with("localhost") || host.starts_with("127.0.0.1") {
+        format!("http://{}", host)
+    } else {
+        format!("https://{}", host)
+    }
+}
+
+/// Convert https:// → wss:// and http:// → ws://.
+fn ws_url_from_http(http_url: &str) -> String {
+    if http_url.starts_with("https://") {
+        http_url.replacen("https://", "wss://", 1)
+    } else {
+        http_url.replacen("http://", "ws://", 1)
+    }
+}
+
+/// Generate an inline SVG QR code for the given URL using the qrcode crate.
+/// Dark module color #0c0809 (--bg-deep), light module color #f5efe4 (--text-primary).
+fn generate_qr_svg(url: &str) -> String {
+    use qrcode::QrCode;
+    use qrcode::render::svg;
+    let code = QrCode::new(url.as_bytes()).unwrap_or_else(|_| QrCode::new(b"error").unwrap());
+    code.render::<svg::Color>()
+        .dark_color(svg::Color("#0c0809"))
+        .light_color(svg::Color("#f5efe4"))
+        .min_dimensions(160, 160)
+        .max_dimensions(160, 160)
+        .build()
+}
+
+/// Build the room page HTML with three QR cards (P1, P2, Overlay).
+fn room_page_html(code: &str, game_type: &str, base_url: &str) -> String {
+    let ws_url = ws_url_from_http(base_url);
+    let p1_url = format!("{}/mobile?server={}&room={}&slot=1", base_url, ws_url, code);
+    let p2_url = format!("{}/mobile?server={}&room={}&slot=2", base_url, ws_url, code);
+    let overlay_url = format!("{}/overlay?server={}&room={}", base_url, ws_url, code);
+    let p1_svg = generate_qr_svg(&p1_url);
+    let p2_svg = generate_qr_svg(&p2_url);
+    let overlay_svg = generate_qr_svg(&overlay_url);
+    let game_type_upper = game_type.to_ascii_uppercase();
+    format!(r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Room {code} — SPECTRE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;900&display=swap" rel="stylesheet">
+  <style>
+    :root {{
+      --bg-deep: oklch(7% 0.008 22);
+      --bg-mid: oklch(11% 0.009 22);
+      --bg-surface: oklch(17% 0.01 22);
+      --accent: oklch(44% 0.22 22);
+      --accent-bright: oklch(60% 0.25 22);
+      --accent-p2: oklch(50% 0.18 250);
+      --gold: oklch(78% 0.11 85);
+      --text-primary: oklch(95% 0.008 85);
+      --text-secondary: oklch(65% 0.008 85);
+      --text-dim: oklch(38% 0.006 85);
+    }}
+    *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{
+      font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      max-width: 720px;
+      margin: 48px auto;
+      padding: 0 24px;
+    }}
+    .back-link {{ display: block; color: var(--text-secondary); text-decoration: none; font-size: 16px; font-weight: 400; margin-bottom: 24px; }}
+    .back-link:hover {{ color: var(--text-primary); }}
+    .room-code {{ font-size: 32px; font-weight: 900; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-primary); line-height: 1.1; }}
+    .game-badge {{ display: inline-block; font-size: 12px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-secondary); border: 1px solid var(--text-dim); padding: 4px 8px; border-radius: 4px; margin-top: 8px; }}
+    .subtitle {{ color: var(--text-secondary); font-size: 16px; font-weight: 400; margin-top: 8px; margin-bottom: 32px; }}
+    .qr-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }}
+    @media (max-width: 599px) {{ .qr-grid {{ grid-template-columns: 1fr; gap: 16px; }} }}
+    .qr-card {{
+      background: var(--bg-surface);
+      border-radius: 4px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    }}
+    .qr-card.p1 {{ border: 1px solid var(--accent); }}
+    .qr-card.p2 {{ border: 1px solid var(--accent-p2); }}
+    .qr-card.overlay {{ border: 1px solid color-mix(in oklch, var(--gold) 60%, transparent); }}
+    .role-label {{ font-size: 12px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-secondary); align-self: flex-start; }}
+    .qr-code {{ width: 160px; height: 160px; flex-shrink: 0; }}
+    .url-link {{ font-size: 12px; font-weight: 900; color: var(--text-secondary); letter-spacing: 0.04em; word-break: break-all; text-align: center; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; text-overflow: ellipsis; width: 100%; }}
+    .url-link:hover {{ text-decoration: underline; color: var(--text-primary); }}
+    .copy-btn {{
+      width: 100%; min-height: 36px; background: var(--bg-mid); border: 1px solid var(--text-dim);
+      border-radius: 4px; color: var(--text-secondary); font-family: inherit; font-size: 12px;
+      font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
+      transition: border-color 0.15s, background 0.15s, color 0.15s;
+    }}
+    .copy-btn:hover {{ border-color: color-mix(in oklch, var(--accent) 60%, transparent); background: color-mix(in oklch, var(--accent) 8%, transparent); }}
+    .copy-btn.copied {{ border-color: color-mix(in oklch, var(--gold) 60%, transparent); color: var(--text-primary); }}
+  </style>
+</head>
+<body>
+  <a href="/" class="back-link">← Lobby</a>
+  <div class="room-code">{code}</div>
+  <div class="game-badge">{game_type_upper}</div>
+  <p class="subtitle">Share these links with your players</p>
+  <div class="qr-grid">
+    <div class="qr-card p1">
+      <div class="role-label">PLAYER 1</div>
+      <div class="qr-code">{p1_svg}</div>
+      <a href="{p1_url}" target="_blank" class="url-link">{p1_url}</a>
+      <button class="copy-btn" onclick="copyLink(this, '{p1_url}')">Copy Link</button>
+    </div>
+    <div class="qr-card p2">
+      <div class="role-label">PLAYER 2</div>
+      <div class="qr-code">{p2_svg}</div>
+      <a href="{p2_url}" target="_blank" class="url-link">{p2_url}</a>
+      <button class="copy-btn" onclick="copyLink(this, '{p2_url}')">Copy Link</button>
+    </div>
+    <div class="qr-card overlay">
+      <div class="role-label">OVERLAY</div>
+      <div class="qr-code">{overlay_svg}</div>
+      <a href="{overlay_url}" target="_blank" class="url-link">{overlay_url}</a>
+      <button class="copy-btn" onclick="copyLink(this, '{overlay_url}')">Copy Link</button>
+    </div>
+  </div>
+  <script>
+    function copyLink(btn, url) {{
+      navigator.clipboard.writeText(url).then(function() {{
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(function() {{
+          btn.textContent = 'Copy Link';
+          btn.classList.remove('copied');
+        }}, 2000);
+      }});
+    }}
+  </script>
+</body>
+</html>"#,
+        code = code,
+        game_type_upper = game_type_upper,
+        p1_svg = p1_svg,
+        p2_svg = p2_svg,
+        overlay_svg = overlay_svg,
+        p1_url = p1_url,
+        p2_url = p2_url,
+        overlay_url = overlay_url,
+    )
+}
+
+/// 404 page when room code is not found.
+fn room_not_found_html() -> String {
+    r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Room not found — SPECTRE</title>
+  <style>
+    :root {
+      --bg-deep: oklch(7% 0.008 22);
+      --text-primary: oklch(95% 0.008 85);
+      --text-secondary: oklch(65% 0.008 85);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      max-width: 720px;
+      margin: 48px auto;
+      padding: 0 24px;
+    }
+    .error-block { text-align: center; margin-top: 80px; }
+    .error-heading { font-size: 28px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-primary); margin-bottom: 16px; }
+    .error-body { font-size: 16px; font-weight: 400; color: var(--text-secondary); margin-bottom: 24px; }
+    .back-link { color: var(--text-secondary); font-size: 16px; text-decoration: none; }
+    .back-link:hover { color: var(--text-primary); }
+  </style>
+</head>
+<body>
+  <div class="error-block">
+    <div class="error-heading">Room not found</div>
+    <p class="error-body">This room has expired or does not exist. Return to the lobby to create a new one.</p>
+    <a href="/" class="back-link">Back to Lobby</a>
+  </div>
+</body>
+</html>"#.to_string()
+}
+
+/// Handler for GET /rooms/{code}: returns the room page with QR cards or a 404 page.
+async fn get_room_page(
+    Path(code): Path<String>,
+    State(app): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let code_upper = code.to_ascii_uppercase();
+    match app.rooms.get_room_game_type(&code_upper) {
+        Some(game_type) => {
+            let base_url = public_base_url(&headers);
+            let html = room_page_html(&code_upper, &game_type, &base_url);
+            (axum::http::StatusCode::OK, axum::response::Html(html))
+        }
+        None => {
+            let html = room_not_found_html();
+            (axum::http::StatusCode::NOT_FOUND, axum::response::Html(html))
+        }
+    }
 }
 
 #[tokio::main]
@@ -556,5 +781,36 @@ mod http_tests {
         let html = std::str::from_utf8(&body).unwrap();
         assert!(html.contains("createRoom('boxing')"), "lobby missing boxing button");
         assert!(html.contains("createRoom('dance')"), "lobby missing dance button");
+    }
+
+    #[tokio::test]
+    async fn get_rooms_code_returns_404_for_unknown_code() {
+        let app = build_app(test_state());
+        let resp = app
+            .oneshot(Request::builder().method("GET").uri("/rooms/XXXXXX").body(Body::empty()).unwrap())
+            .await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn get_rooms_code_returns_200_for_existing_room() {
+        let state = test_state();
+        // First create a room
+        let app1 = build_app(Arc::clone(&state));
+        let create_resp = app1
+            .oneshot(Request::builder().method("POST").uri("/rooms?game=boxing").body(Body::empty()).unwrap())
+            .await.unwrap();
+        assert_eq!(create_resp.status(), StatusCode::CREATED);
+        let body = create_resp.into_body().collect().await.unwrap().to_bytes();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let code = v["room_code"].as_str().unwrap().to_string();
+        // Then fetch the room page
+        let app2 = build_app(Arc::clone(&state));
+        let resp = app2
+            .oneshot(Request::builder().method("GET").uri(format!("/rooms/{}", code)).body(Body::empty()).unwrap())
+            .await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let ct = resp.headers().get("content-type").unwrap().to_str().unwrap();
+        assert!(ct.contains("text/html"));
     }
 }
