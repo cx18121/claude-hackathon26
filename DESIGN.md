@@ -127,3 +127,99 @@ Level 3  — dramatic moment: 0 0 48px rgba(accen-rgb, 0.35), 0 8px 40px rgba(0,
 Base unit: 8px. Scale: 4, 8, 12, 16, 24, 32, 48, 64, 96.
 
 Vary spacing intentionally. Same padding on every element is monotony. Tight internal padding (12–16px) on HUD elements. Generous breathing room (32–48px) around dramatic moments.
+
+---
+
+## Lobby
+
+### Landing Page
+
+Layout: max-width 480px, centered, 48px top margin, 16px horizontal body padding.
+
+Section order (top to bottom, per D-07):
+1. SPECTRE header block
+2. Game picker section (primary focal point)
+3. Create Room button
+4. Separator
+5. Join by code section
+
+**SPECTRE header block:**
+- `<h1>` text: `SPECTRE` — Inter 900 28px letter-spacing 0.12em uppercase `--text-primary`
+- Tagline: `real punches. real fights.` — Inter 400 12px letter-spacing 0.08em uppercase `--text-secondary`
+- Margin-bottom: 32px
+
+**Game picker section:**
+- Section label: `Select a Game` — Inter 900 12px letter-spacing 0.08em uppercase `--text-secondary`, margin-bottom 12px
+- Two tiles in flex row, gap 8px, each tile flex 1, min-height 80px
+- Tile default: background `--bg-surface`, border 1px `--text-dim`, border-radius 4px
+- Tile label: Inter 900 16px uppercase letter-spacing 0.1em `--text-primary` centered
+- Tile selected (BOXING): border 1px `--accent`, background `color-mix(in oklch, var(--accent) 10%, transparent)`
+- Tile selected (DANCE): border 1px `--accent-p2`, background `color-mix(in oklch, var(--accent-p2) 10%, transparent)`
+- Tile hover (unselected): border `--text-secondary`, background `--bg-mid`
+- Tile active: `transform: scale(0.97)` 80ms ease-out
+- Margin-bottom: 16px
+
+**Create Room button:**
+- Full-width, min-height 52px, border-radius 4px
+- Disabled (no selection): background `--bg-surface`, border 1px `--text-dim`, opacity 0.5, cursor not-allowed
+- Enabled: background `color-mix(in oklch, var(--accent) 15%, transparent)`, border 1px `--accent`, `--text-primary`, cursor pointer
+- Hover: background `color-mix(in oklch, var(--accent) 25%, transparent)`, border `--accent-bright`
+- Active: `transform: scale(0.97)` 80ms ease-out
+- Label: `Create Room` — Inter 900 16px uppercase letter-spacing 0.08em
+- Loading state: label `Creating...`, button disabled
+- Margin-bottom: 32px
+
+**Separator:**
+- Centered `or` label — Inter 400 12px `--text-dim`. 1px horizontal rule at `--text-dim` 40% opacity either side.
+
+**Join by code section:**
+- Section label: `Join a Room` — Inter 900 12px uppercase letter-spacing 0.08em `--text-secondary`, margin-bottom 12px
+- Row: text input + Join Room button, gap 8px
+- Input: flex 1, min-height 52px, background `--bg-surface`, border 1px `--text-dim`, padding 16px, `--text-primary` Inter 900 16px letter-spacing 0.2em, uppercase transform, placeholder `Room Code` `--text-dim` weight 400
+- Input focus: border `--accent`, outline none
+- Join Room button: min-width 100px min-height 52px, default button style (bg-surface, text-dim border), text `Join Room` Inter 900 16px uppercase
+- Join Room hover: border `color-mix(in oklch, var(--accent) 60%, transparent)`, background `color-mix(in oklch, var(--accent) 8%, transparent)`
+- Join Room active: `transform: scale(0.97)` 80ms ease-out
+
+### Room Page (`/rooms/{code}`)
+
+Layout: max-width 720px, centered, 48px top margin, 24px horizontal padding.
+
+**Header block:**
+- Back link: `← Lobby` — Inter 400 16px `--text-secondary`, margin-bottom 24px, links to `/`
+- Room code display (primary focal point): Inter 900 32px letter-spacing 0.2em uppercase `--text-primary`
+- Game type badge: inline pill — Inter 900 12px letter-spacing 0.1em `--text-secondary`, border 1px `--text-dim`, padding 4px 8px, border-radius 4px
+- Subtitle: `Share these links with your players` — Inter 400 16px `--text-secondary`
+- Margin-bottom: 32px
+
+### QR Card Grid
+
+- CSS grid: 3 equal columns, gap 24px at viewport ≥600px; 1 column gap 16px at <600px
+- Each card: background `--bg-surface`, border 1px (per-card color below), border-radius 4px, padding 24px, flex column, align-items center, gap 12px
+- Elevation Level 1: `box-shadow: inset 0 1px 0 rgba(255,255,255,0.04)`
+- P1 card border: 1px `--accent`
+- P2 card border: 1px `--accent-p2`
+- Overlay card border: 1px `color-mix(in oklch, var(--gold) 60%, transparent)`
+
+### QR Card Contents
+
+Each card (top to bottom):
+- Role label: Inter 900 12px uppercase letter-spacing 0.1em `--text-secondary` — `PLAYER 1` / `PLAYER 2` / `OVERLAY`
+- QR code: inline SVG 160px × 160px. Dark module color `#0c0809` (`--bg-deep`). Light module color `#f5efe4` (`--text-primary`). Inverted for dark theme.
+- URL link: `<a href="..." target="_blank">` — Inter 900 12px `--text-secondary` letter-spacing 0.04em, word-break break-all, max 2 lines then ellipsis, text-decoration underline on hover
+- Copy button: full-width, min-height 36px, background `--bg-mid`, border 1px `--text-dim`, border-radius 4px
+  - Label: `Copy Link` — Inter 900 12px uppercase letter-spacing 0.08em `--text-secondary`
+  - Hover: border `color-mix(in oklch, var(--accent) 60%, transparent)`, background `color-mix(in oklch, var(--accent) 8%, transparent)`
+  - Success state (2000ms): border `color-mix(in oklch, var(--gold) 60%, transparent)`, label changes to `Copied!` `--text-primary`
+
+### Error States
+
+- **Create Room server error**: Error row below button — background `color-mix(in oklch, var(--accent-bright) 15%, transparent)`, border 1px `color-mix(in oklch, var(--accent-bright) 40%, transparent)`, padding 8px 12px, border-radius 4px. Text `--text-primary` Inter 400 16px.
+- **Room not found (404)**: Centered page message. `--text-secondary` Inter 400 16px. Includes `Back to Lobby` link to `/`.
+
+### Responsive Behavior
+
+- Landing page: max-width 480px centered. Game picker tiles maintain 50/50 split down to 320px.
+- Room page: 3-column grid collapses to 1 column at <600px viewport. Card order: P1 → P2 → Overlay.
+- QR SVGs: fixed 160px × 160px at all breakpoints (no scaling).
+- All touch targets: min 44px × 44px (satisfied by 52px buttons and 80px tiles).

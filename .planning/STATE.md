@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
+status: executing
 stopped_at: Phase 4 UI-SPEC approved
-last_updated: "2026-05-04T03:12:34.420Z"
-last_activity: 2026-05-03 — Phases 4–6 defined; lobby UX is the critical unblock
+last_updated: "2026-05-06T02:52:22.461Z"
+last_activity: 2026-05-06 -- Phase 04 execution started
 progress:
   total_phases: 9
   completed_phases: 3
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-03)
 
 **Core value:** The engine must make it trivially easy to add a new pose-based game by implementing a well-defined plugin interface — without touching the engine core or understanding its internals.
-**Current focus:** Phase 04 — Lobby UX
+**Current focus:** Phase 04 — lobby-ux
 
 ## Current Position
 
-Phase: 04
-Plan: Not started
-Status: Planning phase 4
-Last activity: 2026-05-03 — Phases 4–6 defined; lobby UX is the critical unblock
+Phase: 04 (lobby-ux) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 04
+Last activity: 2026-05-06 -- Phase 04 execution started
 
 Progress: [███░░░░░░░] 33% (3/9 phases complete)
 
