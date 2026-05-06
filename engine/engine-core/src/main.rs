@@ -122,12 +122,33 @@ fn ws_url_from_http(http_url: &str) -> String {
     }
 }
 
+/// Inline SVG fallback shown when the URL cannot be encoded into a QR code.
+/// Dimensions match the real QR card (160x160) so layout is unaffected.
+/// Static — no user input, no escaping needed. (WR-01)
+const QR_ERROR_SVG: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160"><rect width="160" height="160" fill="#f5efe4"/><text x="80" y="86" font-family="monospace" font-size="16" font-weight="900" text-anchor="middle" fill="#0c0809">QR error</text></svg>"##;
+
 /// Generate an inline SVG QR code for the given URL using the qrcode crate.
 /// Dark module color #0c0809 (--bg-deep), light module color #f5efe4 (--text-primary).
+///
+/// WR-01: on encoding failure (e.g. URL too long), return a static
+/// "QR error" SVG instead of either panicking via the prior unwrap-chain
+/// or rendering a misleading fallback QR that decodes to the literal
+/// string "error". A failure is now distinguishable at-a-glance from a
+/// valid scannable code, and the error is surfaced through tracing.
 fn generate_qr_svg(url: &str) -> String {
     use qrcode::QrCode;
     use qrcode::render::svg;
-    let code = QrCode::new(url.as_bytes()).unwrap_or_else(|_| QrCode::new(b"error").unwrap());
+    let code = match QrCode::new(url.as_bytes()) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!(
+                "QR encoding failed for url (len={}): {}; rendering error placeholder",
+                url.len(),
+                e
+            );
+            return QR_ERROR_SVG.to_string();
+        }
+    };
     code.render::<svg::Color>()
         .dark_color(svg::Color("#0c0809"))
         .light_color(svg::Color("#f5efe4"))
