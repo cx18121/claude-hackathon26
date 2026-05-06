@@ -88,7 +88,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Extend DESIGN.md with Lobby section (game picker tiles, landing page layout, room cards, QR card spec, join section, typography and color treatments)
+- [x] 04-01-PLAN.md — Extend DESIGN.md with Lobby section (game picker tiles, landing page layout, room cards, QR card spec, join section, typography and color treatments)
 - [ ] 04-02-PLAN.md — Rust: `GET /rooms/{code}` route, QR generation (`qrcode` crate), room page HTML with P1/P2/Overlay cards + prefilled URLs + copy buttons
 - [ ] 04-03-PLAN.md — Landing page rewrite: SPECTRE header, game picker tiles, Create Room flow, Join by code flow; follows DESIGN.md Lobby spec
 
