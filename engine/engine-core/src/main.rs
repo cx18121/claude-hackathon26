@@ -843,8 +843,15 @@ const LOBBY_HTML: &str = r#"<!DOCTYPE html>
     function joinRoom() {
       var code = document.getElementById('join-input').value.trim();
       if (!code) return;
-      var server = window.location.origin;
-      window.location.href = '/mobile?room=' + encodeURIComponent(code) + '&server=' + encodeURIComponent(server);
+      // WR-03: align ?server= format with QR-card URLs. The QR codes encode
+      // the WS form (wss://host) into the server param; the lobby join must
+      // do the same so both entry points hand the mobile client a single
+      // canonical scheme. Mobile useGameSocket tolerates either form, but
+      // consistency keeps the protocol contract narrow.
+      var origin = window.location.origin;
+      var wsServer = origin.replace(/^https/, 'wss').replace(/^http(?!s)/, 'ws');
+      window.location.href = '/mobile?room=' + encodeURIComponent(code)
+        + '&server=' + encodeURIComponent(wsServer);
     }
   </script>
 </body>
@@ -1150,6 +1157,44 @@ mod http_tests {
             Some(v) => std::env::set_var("PUBLIC_URL", v),
             None => std::env::remove_var("PUBLIC_URL"),
         }
+    }
+
+    /// WR-03 regression: the lobby's joinRoom() JS must convert the http(s)
+    /// origin to a ws(s) scheme before passing it as the `?server=` param,
+    /// matching the QR-card URL builder. We verify the LOBBY_HTML contains
+    /// the canonical conversion sequence rather than the old origin-only
+    /// form.
+    #[tokio::test]
+    async fn lobby_join_redirect_uses_ws_scheme() {
+        let app = build_app(test_state());
+        let resp = app
+            .oneshot(Request::builder().method("GET").uri("/").body(Body::empty()).unwrap())
+            .await.unwrap();
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let html = std::str::from_utf8(&body).unwrap();
+        // The conversion must transform `https` → `wss` and `http` → `ws`.
+        assert!(
+            html.contains("replace(/^https/, 'wss')"),
+            "lobby joinRoom must convert https → wss for the ?server= param"
+        );
+        assert!(
+            html.contains("replace(/^http(?!s)/, 'ws')"),
+            "lobby joinRoom must convert http → ws (without re-converting https)"
+        );
+        // The redirect itself must still hit /mobile with both params.
+        assert!(
+            html.contains("'/mobile?room=' + encodeURIComponent(code)"),
+            "lobby joinRoom must redirect to /mobile?room=..."
+        );
+        assert!(
+            html.contains("'&server=' + encodeURIComponent(wsServer)"),
+            "lobby joinRoom must include &server=<wsServer>"
+        );
+        // The legacy direct-origin assignment must be gone.
+        assert!(
+            !html.contains("encodeURIComponent(window.location.origin)"),
+            "legacy raw-origin server param must be replaced by wsServer conversion"
+        );
     }
 
     /// WR-02 regression: the rendered room page must not contain an
