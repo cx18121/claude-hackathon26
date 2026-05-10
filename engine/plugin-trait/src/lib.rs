@@ -321,4 +321,19 @@ pub trait GamePlugin: Send + Sync {
     /// a rematch message, emit `GameEvent::Broadcast` in `on_tick` on the first tick of
     /// the new round.
     fn on_round_reset(&self, _state: &mut dyn Any) {}
+
+    /// Returns the game type string for wire protocol and room metadata.
+    /// Default "unknown" — engine is never broken by a plugin that omits this.
+    /// Override to return a stable ASCII identifier (e.g., "boxing", "dance").
+    fn game_type(&self) -> &'static str { "unknown" }
+
+    /// Returns false if this game does not require pose calibration before match start.
+    /// Engine skips the calibration_start / calibration_done handshake when false.
+    /// Default true — preserves existing boxing behavior with no override required.
+    fn requires_calibration(&self) -> bool { true }
+
+    /// Returns a JSON snapshot of current game state for a late-joining spectator.
+    /// Called once on spectator WS connect during an active match.
+    /// Return None if no mid-match state is meaningful (e.g., before first round starts).
+    fn spectator_snapshot(&self, _state: &dyn Any) -> Option<serde_json::Value> { None }
 }

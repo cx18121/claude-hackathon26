@@ -1,1 +1,1 @@
-{"type": "joined", "room_code": "ABC123", "player_slot": 1, "opponent_connected": false}
+{"type": "joined", "room_code": "ABC123", "player_slot": 1, "opponent_connected": false, "game_type": "boxing"}

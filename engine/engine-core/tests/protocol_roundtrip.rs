@@ -54,6 +54,7 @@ fn msg_joined_roundtrip() {
     assert_eq!(orig["room_code"], round["room_code"]);
     assert_eq!(orig["player_slot"], round["player_slot"]);
     assert_eq!(orig["opponent_connected"], round["opponent_connected"]);
+    assert_eq!(orig["game_type"], round["game_type"]);
 }
 
 #[test]

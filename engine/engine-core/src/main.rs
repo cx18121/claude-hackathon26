@@ -528,11 +528,14 @@ async fn handle_player(
 
     // Send MsgJoined back to client
     use crate::protocol::MsgJoined;
+    let game_type = app.rooms.get_room_game_type(&room_code)
+        .unwrap_or_else(|| "unknown".to_string());
     if let Ok(json) = serde_json::to_string(&MsgJoined {
         msg_type: "joined".to_string(),
         room_code: room_code.clone(),
         player_slot: (connect_result.slot + 1) as u8,
         opponent_connected: connect_result.opponent_connected,
+        game_type,
     }) {
         let _ = player_tx.send(json).await;
     }

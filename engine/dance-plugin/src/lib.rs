@@ -200,6 +200,24 @@ impl GamePlugin for DancePlugin {
         self.config.max_wins
     }
 
+    fn game_type(&self) -> &'static str { "dance" }
+
+    fn requires_calibration(&self) -> bool { false }
+
+    fn spectator_snapshot(&self, state: &dyn Any) -> Option<serde_json::Value> {
+        let s = state.downcast_ref::<DanceState>()
+            .expect("dance plugin: spectator_snapshot type mismatch");
+        // Only return snapshot if a round is actively in progress (pre-round = no snapshot)
+        if !s.round_started || s.round_ended {
+            return None;
+        }
+        Some(json!({
+            "type": "dance_snapshot",
+            "beat": s.beats_scored,
+            "scores": [s.scores[0], s.scores[1]],
+        }))
+    }
+
     // on_calibration_complete: intentional no-op (D-05). Using trait default.
     // on_player_join: using trait default no-op.
     // on_player_leave: using trait default no-op.

@@ -362,6 +362,7 @@ mod solo_mode_tests {
             match_over_flag,
             last_disconnect,
             plugin,
+            "boxing".to_string(),
         )
     }
 

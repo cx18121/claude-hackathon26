@@ -211,6 +211,10 @@ impl GamePlugin for BoxingPlugin {
             .expect("boxing plugin: state type mismatch");
         tracing::info!("boxing: player {} left", slot + 1);
     }
+
+    fn game_type(&self) -> &'static str { "boxing" }
+    // requires_calibration uses default true — no override needed
+    // spectator_snapshot uses default None — no override needed
 }
 
 // ---------------------------------------------------------------------------
