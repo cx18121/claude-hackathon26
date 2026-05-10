@@ -45,11 +45,14 @@ Base unit: 8px. Scale in use across existing overlay and mobile:
 | 2xl | 48px | Lobby top margin, major section breaks |
 | 3xl | 64px | Page-level spacing |
 
-Exceptions:
+Phase 9 introduces no new spacing values outside the 4px grid. The following
+pre-existing inherited values are documented for completeness but are outside
+this phase's spacing contract:
+
 - Win-dot gap: 6px (existing `.win-dots` — not used in dance HUD, noted for boxing parity)
-- HUD band: padding 16px 20px 14px top (existing `.hud-band` spec — reused unchanged)
-- Beat indicator bar height: 4px (fixed, not on the spacing scale — functional size only)
-- Match-end stats grid: 20px column padding (existing `.match-stats-col` — inherited)
+- HUD band: `padding: 16px 20px 14px` (existing `.hud-band` spec — Phase 9 reuses this class unchanged; 14px top and 20px horizontal are inherited, not introduced here)
+- Beat indicator bar height: 4px (fixed functional size — on the 4px grid)
+- Match-end stats grid: 20px column padding (existing `.match-stats-col` — inherited, not introduced by Phase 9)
 
 Source: `DESIGN.md §Spacing`, `overlay/src/index.css`.
 
@@ -57,28 +60,32 @@ Source: `DESIGN.md §Spacing`, `overlay/src/index.css`.
 
 ## Typography
 
-All from the existing type scale in `DESIGN.md §Typography`. No new tokens needed for Phase 9.
+All from the existing type scale in `DESIGN.md §Typography`. No new size tokens are needed for Phase 9. The formal declared scale is four sizes.
 
 | Role | Token | Size | Weight | Letter-spacing | Line Height | Use |
 |------|-------|------|--------|----------------|-------------|-----|
-| Display | `--type-display` | `clamp(72px, 15vw, 200px)` | 950 | 0 | Round flash headline (Achafont) |
+| Display | `--type-display` | `clamp(72px, 15vw, 200px)` | 950 | 0 | Round flash headline (Achafont); match-end large scores and round flash map to this token's scale |
 | Hero | `--type-hero` | `clamp(32px, 6vw, 88px)` | 900 | 0 | Match end title (Achafont) |
 | Score / Timer | `--type-hud-timer` | 36px | 900 | 0.02em | Dance score numbers (Inter) — reuses existing timer token |
-| Label | `--type-label` | 12px | 800 | 0.1em | HUD labels, beat count label, "WINNER" label |
-| Body | `--type-body` | 16px | 400 | 0 | Mobile screen body text |
-| Small | `--type-small` | 12px | 700 | 0.06em | Status pills, sublabels |
+| Label / Small | `--type-label` | 12px | 800 (label) / 700 (small) | 0.1em (label) / 0.06em (small) | HUD labels, beat count label, "WINNER" label, status pills, sublabels — differentiated by weight and letter-spacing only |
+
+Token mapping for dance-specific display sizes:
+
+- **Match-end large scores (`clamp(48px, 8vw, 96px)`):** rendered as a `--type-display` variant (same Achafont display register, clamped smaller). Maps to `--type-display`.
+- **Round flash headline (`clamp(52px, 10vw, 130px)`):** inherited from `.round-flash` — maps to `--type-display` variant. Style unchanged; copy changes only.
+- **Round end subscores (18px):** rendered at `--type-hud-timer` weight (Inter 700) but at 18px — treated as a `--type-hud-timer` variant for implementation. No new size token declared.
 
 Dance-specific typography details:
 
 - **Dance score numbers (P1, P2):** Inter 900, 36px, tabular-nums, `--text-primary`. Matches `--type-hud-timer` for visual parity with the boxing timer. Format: one decimal precision — e.g. `11.7`. Zero-state: `0.0`.
 - **Beat count label:** Inter 700, 12px, letter-spacing 0.1em, uppercase, `--text-secondary`. Format: `N / total_beats` e.g. `4 / 16`.
 - **"vs" separator (HUD score row):** Inter 700, 12px, letter-spacing 0.1em, uppercase, `--text-secondary`, centred.
-- **Dance match end — winner score:** Inter 900, `clamp(48px, 8vw, 96px)`, winner's accent color.
-- **Dance match end — loser score:** Inter 900, `clamp(48px, 8vw, 96px)`, `--text-secondary`.
-- **Dance match end — "WINNER" label:** Inter 900, 12px, letter-spacing 0.14em, uppercase, winner's accent color.
-- **Dance match end — player labels ("P1" / "P2"):** Inter 900, 12px, letter-spacing 0.1em, `--text-secondary`.
-- **Round end subscores:** Inter 700, 18px, `--text-secondary`. Format: `P1: 11.7  P2: 9.2`.
-- **Round flash headline (dance):** Achafont 950, `clamp(52px, 10vw, 130px)` — inherited from `.round-flash`. Copy changes only; style unchanged.
+- **Dance match end — winner score:** Inter 900, `clamp(48px, 8vw, 96px)`, winner's accent color. Maps to `--type-display`.
+- **Dance match end — loser score:** Inter 900, `clamp(48px, 8vw, 96px)`, `--text-secondary`. Maps to `--type-display`.
+- **Dance match end — "WINNER" label:** Inter 900, 12px, letter-spacing 0.14em, uppercase, winner's accent color. Maps to `--type-label`.
+- **Dance match end — player labels ("P1" / "P2"):** Inter 900, 12px, letter-spacing 0.1em, `--text-secondary`. Maps to `--type-label`.
+- **Round end subscores:** Inter 700, 18px, `--text-secondary`. Format: `P1: 11.7  P2: 9.2`. Implemented as `--type-hud-timer` variant — no new token.
+- **Round flash headline (dance):** Achafont 950, `clamp(52px, 10vw, 130px)` — inherited from `.round-flash`. Maps to `--type-display`. Copy changes only; style unchanged.
 
 Typeface rules:
 - Achafont: round flash display only. Never used for functional information (scores, labels, copy).
@@ -198,9 +205,9 @@ New content within the existing `.match-end-overlay` shell. Same background trea
 Layout (top to bottom, centred):
 1. "WINNER" label — Inter 900, 12px, letter-spacing 0.14em, uppercase. Color: `--accent-bright` if P1 wins, `--accent-p2-bright` if P2 wins. Omit / replace with "TIED" (no accent highlight) on tie.
 2. Score row: two large score numbers side by side with "vs" separator.
-   - Winner score: Inter 900, `clamp(48px, 8vw, 96px)`, tabular-nums. Color: `--accent-bright` (P1) or `--accent-p2-bright` (P2). Format: one decimal.
+   - Winner score: Inter 900, `clamp(48px, 8vw, 96px)`, tabular-nums. Color: `--accent-bright` (P1) or `--accent-p2-bright` (P2). Format: one decimal. Maps to `--type-display`.
    - "vs" separator: Inter 700, 16px, `--text-secondary`, centred.
-   - Loser score: Inter 900, `clamp(48px, 8vw, 96px)`, tabular-nums, `--text-secondary`.
+   - Loser score: Inter 900, `clamp(48px, 8vw, 96px)`, tabular-nums, `--text-secondary`. Maps to `--type-display`.
 3. Player labels below each score: Inter 900, 12px, letter-spacing 0.1em, `--text-secondary`. "P1" under winner, "P2" under loser (or left/right positionally).
 4. Rematch button: unchanged `.rematch-btn` style.
 
@@ -361,4 +368,5 @@ No third-party component registries. All UI is hand-rolled React + Pixi.js using
 | Motion `prefers-reduced-motion` | `overlay/src/index.css §Reduced motion` |
 
 *Generated: 2026-05-10*
+*Revised: 2026-05-10 — fixed Dimension 4 (typography scale reduced to 4 sizes) and Dimension 5 (spacing exceptions reframed as inherited, not Phase 9 introductions)*
 *Phase: 9 — dance-frontend*
