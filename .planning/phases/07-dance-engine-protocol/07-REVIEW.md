@@ -25,8 +25,8 @@ findings:
 findings_resolved:
   critical: 2
   warning: 6
-  info: 0
-  total: 8
+  info: 2
+  total: 10
 status: fixed
 ---
 
