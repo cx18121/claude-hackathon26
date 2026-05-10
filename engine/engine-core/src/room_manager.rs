@@ -84,6 +84,7 @@ impl RoomManager {
                         Arc::clone(&match_over_flag),
                         Arc::clone(&last_disconnect),
                         Arc::clone(&plugin),
+                        plugin.game_type().to_string(),
                     );
                     // Spawn commentary task now (inside tokio runtime context) and wire into state.
                     state.commentary_tx = Some(crate::commentator::spawn(game_tx.clone(), code.clone()));

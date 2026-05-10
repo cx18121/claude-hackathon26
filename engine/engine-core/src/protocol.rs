@@ -105,6 +105,8 @@ fn default_type_joined() -> String {
     "joined".to_string()
 }
 
+fn default_game_type_unknown() -> String { "unknown".to_string() }
+
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgJoined {
@@ -113,6 +115,8 @@ pub struct MsgJoined {
     pub room_code: String,
     pub player_slot: u8,
     pub opponent_connected: bool,
+    #[serde(default = "default_game_type_unknown")]
+    pub game_type: String,
 }
 
 fn default_type_calibration_start() -> String {

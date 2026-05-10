@@ -70,5 +70,13 @@ pub async fn send_snapshot(
             }
         }
     }
+    // Send plugin snapshot (e.g., dance_snapshot) after game_state, before live broadcast
+    if let Some(snapshot_payload) = snapshot.plugin_snapshot {
+        if let Ok(json) = serde_json::to_string(&snapshot_payload) {
+            if ws_sink.send(Message::Text(json.into())).await.is_err() {
+                return false;
+            }
+        }
+    }
     true
 }

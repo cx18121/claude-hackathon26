@@ -58,6 +58,8 @@ pub struct RoomState {
     pub recent_hits: Vec<crate::protocol::HitEvent>,
     /// Commentary hint channel — send CommentaryHint events here; None when commentary disabled.
     pub commentary_tx: Option<mpsc::Sender<commentator::CommentaryHint>>,
+    /// Game type identifier for this room — set once at creation from the plugin.
+    pub game_type: String,
 }
 
 impl RoomState {
@@ -69,6 +71,7 @@ impl RoomState {
         match_over_flag: Arc<std::sync::atomic::AtomicBool>,
         last_player_disconnected_at: Arc<std::sync::Mutex<Option<Instant>>>,
         plugin: Arc<dyn GamePlugin + Send + Sync>,
+        game_type: String,
     ) -> Self {
         let plugin_state = plugin.init_state();
         Self {
@@ -90,6 +93,7 @@ impl RoomState {
             tick: 0,
             recent_hits: Vec::new(),
             commentary_tx: None, // Set by room_manager after spawning the commentary task
+            game_type,
         }
     }
 }
@@ -106,6 +110,8 @@ pub struct RoomSnapshot {
     pub lobby_update: MsgLobbyUpdate,
     pub round_start: Option<crate::protocol::MsgRoundStart>,
     pub game_state: Option<MsgGameState>,
+    pub game_type: String,                              // new — DANCE-02
+    pub plugin_snapshot: Option<serde_json::Value>,    // new — DANCE-05
 }
 
 pub enum RoomCmd {
@@ -161,6 +167,11 @@ fn build_snapshot(state: &RoomState) -> RoomSnapshot {
         p1: state.players[0].connected,
         p2: state.players[1].connected,
     };
+    let plugin_snapshot = if state.round_start_time.is_some() {
+        state.plugin.spectator_snapshot(&*state.plugin_state)
+    } else {
+        None
+    };
     if state.round_start_time.is_some() {
         let rs = MsgRoundStart {
             msg_type: "round_start".to_string(),
@@ -182,9 +193,21 @@ fn build_snapshot(state: &RoomState) -> RoomSnapshot {
             remaining_time: remaining,
             max_wins: state.max_wins,
         };
-        RoomSnapshot { lobby_update: lobby, round_start: Some(rs), game_state: Some(gs) }
+        RoomSnapshot {
+            lobby_update: lobby,
+            round_start: Some(rs),
+            game_state: Some(gs),
+            game_type: state.game_type.clone(),
+            plugin_snapshot,
+        }
     } else {
-        RoomSnapshot { lobby_update: lobby, round_start: None, game_state: None }
+        RoomSnapshot {
+            lobby_update: lobby,
+            round_start: None,
+            game_state: None,
+            game_type: state.game_type.clone(),
+            plugin_snapshot: None,
+        }
     }
 }
 
@@ -239,23 +262,67 @@ fn handle_cmd(state: &mut RoomState, cmd: RoomCmd) {
             // slot 0 only. Mobile client stays in lobby until this message is received, so without
             // this solo path the client never transitions to calibration and CalibrationDone is
             // never sent, blocking the entire solo flow (CR-01).
+            // Dance rooms: skip calibration entirely; set sentinel velocities and start match now.
             let solo_mode = !state.players[1].connected;
             if state.players[0].connected && state.players[1].connected {
-                use crate::protocol::MsgCalibrationStart;
-                if let Ok(json) = serde_json::to_string(&MsgCalibrationStart {
-                    msg_type: "calibration_start".to_string(),
-                }) {
-                    send_to_slot(state, 0, &json);
-                    send_to_slot(state, 1, &json);
-                    tracing::info!("room {} calibration started (two-player)", state.code);
+                if state.plugin.requires_calibration() {
+                    use crate::protocol::MsgCalibrationStart;
+                    if let Ok(json) = serde_json::to_string(&MsgCalibrationStart {
+                        msg_type: "calibration_start".to_string(),
+                    }) {
+                        send_to_slot(state, 0, &json);
+                        send_to_slot(state, 1, &json);
+                        tracing::info!("room {} calibration started (two-player)", state.code);
+                    }
+                } else {
+                    // Dance: skip calibration handshake; set sentinel velocities so game_loop::game_tick
+                    // calibrated_ok check passes (Pitfall 1 — reference_velocity.is_some() gate).
+                    // Some(0.0) clearly signals "calibration bypassed"; dance plugin ignores this value.
+                    state.players[0].reference_velocity = Some(0.0);
+                    state.players[1].reference_velocity = Some(0.0);
+                    state.solo_mode = false;
+                    use crate::protocol::*;
+                    if let Ok(json) = serde_json::to_string(&MsgMatchStart {
+                        msg_type: "match_start".to_string(),
+                    }) {
+                        broadcast_all(state, &json);
+                    }
+                    if let Ok(json) = serde_json::to_string(&MsgRoundStart {
+                        msg_type: "round_start".to_string(),
+                        round_number: state.round_number,
+                    }) {
+                        broadcast_all(state, &json);
+                    }
+                    state.round_start_time = Some(Instant::now());
+                    tracing::info!("room {} dance match started (no calibration)", state.code);
                 }
             } else if solo_mode && slot == 0 && state.round_start_time.is_none() {
-                use crate::protocol::MsgCalibrationStart;
-                if let Ok(json) = serde_json::to_string(&MsgCalibrationStart {
-                    msg_type: "calibration_start".to_string(),
-                }) {
-                    send_to_slot(state, 0, &json);
-                    tracing::info!("room {} calibration started (solo/bot mode)", state.code);
+                if state.plugin.requires_calibration() {
+                    use crate::protocol::MsgCalibrationStart;
+                    if let Ok(json) = serde_json::to_string(&MsgCalibrationStart {
+                        msg_type: "calibration_start".to_string(),
+                    }) {
+                        send_to_slot(state, 0, &json);
+                        tracing::info!("room {} calibration started (solo/bot mode)", state.code);
+                    }
+                } else {
+                    // Dance solo: skip calibration; set sentinel velocity for slot 0 only
+                    state.players[0].reference_velocity = Some(0.0);
+                    state.solo_mode = true;
+                    use crate::protocol::*;
+                    if let Ok(json) = serde_json::to_string(&MsgMatchStart {
+                        msg_type: "match_start".to_string(),
+                    }) {
+                        broadcast_all(state, &json);
+                    }
+                    if let Ok(json) = serde_json::to_string(&MsgRoundStart {
+                        msg_type: "round_start".to_string(),
+                        round_number: state.round_number,
+                    }) {
+                        broadcast_all(state, &json);
+                    }
+                    state.round_start_time = Some(Instant::now());
+                    tracing::info!("room {} dance solo match started (no calibration)", state.code);
                 }
             }
             let _ = reply.send(Some(result));
@@ -355,7 +422,7 @@ mod player_connect_tests {
                 bot_difficulty: Difficulty::Normal,
             })
         );
-        RoomState::new("T01".to_string(), 3, pose_tx, game_tx, flag, last_disconnect, plugin)
+        RoomState::new("T01".to_string(), 3, pose_tx, game_tx, flag, last_disconnect, plugin, "boxing".to_string())
     }
 
     fn drain_channel(rx: &mut mpsc::Receiver<String>) -> Vec<String> {
