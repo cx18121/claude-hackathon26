@@ -185,8 +185,9 @@ fn generate_qr_svg(url: &str) -> String {
 /// requirement entirely.
 fn room_page_html(code: &str, game_type: &str, base_url: &str) -> String {
     let ws_url = ws_url_from_http(base_url);
-    let p1_url = format!("{}/mobile?server={}&room={}&slot=1", base_url, ws_url, code);
-    let p2_url = format!("{}/mobile?server={}&room={}&slot=2", base_url, ws_url, code);
+    // game_type is "boxing" or "dance" — ASCII-safe; no URL encoding needed.
+    let p1_url = format!("{}/mobile?server={}&room={}&slot=1&game={}", base_url, ws_url, code, game_type);
+    let p2_url = format!("{}/mobile?server={}&room={}&slot=2&game={}", base_url, ws_url, code, game_type);
     let overlay_url = format!("{}/overlay?server={}&room={}", base_url, ws_url, code);
     // Escape every URL we splice into the rendered HTML — both the href/text
     // sites and the data-copy-url attribute.
