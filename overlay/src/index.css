@@ -911,3 +911,23 @@ button { font: inherit; }
   .timer { font-size: 24px; }
   .hud-bars-sep { width: 6px; }
 }
+
+/* ============================================================
+   Reduced motion accessibility
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  /* Disable infinite animations entirely */
+  .hp-fill.pulse              { animation: none; }
+  .waiting-pulse-ring         { animation: none; }
+  .waiting-slot-status        { animation: none; opacity: 0.7; }
+  .commentary-cursor          { animation: none; opacity: 1; }
+  .overlay-shell.shaking      { animation: none; }
+
+  /* Greatly shorten entrance animations rather than remove them */
+  .round-flash,
+  .ko-text,
+  .match-end-title,
+  .match-stats,
+  .rematch-btn                { animation-duration: 0.01ms !important; }
+}
