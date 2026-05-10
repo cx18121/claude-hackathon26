@@ -223,3 +223,48 @@ Each card (top to bottom):
 - Room page: 3-column grid collapses to 1 column at <600px viewport. Card order: P1 → P2 → Overlay.
 - QR SVGs: fixed 160px × 160px at all breakpoints (no scaling).
 - All touch targets: min 44px × 44px (satisfied by 52px buttons and 80px tiles).
+
+---
+
+## Dance Game
+
+The dance game shares the ink-black aesthetic and OKLCH token system of boxing. The register shifts from "combat" to "performance" — scores accumulate rather than deplete, copy uses scoreboard vocabulary instead of fight vocabulary. No HP bars. No win dots. No KO. The layout adapts the same .hud-band shell.
+
+### Dance HUD
+
+The .hud-band contains two rows, identical outer structure to the boxing HUD but different contents.
+
+Row 1 — Names and Beat Indicator:
+Layout: three columns in a flex row. P1 label left, beat indicator centre, P2 label right.
+- P1 column: "P1" label — Inter 900 12px letter-spacing 0.1em uppercase --text-primary. No win dots.
+- P2 column: "P2" label — same spec, right-aligned. No win dots.
+- Centre column: beat indicator (see Beat Indicator section below). Width: 40% of the .hud-band total width.
+
+Row 2 — Scores:
+Replaces the HP bars row. Contains P1 score, "vs" separator, P2 score in a single flex row.
+- P1 score: Inter 900, 36px, --text-primary, left-aligned within P1 column. Format: one decimal precision — e.g. "11.7". Zero-state: "0.0".
+- "vs" separator: Inter 700, 12px, letter-spacing 0.1em, uppercase, --text-secondary, centered.
+- P2 score: Inter 900, 36px, --text-primary, right-aligned within P2 column. Same format.
+- No bar, no fill, no color coding by score value.
+
+Score sizing note: 36px matches the existing --type-hud-timer token (36px 900) for visual parity with the boxing timer. No new typography token is needed.
+
+HUD band structural rules (unchanged from boxing):
+- Background: --bg-mid. Border: Level 1 elevation (1px --gold 20% opacity, inset highlight). Same CSS classes reused: .hud-band, .hud-layer.
+- No win dots rendered anywhere in the dance HUD.
+- No HP bar tracks or fills in the dance HUD.
+
+### Beat Indicator
+
+The beat indicator occupies the centre column of Row 1 of the Dance HUD. It communicates: current beat count and time remaining until the next beat boundary (draining bar).
+
+Structure (top to bottom within the centre column):
+1. Beat count label: "N / total_beats" — Inter 700, 12px, letter-spacing 0.1em, uppercase, --text-secondary. N and total_beats are live values from MsgDanceBeat fields beat and total_beats. Example: "4 / 16".
+2. Draining bar: full-width within the centre column, height 4px.
+   - Track: background --bg-surface, no border.
+   - Fill: --text-secondary.
+   - Behavior: resets to 100% width on each dance_beat event, drains linearly to 0% by the next expected beat boundary (i.e., over one beat duration).
+   - Animation: CSS transition: width 0ms on reset (hard snap to full), then transition: width {beat_duration_ms}ms linear for drain.
+   - No border-radius. No glow.
+
+Color rationale: --text-secondary for fill is intentionally neutral — it must not compete with the target pose skeleton silhouette rendered in the Pixi canvas below.
