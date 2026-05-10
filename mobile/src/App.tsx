@@ -96,6 +96,7 @@ function App() {
           opponentConnected={socket.opponentConnected}
           lastHit={socket.lastHit}
           matchEnd={socket.matchEnd}
+          gameType={socket.gameType}
           isSolo={isSolo}
           send={socket.send}
           onDisconnect={handleDisconnect}

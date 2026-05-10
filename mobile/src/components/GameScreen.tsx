@@ -22,6 +22,7 @@ interface GameScreenProps {
   opponentConnected: boolean;
   lastHit: { region: string; damage: number } | null;
   matchEnd: MatchEnd | null;
+  gameType: string | null;
   isSolo?: boolean;
   send: (msg: OutboundMobileMsg) => void;
   onDisconnect: () => void;
@@ -44,6 +45,7 @@ export function GameScreen({
   opponentConnected,
   lastHit,
   matchEnd,
+  gameType,
   isSolo = false,
   send,
   onDisconnect,
@@ -185,7 +187,7 @@ export function GameScreen({
         </div>
       ) : null}
 
-      {phase === 'calibration' && !isReady ? (
+      {phase === 'calibration' && gameType !== 'dance' && !isReady ? (
         <div className="ready-overlay">
           <p className="ready-title">Spectre</p>
           <p className="ready-hint">
@@ -199,7 +201,7 @@ export function GameScreen({
         </div>
       ) : null}
 
-      {phase === 'calibration' && isReady && modelStatus === 'ready' ? (
+      {phase === 'calibration' && gameType !== 'dance' && isReady && modelStatus === 'ready' ? (
         <CalibrationOverlay
           stage={calibration.stage}
           punchesRecorded={calibration.punchesRecorded}

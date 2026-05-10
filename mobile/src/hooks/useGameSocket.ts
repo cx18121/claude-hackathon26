@@ -32,6 +32,7 @@ export interface UseGameSocketResult {
   // chosen slot to match what the server uses for hit attribution and
   // win/lose messaging. UI must use this once it's set.
   assignedSlot: 1 | 2 | null;
+  gameType: string | null;
   lastHit: { region: string; damage: number } | null;
   highLatency: boolean;
   rttMs: number;
@@ -96,6 +97,7 @@ export function useGameSocket(): UseGameSocketResult {
   const [status, setStatus] = useState<SocketStatus>('disconnected');
   const [opponentConnected, setOpponentConnected] = useState(false);
   const [assignedSlot, setAssignedSlot] = useState<1 | 2 | null>(null);
+  const [gameType, setGameType] = useState<string | null>(null);
   const [phase, setPhase] = useState<GamePhase>('lobby');
   const [lastHit, setLastHit] = useState<{ region: string; damage: number } | null>(null);
   const [highLatency, setHighLatency] = useState(false);
@@ -150,6 +152,7 @@ export function useGameSocket(): UseGameSocketResult {
         setStatus('connected');
         setOpponentConnected(msg.opponent_connected);
         setAssignedSlot(msg.player_slot);
+        setGameType(msg.game_type ?? null);
         // Stay in lobby until the server sends calibration_start (which it
         // only does once both players are connected).
         break;
@@ -365,6 +368,7 @@ export function useGameSocket(): UseGameSocketResult {
     status,
     opponentConnected,
     assignedSlot,
+    gameType,
     phase,
     lastHit,
     highLatency,
