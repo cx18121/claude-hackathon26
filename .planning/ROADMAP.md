@@ -118,7 +118,7 @@ Plans:
 
 Plans:
 - [x] 06-01-PLAN.md — Restore Achafont: recover `overlay/public/fonts/Achafont.ttf` from git history (commit 4de2977), add `@font-face` declaration to overlay CSS
-- [ ] 06-02-PLAN.md — Design spec audit: HP track gold border, commentary bar backdrop/border/tag, HUD elevation Level 1, any remaining DESIGN.md gaps; visual verification pass
+- [x] 06-02-PLAN.md — Design spec audit: HP track gold border, commentary bar backdrop/border/tag, HUD elevation Level 1, any remaining DESIGN.md gaps; visual verification pass
 
 ### Phase 7: Dance Engine + Protocol
 **Goal**: The Rust engine propagates game type to all clients; dance-specific wire messages are typed; dance rooms skip calibration and send snapshots to late-joining spectators
