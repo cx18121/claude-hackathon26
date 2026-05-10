@@ -933,3 +933,124 @@ button { font: inherit; }
   .match-stats,
   .rematch-btn                { animation-duration: 0.01ms !important; }
 }
+
+/* ============================================================
+   Dance HUD — DanceHud component (Phase 9)
+   ============================================================ */
+
+/* Beat indicator — centre column of .hud-names row */
+.dance-beat-indicator {
+  width: 40%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.dance-beat-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.dance-beat-track {
+  width: 100%;
+  height: 4px;
+  background: var(--bg-surface);
+  /* No border-radius. No glow. No box-shadow. */
+}
+
+.dance-beat-fill {
+  height: 100%;
+  background: var(--text-secondary);
+  width: 0%;
+  /* Transition is set imperatively in JS — no CSS transition here */
+}
+
+/* Score row — bottom row of .hud-band */
+.dance-score-row {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.dance-score {
+  font-size: 36px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.dance-score-sep {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* ============================================================
+   Dance Match End — RoundOverlay dance content (Phase 9)
+   ============================================================ */
+
+.dance-match-winner-label {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  animation: fade-in-up 0.4s ease both;
+}
+
+.dance-match-winner-label-p1 { color: var(--accent-bright); }
+.dance-match-winner-label-p2 { color: var(--accent-p2-bright); }
+
+.dance-match-score-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 24px;
+  animation: fade-in-up 0.4s ease 0.1s both;
+}
+
+.dance-match-score-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+/* clamp matches --type-display variant for dance match end focal point */
+.dance-match-score {
+  font-size: clamp(48px, 8vw, 96px);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.dance-match-score-winner-p1 { color: var(--accent-bright); }
+.dance-match-score-winner-p2 { color: var(--accent-p2-bright); }
+.dance-match-score-loser      { color: var(--text-secondary); }
+
+.dance-match-player-label {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.dance-match-vs {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+/* Round flash subscores — shown below the round flash headline for dance */
+.round-flash-subscores {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}

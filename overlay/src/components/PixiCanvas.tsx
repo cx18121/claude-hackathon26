@@ -5,10 +5,16 @@ import { sfx } from '../lib/sfx'
 import { SparkEmitter } from '../lib/sparks'
 import type { PoseStream } from '../hooks/useSpectatorSocket'
 import type { HitEvent, MsgGameState, PoseKeypoint } from '@shared/protocol'
+import { CONNECTIONS } from '../lib/skeleton'
 
 interface PixiCanvasProps {
   gameState: MsgGameState | null
   poseStreamRef: MutableRefObject<PoseStream>
+  danceBeatRef: MutableRefObject<{
+    beat: number
+    totalBeats: number
+    targetPose: Array<[number, number, number, number]>
+  } | null>
   onHeavyHit?: () => void
 }
 
@@ -32,6 +38,8 @@ interface PlayerLayers {
 
 const SILHOUETTE_COLOR = 0xffffff
 const PLAYER_GLOW_COLORS = [0x33aaff, 0xff3322] as const
+const SKELETON_COLOR = 0x524a42   // --text-dim hex (~oklch(38% 0.006 85))
+const SKELETON_ALPHA = 0.4
 const VISIBILITY_THRESHOLD = 0.3
 
 // Fighter projection. Pose keypoints are MediaPipe BlazePose worldLandmarks
@@ -355,6 +363,39 @@ function drawArmTrailFromPts(g: Graphics, pts: ScreenPoint[], lineW: number): vo
     g.circle(rw.x, rw.y, lineW * 2).fill({ color: SILHOUETTE_COLOR })
 }
 
+function drawTargetPoseSkeleton(
+  gfx: Graphics,
+  targetPose: Array<[number, number, number, number]>,
+  width: number,
+  height: number,
+): void {
+  gfx.clear()
+  const centerX = width / 2
+  const centerY = height * PLAYER_CENTER_Y
+  const scale = height * PLAYER_SCALE_Y
+  const KEYPOINT_RADIUS = scale * 0.02
+
+  // Draw bones
+  for (const [a, b] of CONNECTIONS) {
+    const kpA = targetPose[a]
+    const kpB = targetPose[b]
+    if (!kpA || !kpB || kpA[3] < 0.5 || kpB[3] < 0.5) continue
+    const ax = centerX + kpA[0] * scale * -1   // flip = -1 — mirrors player silhouettes
+    const ay = centerY + kpA[1] * scale
+    const bx = centerX + kpB[0] * scale * -1
+    const by = centerY + kpB[1] * scale
+    gfx.moveTo(ax, ay).lineTo(bx, by).stroke({ width: 2, color: SKELETON_COLOR })
+  }
+
+  // Draw keypoints
+  for (const [x, y, , visibility] of targetPose) {
+    if (visibility < 0.5) continue
+    const sx = centerX + x * scale * -1
+    const sy = centerY + y * scale
+    gfx.circle(sx, sy, KEYPOINT_RADIUS).fill({ color: SKELETON_COLOR })
+  }
+}
+
 function createPlayerLayers(parent: Container): PlayerLayers {
   const playerContainer = new Container()
   const shadow = new Graphics()
@@ -389,7 +430,7 @@ function destroyPlayerLayers(layers: PlayerLayers) {
   layers.main.destroy()
 }
 
-export function PixiCanvas({ gameState, poseStreamRef, onHeavyHit }: PixiCanvasProps) {
+export function PixiCanvas({ gameState, poseStreamRef, danceBeatRef, onHeavyHit }: PixiCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const appRef = useRef<Application | null>(null)
   const onHeavyHitRef = useRef(onHeavyHit)
@@ -408,6 +449,12 @@ export function PixiCanvas({ gameState, poseStreamRef, onHeavyHit }: PixiCanvasP
   const lastEmittedTickRef = useRef<number>(-1)
   const tickerHandlerRef = useRef<((ticker: { deltaTime: number }) => void) | null>(null)
   const armTrailRef = useRef<ArmTrailSnapshot[]>([createArmTrail(), createArmTrail()])
+  const skeletonFadeRef = useRef<{
+    phase: 'idle' | 'fade-out' | 'fade-in'
+    startMs: number
+    pendingPose: Array<[number, number, number, number]> | null
+    lastDrawnBeat: number
+  }>({ phase: 'idle', startMs: 0, pendingPose: null, lastDrawnBeat: -1 })
 
   useEffect(() => {
     let cancelled = false
@@ -444,6 +491,10 @@ export function PixiCanvas({ gameState, poseStreamRef, onHeavyHit }: PixiCanvasP
         createPlayerLayers(skeletonContainer),
         createPlayerLayers(skeletonContainer),
       ]
+
+      const skeletonGfx = new Graphics()
+      skeletonGfx.alpha = 0   // invisible until first beat
+      skeletonContainer.addChild(skeletonGfx)
 
       const emitter = new SparkEmitter(sparkContainer)
       emitterRef.current = emitter
@@ -534,6 +585,46 @@ export function PixiCanvas({ gameState, poseStreamRef, onHeavyHit }: PixiCanvasP
         }
 
         emitter.update(ticker.deltaTime)
+
+        // Dance skeleton ghost: detect new beat → fade-out → redraw → fade-in
+        const beatData = danceBeatRef.current
+        const fadeState = skeletonFadeRef.current
+
+        // Trigger fade-out when beat number changes
+        if (
+          beatData !== null &&
+          beatData.beat !== fadeState.lastDrawnBeat &&
+          fadeState.phase === 'idle'
+        ) {
+          fadeState.phase = 'fade-out'
+          fadeState.startMs = now
+          fadeState.pendingPose = beatData.targetPose
+          fadeState.lastDrawnBeat = beatData.beat
+        }
+
+        // Fade-out: alpha 0.4 → 0.0 over 150ms, ease-out-quart
+        if (fadeState.phase === 'fade-out') {
+          const t = Math.min(1, (now - fadeState.startMs) / 150)
+          const eased = 1 - t * t * t * t   // ease-out-quart: f(t) = 1-(1-t)^4 ≈ 1-t^4
+          skeletonGfx.alpha = SKELETON_ALPHA * eased
+          if (t >= 1) {
+            // Redraw with new pose then start fade-in
+            if (fadeState.pendingPose) {
+              drawTargetPoseSkeleton(skeletonGfx, fadeState.pendingPose, w, h)
+            }
+            fadeState.phase = 'fade-in'
+            fadeState.startMs = now
+          }
+        }
+        // Fade-in: alpha 0.0 → 0.4 over 150ms, linear
+        else if (fadeState.phase === 'fade-in') {
+          const t = Math.min(1, (now - fadeState.startMs) / 150)
+          skeletonGfx.alpha = SKELETON_ALPHA * t
+          if (t >= 1) {
+            skeletonGfx.alpha = SKELETON_ALPHA
+            fadeState.phase = 'idle'
+          }
+        }
       }
 
       tickerHandlerRef.current = handler
@@ -561,6 +652,9 @@ export function PixiCanvas({ gameState, poseStreamRef, onHeavyHit }: PixiCanvasP
       if (emitter) {
         emitter.destroy()
       }
+      skeletonGfx.destroy()
+      // Reset fade ref so a remounted component starts fresh
+      skeletonFadeRef.current = { phase: 'idle', startMs: 0, pendingPose: null, lastDrawnBeat: -1 }
       if (currentApp) {
         const canvas = currentApp.canvas
         currentApp.destroy(true, { children: true, texture: true })
