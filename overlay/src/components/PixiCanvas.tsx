@@ -455,6 +455,7 @@ export function PixiCanvas({ gameState, poseStreamRef, danceBeatRef, onHeavyHit 
     pendingPose: Array<[number, number, number, number]> | null
     lastDrawnBeat: number
   }>({ phase: 'idle', startMs: 0, pendingPose: null, lastDrawnBeat: -1 })
+  const skeletonGfxRef = useRef<import('pixi.js').Graphics | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -495,6 +496,7 @@ export function PixiCanvas({ gameState, poseStreamRef, danceBeatRef, onHeavyHit 
       const skeletonGfx = new Graphics()
       skeletonGfx.alpha = 0   // invisible until first beat
       skeletonContainer.addChild(skeletonGfx)
+      skeletonGfxRef.current = skeletonGfx
 
       const emitter = new SparkEmitter(sparkContainer)
       emitterRef.current = emitter
@@ -652,7 +654,8 @@ export function PixiCanvas({ gameState, poseStreamRef, danceBeatRef, onHeavyHit 
       if (emitter) {
         emitter.destroy()
       }
-      skeletonGfx.destroy()
+      skeletonGfxRef.current?.destroy()
+      skeletonGfxRef.current = null
       // Reset fade ref so a remounted component starts fresh
       skeletonFadeRef.current = { phase: 'idle', startMs: 0, pendingPose: null, lastDrawnBeat: -1 }
       if (currentApp) {

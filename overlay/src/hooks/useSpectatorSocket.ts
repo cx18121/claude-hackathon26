@@ -161,6 +161,21 @@ export function useSpectatorSocket(
           return
         }
 
+        // Handle messages not in the ServerMessage union before type-narrowing.
+        if (typeof parsed === 'object' && parsed !== null) {
+          const rawType = (parsed as Record<string, unknown>).type
+          if (rawType === 'joined') {
+            const gt = (parsed as { game_type?: string }).game_type
+            if (gt === 'boxing' || gt === 'dance') setGameType(gt)
+            return
+          }
+          if (rawType === 'dance_snapshot') {
+            const snap = parsed as { scores?: [number, number] }
+            if (snap.scores) setDanceScores([snap.scores[0], snap.scores[1]])
+            return
+          }
+        }
+
         if (!isIncomingMessage(parsed)) {
           return
         }
@@ -265,12 +280,6 @@ export function useSpectatorSocket(
           return
         }
 
-        if (parsed.type === 'joined') {
-          const gt = (parsed as { game_type?: string }).game_type
-          if (gt === 'boxing' || gt === 'dance') setGameType(gt)
-          return
-        }
-
         if (parsed.type === 'dance_beat') {
           const msg = parsed as MsgDanceBeat
           setDanceBeat({ beat: msg.beat, totalBeats: msg.total_beats, targetPose: msg.target_pose })
@@ -280,12 +289,6 @@ export function useSpectatorSocket(
         if (parsed.type === 'dance_score') {
           const msg = parsed as MsgDanceScore
           setDanceScores([msg.scores[0], msg.scores[1]])
-          return
-        }
-
-        if (parsed.type === 'dance_snapshot') {
-          const snap = parsed as { scores: [number, number] }
-          setDanceScores([snap.scores[0], snap.scores[1]])
           return
         }
 
