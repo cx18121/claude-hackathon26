@@ -234,7 +234,13 @@ fn dispatch_events(state: &mut RoomState, events: Vec<GameEvent>) {
             }
             GameEvent::Broadcast { payload } => {
                 if let Ok(json) = serde_json::to_string(&payload) {
-                    let _ = state.game_tx.send(json);
+                    let _ = state.game_tx.send(json.clone());
+                    // Also deliver to connected players (dance_beat / dance_score must reach mobile)
+                    for slot in &state.players {
+                        if let Some(tx) = &slot.tx {
+                            let _ = tx.try_send(json.clone());
+                        }
+                    }
                 }
             }
             GameEvent::CommentaryHint { kind, payload } => {
