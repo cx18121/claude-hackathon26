@@ -200,15 +200,11 @@ impl GamePlugin for BoxingPlugin {
         self.config.max_wins
     }
 
-    fn on_player_join(&self, slot: u8, state: &mut dyn Any) {
-        let _ = state.downcast_mut::<BoxingState>()
-            .expect("boxing plugin: state type mismatch");
+    fn on_player_join(&self, slot: u8, _state: &mut dyn Any) {
         tracing::info!("boxing: player {} joined", slot + 1);
     }
 
-    fn on_player_leave(&self, slot: u8, state: &mut dyn Any) {
-        let _ = state.downcast_mut::<BoxingState>()
-            .expect("boxing plugin: state type mismatch");
+    fn on_player_leave(&self, slot: u8, _state: &mut dyn Any) {
         tracing::info!("boxing: player {} left", slot + 1);
     }
 
