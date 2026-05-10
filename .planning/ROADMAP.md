@@ -14,7 +14,7 @@ Six phases carry the engine from first-principles Rust rewrite through a clean p
 - [x] **Phase 2: Plugin Trait + Boxing** - GamePlugin trait defined; boxing plugin is the first implementation; calibration-persist fix lands here
 - [x] **Phase 3: Second Game + SDK** - Second game plugin validates the trait generalizes; SDK documentation makes the interface self-explanatory
 - [ ] **Phase 4: Lobby UX** - SPECTRE landing page with game picker + join flow; `/rooms/{code}` page with QR codes; unblocks players from actually getting into a game
-- [ ] **Phase 5: Mobile Connection UX** - Fast-join (QR-linked one-tap screen); hide technical server URL field when params are prefilled; better error messages
+- [x] **Phase 5: Mobile Connection UX** - Fast-join (QR-linked one-tap screen); hide technical server URL field when params are prefilled; better error messages
 - [ ] **Phase 6: Overlay Fidelity** - Restore Achafont; close all DESIGN.md spec gaps in HUD, commentary bar, and match-end screen
 - [ ] **Phase 7: Dance Engine + Protocol** - `game_type` propagated through `MsgJoined` and spectator snapshot; dance calibration skip; `MsgDanceBeat`/`MsgDanceScore` TypeScript types
 - [ ] **Phase 8: Dance UX Design** - DESIGN.md dance section (score display, beat indicator, target pose spec, match end); PRODUCT.md two-mode update

@@ -1,9 +1,9 @@
 ---
-status: passed
+status: complete
 phase: 05-mobile-connection-ux
 source: [05-01-VERIFICATION.md]
 started: 2026-05-10T01:00:00Z
-updated: 2026-05-10T01:47:00Z
+updated: 2026-05-10T01:54:00Z
 ---
 
 ## Current Test
@@ -22,7 +22,7 @@ result: PASSED — After clicking "Enter manually", Playwright snapshot showed f
 
 ### 3. Room-not-found error — no Retry button
 expected: Connect with an incorrect room code from fast-join view; expect close code 4004 from server — error banner shows "Room ABC123 not found. Check the code or ask the host." with NO Retry button
-result: BLOCKED — Requires Rust server emitting close code 4004. Code review CR-02 flagged the server never sends codes 4000/4004 (pre-existing bug, not introduced by Phase 5). Client-side logic is correct and verified via static analysis.
+result: PASSED — Server fix landed (close code 4004 now emitted). Playwright snapshot confirmed: error banner shows "Room ZZZZZZ not found. Check the code or ask the host." with no Retry button in the DOM.
 
 ### 4. Server-unreachable error — Retry button present and functional
 expected: Connect to an unreachable server from fast-join view — error banner shows "Can't reach the server. Check your connection and try again." WITH a Retry button that re-attempts connect when tapped
@@ -39,12 +39,10 @@ result: PASSED — Playwright snapshot showed full form with Room code pre-fille
 ## Summary
 
 total: 6
-passed: 5
+passed: 6
 issues: 0
 pending: 0
 skipped: 0
-blocked: 1
+blocked: 0
 
 ## Gaps
-
-- **Test 3 blocked**: Room-not-found error path (close code 4004) cannot be browser-tested because the Rust server never emits code 4004 (CR-02 in 05-REVIEW.md — pre-existing bug). Client logic is statically verified correct. Re-test when CR-02 is fixed.
