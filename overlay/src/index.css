@@ -135,7 +135,7 @@ button { font: inherit; }
    ============================================================ */
 
 .hud-layer {
-  z-index: 2;
+  z-index: 3;   /* was 2; promoted to sit above .waiting-overlay (z-index: 2) */
   pointer-events: none;
 }
 
@@ -301,7 +301,7 @@ button { font: inherit; }
    ============================================================ */
 
 .round-flash {
-  z-index: 3;
+  z-index: 4;   /* was 3; shifted up by 1 to maintain order above .hud-layer */
   display: grid;
   place-items: center;
   pointer-events: none;
@@ -318,7 +318,7 @@ button { font: inherit; }
 .round-end-flash {
   position: absolute;
   inset: 0;
-  z-index: 3;
+  z-index: 4;   /* was 3; shifted up to match .round-flash */
   pointer-events: none;
   background: oklch(from var(--accent-bright) l c h / 0.28);
   animation: flash-out 0.45s ease-out both;
@@ -329,7 +329,7 @@ button { font: inherit; }
    ============================================================ */
 
 .match-end-overlay {
-  z-index: 4;
+  z-index: 5;   /* was 4; shifted up by 1 */
   display: grid;
   place-content: center;
   gap: 20px;
@@ -467,7 +467,7 @@ button { font: inherit; }
 
 .audio-unlock {
   position: absolute;
-  z-index: 5;
+  z-index: 6;   /* was 5; shifted up by 1 */
   inset-inline-end: 18px;
   inset-block-end: 18px;
   max-width: calc(100vw - 36px);
