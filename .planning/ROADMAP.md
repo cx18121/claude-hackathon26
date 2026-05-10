@@ -103,7 +103,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 05-01-PLAN.md — ConnectionScreen: detect fully-prefilled params, render fast-join view (role + room code + one button); "Enter manually" escape hatch; differentiated error messages
+- [ ] 05-01-PLAN.md — Rust ?game= param in QR URLs; ConnectionScreen fast-join view (game+room+player+button); server-URL hide; "Enter manually" escape; distinct error copy + Retry for server-unreachable
 
 ### Phase 6: Overlay Fidelity
 **Goal**: Every DESIGN.md spec is implemented exactly; Achafont is present; the overlay looks like the design intended during live matches
