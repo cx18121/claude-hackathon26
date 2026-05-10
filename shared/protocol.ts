@@ -117,6 +117,7 @@ export interface MsgGameState {
   type: "game_state";
   tick: number;
   hp: [number, number];
+  wins: [number, number];  // FIX-02: wins counter prevents overlay desync on reconnect
   poses: [PoseKeypoint[], PoseKeypoint[]];
   recent_hits: HitEvent[];
   high_latency: boolean;
