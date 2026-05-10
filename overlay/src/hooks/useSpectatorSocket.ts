@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type {
   HpPair,
+  MsgDanceBeat,
+  MsgDanceScore,
   MsgGameState,
   MsgPlayerDisconnected,
   MsgPoseUpdate,
@@ -56,6 +58,9 @@ interface SpectatorSocketState {
   disconnectedPlayer: PlayerSlot | null
   poseStreamRef: React.MutableRefObject<PoseStream>
   socket: WebSocket | null
+  gameType: 'boxing' | 'dance' | null
+  danceScores: [number, number]
+  danceBeat: { beat: number; totalBeats: number; targetPose: Array<[number, number, number, number]> } | null
 }
 
 const DEFAULT_POSE_INTERVAL_MS = 16
@@ -119,6 +124,9 @@ export function useSpectatorSocket(
   const [disconnectedPlayer, setDisconnectedPlayer] = useState<PlayerSlot | null>(
     null,
   )
+  const [gameType, setGameType] = useState<'boxing' | 'dance' | null>(null)
+  const [danceScores, setDanceScores] = useState<[number, number]>([0, 0])
+  const [danceBeat, setDanceBeat] = useState<{ beat: number; totalBeats: number; targetPose: Array<[number, number, number, number]> } | null>(null)
   const roundNumberRef = useRef(1)
   const poseStreamRef = useRef<PoseStream>(makePoseStream())
   const [socket, setSocket] = useState<WebSocket | null>(null)
@@ -247,11 +255,37 @@ export function useSpectatorSocket(
           hitsAccRef.current = [0, 0]
           roundsPlayedRef.current = 0
           lastStatTickRef.current = -1
+          setDanceScores([0, 0])
+          setDanceBeat(null)
           return
         }
 
         if (parsed.type === 'player_disconnected') {
           setDisconnectedPlayer(parsed.player)
+          return
+        }
+
+        if (parsed.type === 'joined') {
+          const gt = (parsed as { game_type?: string }).game_type
+          if (gt === 'boxing' || gt === 'dance') setGameType(gt)
+          return
+        }
+
+        if (parsed.type === 'dance_beat') {
+          const msg = parsed as MsgDanceBeat
+          setDanceBeat({ beat: msg.beat, totalBeats: msg.total_beats, targetPose: msg.target_pose })
+          return
+        }
+
+        if (parsed.type === 'dance_score') {
+          const msg = parsed as MsgDanceScore
+          setDanceScores([msg.scores[0], msg.scores[1]])
+          return
+        }
+
+        if (parsed.type === 'dance_snapshot') {
+          const snap = parsed as { scores: [number, number] }
+          setDanceScores([snap.scores[0], snap.scores[1]])
           return
         }
 
@@ -295,5 +329,8 @@ export function useSpectatorSocket(
     roundState,
     poseStreamRef,
     socket,
+    gameType,
+    danceScores,
+    danceBeat,
   }
 }
