@@ -389,6 +389,7 @@ button { font: inherit; }
 .match-stats-sep {
   background: var(--gold-sep);
   grid-row: 1;
+  grid-column: 2;   /* explicitly place in the 1px centre track */
 }
 
 .match-stats-footer {
