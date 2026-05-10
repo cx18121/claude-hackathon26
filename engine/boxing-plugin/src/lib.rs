@@ -147,7 +147,7 @@ impl GamePlugin for BoxingPlugin {
                 s.last_hit_tick[attacker_idx] = ctx.tick_info.tick as i64;
 
                 // Commentary hint (emitted; consumed by v2 commentary engine)
-                emit_commentary_hint(&mut events, s, attacker_idx, defender_idx, &h.region, dmg, ctx.tick_info.elapsed_secs);
+                emit_commentary_hint(&mut events, s, attacker_idx, defender_idx, &h.region, dmg, ctx.tick_info.elapsed_secs, self.config.hp);
 
                 events.push(GameEvent::Hit {
                     attacker: (attacker_idx + 1) as u8,
@@ -250,6 +250,7 @@ fn emit_commentary_hint(
     _region: &BodyRegion,
     damage: u32,
     elapsed: f64,
+    max_hp: u32, // WR-02: pass self.config.hp from caller so percentage thresholds scale correctly
 ) {
     // Combo tracking: server/game_loop.py lines 430-437
     let (last_t, count) = s.combo[attacker];
@@ -257,7 +258,7 @@ fn emit_commentary_hint(
     s.combo[attacker] = (elapsed, new_count);
     s.combo[defender] = (0.0, 0); // reset opponent combo on being hit
 
-    let max_hp = 800.0_f64; // Could use self.config.hp but fn doesn't have self; 800 is the spec value
+    let max_hp = max_hp as f64;
     let defender_hp_pct = s.hp[defender] as f64 / max_hp;
     let attacker_hp_pct = s.hp[attacker] as f64 / max_hp;
 
