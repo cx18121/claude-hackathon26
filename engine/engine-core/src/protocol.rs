@@ -215,6 +215,36 @@ pub struct MsgRematchStart {
     pub msg_type: String,
 }
 
+fn default_type_dance_beat() -> String {
+    "dance_beat".to_string()
+}
+
+#[derive(Serialize, Deserialize, TS, Clone, Debug)]
+#[ts(export)]
+pub struct MsgDanceBeat {
+    #[serde(rename = "type", default = "default_type_dance_beat")]
+    pub msg_type: String,
+    pub beat: u64,
+    pub total_beats: u64,
+    /// Per-keypoint data as [x, y, z, visibility]. Matches the json!() payload from
+    /// DancePlugin::on_tick: `[kp.x, kp.y, kp.z, kp.visibility]` per keypoint.
+    pub target_pose: Vec<[f64; 4]>,
+}
+
+fn default_type_dance_score() -> String {
+    "dance_score".to_string()
+}
+
+#[derive(Serialize, Deserialize, TS, Clone, Debug)]
+#[ts(export)]
+pub struct MsgDanceScore {
+    #[serde(rename = "type", default = "default_type_dance_score")]
+    pub msg_type: String,
+    pub beat: u64,
+    /// Cumulative similarity scores for [player_1, player_2]. Range [0.0, 1.0].
+    pub scores: [f64; 2],
+}
+
 // ============================================================================
 // Outbound messages: Server -> Overlay
 // ============================================================================
