@@ -221,16 +221,15 @@ button { font: inherit; }
 
 .win-dots {
   display: flex;
-  gap: 5px;
+  gap: 6px;
 }
 
 .win-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   border: 1px solid var(--text-dim);
   background: transparent;
-  transition: background 180ms ease, border-color 180ms ease;
 }
 
 .win-dot.filled-p1 { background: var(--accent); border-color: var(--accent); }
@@ -263,7 +262,7 @@ button { font: inherit; }
 .hp-fill {
   position: absolute;
   inset-block: 0;
-  transition: width 90ms linear;
+  transition: width 100ms linear;
 }
 
 .hp-fill-p1 { left: 0;  background: var(--accent); }
@@ -275,7 +274,7 @@ button { font: inherit; }
 
 @keyframes hp-pulse {
   0%, 100% { opacity: 1; }
-  50%       { opacity: 0.4; }
+  50%       { opacity: 0.65; }
 }
 
 /* ============================================================
@@ -313,7 +312,7 @@ button { font: inherit; }
   text-align: center;
   letter-spacing: 0.02em;
   text-shadow: 0 6px 0 rgba(0,0,0,0.8), 0 0 40px oklch(from var(--accent-bright) l c h / 0.6);
-  animation: round-flash 2s ease both;
+  animation: round-flash 2.01s cubic-bezier(0.25, 1, 0.5, 1) both;
 }
 
 .round-end-flash {
@@ -349,7 +348,7 @@ button { font: inherit; }
   line-height: 0.85;
   letter-spacing: 0.02em;
   text-shadow: 0 8px 0 rgba(0,0,0,0.8), 0 0 60px oklch(from var(--accent-bright) l c h / 0.7);
-  animation: ko-slam 0.5s cubic-bezier(0.34, 1.15, 0.64, 1) both;
+  animation: ko-slam 480ms cubic-bezier(0.34, 1.15, 0.64, 1) both;
 }
 
 .match-end-title {
@@ -806,14 +805,14 @@ button { font: inherit; }
    ============================================================ */
 
 @keyframes round-flash {
-  0%        { opacity: 0; transform: scale(0.92); }
+  0%        { opacity: 0; transform: scale(0.9); }
   12%, 80%  { opacity: 1; transform: scale(1); }
   100%      { opacity: 0; transform: scale(1.03); }
 }
 
 @keyframes ko-slam {
   0%   { opacity: 0; transform: scale(2.2) translateY(-6px); }
-  50%  { opacity: 1; transform: scale(0.94) translateY(0); }
+  50%  { opacity: 1; transform: scale(0.95) translateY(0); }
   72%  { transform: scale(1.03); }
   100% { opacity: 1; transform: scale(1); }
 }
