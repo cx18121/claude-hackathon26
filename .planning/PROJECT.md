@@ -36,7 +36,7 @@ The engine must make it trivially easy to add a new pose-based game by implement
 - [ ] Lobby UX: SPECTRE landing page with game picker, Create Room, Join by code — Phase 4
 - [ ] Room page (`/rooms/{code}`): P1/P2/Overlay QR cards with prefilled URLs — Phase 4
 - [ ] Mobile fast-join: QR-prefilled params → one-tap connection screen — Phase 5
-- [ ] Overlay fidelity: Achafont restored, all DESIGN.md spec gaps closed — Phase 6
+- [x] Overlay fidelity: Achafont restored, all DESIGN.md spec gaps closed — Phase 6 (complete 2026-05-10)
 - [ ] Dance engine wiring: `game_type` in `MsgJoined`, dance calibration skip, `MsgDanceBeat`/`MsgDanceScore` TypeScript types — Phase 7
 - [ ] Dance UX design: DESIGN.md dance section, PRODUCT.md two-mode update — Phase 8
 - [ ] Dance frontend: game-type-aware overlay HUD, target pose skeleton in Pixi.js, dance match end, mobile calibration skip — Phase 9
@@ -97,4 +97,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-03 — Phases 7–9 added: dance engine wiring (DANCE-01..05), dance UX design (DDES-01..03), dance frontend (DIMPL-01..05). 67 total requirements, 9 phases, 26 plans.*
+*Last updated: 2026-05-10 — Phase 6 complete: Achafont restored, all 18 DESIGN.md CSS deviations closed, overlay spec-compliant.*
