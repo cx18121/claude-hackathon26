@@ -1,5 +1,6 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { CommentarySubtitle } from './components/CommentarySubtitle'
+import { DanceHud } from './components/DanceHud'
 import { HudLayer } from './components/HudLayer'
 import { ParallaxBackground } from './components/ParallaxBackground'
 import { PixiCanvas } from './components/PixiCanvas'
@@ -29,7 +30,13 @@ function App() {
     roundState,
     poseStreamRef,
     socket,
+    gameType,
+    danceScores,
+    danceBeat,
   } = useSpectatorSocket(serverUrl, roomCode)
+
+  const danceBeatRef = useRef(danceBeat)
+  useEffect(() => { danceBeatRef.current = danceBeat }, [danceBeat])
 
   const hp: HpPair = gameState?.hp ?? [800, 800]
   const remainingTime = gameState?.remaining_time ?? 90
@@ -67,22 +74,32 @@ function App() {
       <PixiCanvas
         gameState={gameState}
         poseStreamRef={poseStreamRef}
+        danceBeatRef={danceBeatRef}
         onHeavyHit={handleHeavyHit}
       />
 
       {isWaiting && <WaitingOverlay lobbyState={lobbyState} />}
 
-      <HudLayer
-        connected={connected}
-        disconnectedPlayer={disconnectedPlayer}
-        highLatency={gameState?.high_latency ?? false}
-        hp={hp}
-        wins={wins}
-        maxWins={maxWins}
-        remainingTime={remainingTime}
-        round={roundNumber}
-        roomCode={roomCode}
-      />
+      {gameType === 'boxing' && (
+        <HudLayer
+          connected={connected}
+          disconnectedPlayer={disconnectedPlayer}
+          highLatency={gameState?.high_latency ?? false}
+          hp={hp}
+          wins={wins}
+          maxWins={maxWins}
+          remainingTime={remainingTime}
+          round={roundNumber}
+          roomCode={roomCode}
+        />
+      )}
+      {gameType === 'dance' && (
+        <DanceHud
+          connected={connected}
+          danceScores={danceScores}
+          danceBeat={danceBeat}
+        />
+      )}
       <CommentarySubtitle commentary={commentary} />
       <RoundOverlay
         matchWinner={matchWinner}
@@ -90,6 +107,8 @@ function App() {
         roundState={roundState}
         serverUrl={serverUrl}
         roomCode={roomCode}
+        gameType={gameType}
+        danceScores={danceScores}
       />
 
       <SettingsPanel settings={audioSettings} onChange={setAudioSettings} />
