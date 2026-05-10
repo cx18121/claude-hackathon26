@@ -738,6 +738,27 @@ button { font: inherit; }
   background: var(--text-primary);
 }
 
+.settings-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  cursor: pointer;
+  border: none;
+  transition: background 0.1s;
+}
+
+.settings-slider::-moz-range-thumb:hover {
+  background: var(--text-primary);
+}
+
+.settings-slider::-moz-range-track {
+  height: 3px;
+  background: oklch(38% 0.006 85 / 0.3);                  /* fallback */
+  background: oklch(from var(--text-dim) l c h / 0.3);    /* progressive enhancement */
+  border-radius: 2px;
+}
+
 .settings-slider:disabled {
   cursor: not-allowed;
 }
