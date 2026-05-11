@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: milestone
-status: completed
-stopped_at: Phase 9 complete — all 5 DIMPL requirements verified
-last_updated: "2026-05-10T21:00:00.000Z"
+milestone_name: PoseEngine MVP
+status: archived
+stopped_at: v1.0 milestone archived — all 9 phases, 28 plans complete
+last_updated: "2026-05-10T23:00:00.000Z"
 last_activity: 2026-05-10
 progress:
   total_phases: 9
