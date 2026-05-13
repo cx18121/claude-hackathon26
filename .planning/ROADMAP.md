@@ -63,7 +63,12 @@
   1. The browser prompts for webcam permission with a clear message before the game view loads
   2. MediaPipe WASM and GPU delegate are pre-warmed on page load before the game can start
   3. A waiting screen is displayed until both players have joined the room
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 12-01-PLAN.md — fps/ project scaffold + /fps Axum route + Dockerfile fps-builder stage
+- [ ] 12-02-PLAN.md — PermissionScreen component (LBY-03) + App.tsx permission→warmup wiring
+- [ ] 12-03-PLAN.md — useGameSocket copy + WaitingScreen component (LBY-04)
+- [ ] 12-04-PLAN.md — useWarmup hook + WarmupScreen + pose.worker.ts copy + App.tsx final wiring (WCI-03)
 **UI hint**: yes
 
 ### Phase 13: MediaPipe + Calibration
@@ -105,6 +110,6 @@
 | 9. Dance Frontend | 4/4 | v1.0 | Complete | 2026-05-10 |
 | 10. FPSBoxingPlugin | 0/? | v2.0 | Not started | - |
 | 11. Lobby + Room Updates | 1/1 | v2.0 | Complete | 2026-05-13 |
-| 12. FPS Client Scaffold | 0/? | v2.0 | Not started | - |
+| 12. FPS Client Scaffold | 0/4 | v2.0 | Not started | - |
 | 13. MediaPipe + Calibration | 0/? | v2.0 | Not started | - |
 | 14. Three.js Renderer + Game Loop | 0/? | v2.0 | Not started | - |
