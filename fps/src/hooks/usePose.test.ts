@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import type { PoseKeypoint } from '@shared/protocol';
+import { usePose } from './usePose';
 
 // Mock Worker globally — usePose must NOT call new Worker()
 const WorkerMock = vi.fn();
 vi.stubGlobal('Worker', WorkerMock);
 
-// Mock requestAnimationFrame to run callbacks quickly
+// Mock requestAnimationFrame to run callbacks quickly via setTimeout
 vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
   const id = setTimeout(() => cb(performance.now()), 16);
   return id as unknown as number;
@@ -58,11 +59,7 @@ describe('usePose', () => {
     const workerRef = { current: fakeWorker as unknown as Worker };
     const videoRef = { current: mockVideo };
 
-    const { result } = renderHook(() => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { usePose } = require('./usePose') as typeof import('./usePose');
-      return usePose(videoRef, true, workerRef);
-    });
+    const { result } = renderHook(() => usePose(videoRef, true, workerRef));
 
     // Wait for rAF tick
     await act(async () => {
@@ -82,11 +79,7 @@ describe('usePose', () => {
     const workerRef = { current: fakeWorker as unknown as Worker };
     const videoRef = { current: mockVideo };
 
-    renderHook(() => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { usePose } = require('./usePose') as typeof import('./usePose');
-      return usePose(videoRef, true, workerRef);
-    });
+    renderHook(() => usePose(videoRef, true, workerRef));
 
     // First rAF tick — should send one postMessage (worker not busy yet)
     await act(async () => {
@@ -112,11 +105,7 @@ describe('usePose', () => {
     const workerRef = { current: fakeWorker as unknown as Worker };
     const videoRef = { current: mockVideo };
 
-    const { result } = renderHook(() => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { usePose } = require('./usePose') as typeof import('./usePose');
-      return usePose(videoRef, true, workerRef);
-    });
+    const { result } = renderHook(() => usePose(videoRef, true, workerRef));
 
     await act(async () => {
       vi.advanceTimersByTime(50);
@@ -142,11 +131,7 @@ describe('usePose', () => {
     const workerRef = { current: fakeWorker as unknown as Worker };
     const videoRef = { current: mockVideo };
 
-    renderHook(() => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { usePose } = require('./usePose') as typeof import('./usePose');
-      return usePose(videoRef, true, workerRef);
-    });
+    renderHook(() => usePose(videoRef, true, workerRef));
 
     // First tick: send detect → worker becomes busy
     await act(async () => {
@@ -181,11 +166,7 @@ describe('usePose', () => {
     const workerRef = { current: fakeWorker as unknown as Worker };
     const videoRef = { current: mockVideo };
 
-    renderHook(() => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { usePose } = require('./usePose') as typeof import('./usePose');
-      return usePose(videoRef, true, workerRef);
-    });
+    renderHook(() => usePose(videoRef, true, workerRef));
 
     expect(WorkerMock).not.toHaveBeenCalled();
   });
@@ -195,37 +176,28 @@ describe('usePose', () => {
     const workerRef = { current: fakeWorker as unknown as Worker };
     const videoRef = { current: mockVideo };
 
-    renderHook(() => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { usePose } = require('./usePose') as typeof import('./usePose');
-      return usePose(videoRef, true, workerRef);
-    });
+    renderHook(() => usePose(videoRef, true, workerRef));
 
-    // Simulate 5 consecutive detect→result roundtrips with >25ms delay each
-    for (let i = 0; i < 5; i++) {
-      // Send detect
+    // Simulate 10 consecutive detect→result roundtrips with >25ms delay each
+    for (let i = 0; i < 10; i++) {
+      // Tick to send detect
       await act(async () => {
         vi.advanceTimersByTime(20);
         await Promise.resolve();
       });
-      // Advance time by 30ms to simulate slow GPU inference
+      // Advance time 30ms to simulate slow GPU inference
       vi.advanceTimersByTime(30);
-      // Send result back
+      // Send result back (unblocks busy so next iteration can send detect)
       act(() => {
         fakeWorker.onmessage?.({ data: { type: 'result', worldLandmarks: null, landmarks: null } } as MessageEvent);
       });
-      // Another tick to allow next detect
-      await act(async () => {
-        vi.advanceTimersByTime(20);
-        await Promise.resolve();
-      });
     }
 
-    // After 5 slow roundtrips, warn should have been emitted
-    const warnCalls = warnSpy.mock.calls.some(
+    // After 10 slow roundtrips, warn should have been emitted
+    const warnCalled = warnSpy.mock.calls.some(
       (args: unknown[]) => String(args[0]).match(/25ms|GPU|fallback/i)
     );
-    expect(warnCalls).toBe(true);
+    expect(warnCalled).toBe(true);
 
     warnSpy.mockRestore();
   });
