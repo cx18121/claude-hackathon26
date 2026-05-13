@@ -10,6 +10,12 @@ COPY shared/ /shared/
 COPY mobile/ ./
 RUN npm ci && npm run build
 
+FROM node:20-slim AS fps-builder
+WORKDIR /fps
+COPY shared/ /shared/
+COPY fps/ ./
+RUN npm ci && npm run build
+
 # ---- Rust engine build stage ----
 FROM rust:1.86-slim AS engine-builder
 # Install build dependencies for linking
@@ -35,5 +41,6 @@ COPY --from=engine-builder /engine/target/release/engine-core ./engine-core
 # Copy static assets (same paths as Python server)
 COPY --from=overlay-builder /overlay/dist/ ./overlay/dist/
 COPY --from=mobile-builder /mobile/dist/ ./mobile/dist/
+COPY --from=fps-builder /fps/dist/ ./fps/dist/
 EXPOSE 8000
 CMD ["./engine-core"]

@@ -39,6 +39,7 @@ fn build_app(state: Arc<AppState>) -> Router {
         .route("/ws/spectator/{room_code}", get(ws_spectator))
         .nest_service("/mobile", ServeDir::new("mobile/dist"))
         .nest_service("/overlay", ServeDir::new("overlay/dist"))
+        .nest_service("/fps", ServeDir::new("fps/dist"))
         .with_state(state)
 }
 
