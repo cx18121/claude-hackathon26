@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: PoseEngine MVP
-status: archived
-stopped_at: v1.0 milestone archived — all 9 phases, 28 plans complete
-last_updated: "2026-05-10T23:00:00.000Z"
-last_activity: 2026-05-10
+milestone: v2.0
+milestone_name: First-Person Boxing
+status: planning
+stopped_at: ~
+last_updated: "2026-05-12T00:00:00.000Z"
+last_activity: 2026-05-12
 progress:
-  total_phases: 9
-  completed_phases: 9
-  total_plans: 28
-  completed_plans: 28
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-05-03)
 
 ## Current Position
 
-Phase: 9
-Plan: all 4 plans executed and verified
-Status: Phase 9 verified complete — all DIMPL-01..05 satisfied
-Last activity: 2026-05-10
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-12 — Milestone v2.0 started
 
-Progress: [██████████] 100%
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 

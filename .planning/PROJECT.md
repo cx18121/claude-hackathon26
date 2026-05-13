@@ -10,6 +10,18 @@ The engine must make it trivially easy to add a new pose-based game by implement
 
 *Validated at v1.0: DancePlugin implemented with zero engine changes, proving the abstraction generalizes.*
 
+## Current Milestone: v2.0 First-Person Boxing
+
+**Goal:** Add a laptop-native, single-device boxing game where the webcam tracks punches and renders a first-person Arms-style 3D view.
+
+**Target features:**
+- New FPSBoxingPlugin in Rust (GamePlugin trait — no engine changes)
+- Webcam pose/hand detection in the laptop browser (MediaPipe)
+- Three.js first-person game view: player's stylized arms mirror real punches; opponent's arms rendered from server-synced state
+- Arms aesthetic: colorful, cartoonish, extendable arm style
+- Laptop-only — no phone required, no separate spectator overlay
+- Lobby updated to surface the new game type alongside boxing and dance
+
 ## Requirements
 
 ### Validated
@@ -38,7 +50,7 @@ The engine must make it trivially easy to add a new pose-based game by implement
 
 ### Active
 
-*(None — all v1 requirements shipped. v2 requirements defined in Requirements archive.)*
+*(v2.0 requirements defined in REQUIREMENTS.md — see current milestone above.)*
 
 ### Out of Scope
 
@@ -82,5 +94,22 @@ The engine must make it trivially easy to add a new pose-based game by implement
 - **Game loop**: 60Hz authoritative tick must be maintained; RTT fairness input delay preserved
 - **Plugin interface**: Game trait must be well-defined enough that a developer (or LLM) can implement a new game without knowing engine internals
 
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd-complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
 ---
-*Last updated: 2026-05-10 after v1.0 milestone*
+*Last updated: 2026-05-12 — milestone v2.0 started*
