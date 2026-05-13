@@ -184,6 +184,28 @@ export interface MsgDanceScore {
   scores: [number, number];
 }
 
+// FPS Boxing game messages (server -> mobile, Phase 10: FPSP-03, FPSP-04)
+export interface MsgFpsState {
+  type: "fps_state";
+  left_shoulder: PoseKeypoint;
+  right_shoulder: PoseKeypoint;
+  left_elbow: PoseKeypoint;
+  right_elbow: PoseKeypoint;
+  left_wrist: PoseKeypoint;
+  right_wrist: PoseKeypoint;
+  /** HP for both players: [player_1_hp, player_2_hp]. */
+  hp: [number, number];
+  /** Seconds remaining in the current round. ≤ 0.0 when time expires. */
+  round_timer: number;
+}
+
+export interface MsgFpsHit {
+  type: "fps_hit";
+  /** Punch type: "cross", "body_shot", "kick", or "blocked". */
+  punch_type: string;
+  damage: number;
+}
+
 export type InboundServerMsg =
   | MsgJoined
   | MsgPing

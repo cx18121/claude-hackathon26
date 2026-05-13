@@ -318,3 +318,49 @@ pub enum InboundMobileMsg {
     #[serde(rename = "pong")]
     Pong(MsgPong),
 }
+
+// ============================================================================
+// FPS Boxing messages (Phase 10: FPSP-03, FPSP-04)
+// ============================================================================
+
+fn default_type_fps_state() -> String {
+    "fps_state".to_string()
+}
+
+/// Per-tick state broadcast for fps_boxing rooms.
+/// Sent to each player containing their OPPONENT's 6 arm landmarks, both HP values, and round timer.
+/// Two separate SendToPlayer events per tick — player 0 gets player 1's landmarks; player 1 gets player 0's.
+/// Uses protocol::PoseKeypoint (has Serialize) NOT plugin_trait::PoseKeypoint (no Serialize).
+#[derive(Serialize, Deserialize, TS, Clone, Debug)]
+#[ts(export)]
+pub struct MsgFpsState {
+    #[serde(rename = "type", default = "default_type_fps_state")]
+    pub msg_type: String,
+    pub left_shoulder: PoseKeypoint,
+    pub right_shoulder: PoseKeypoint,
+    pub left_elbow: PoseKeypoint,
+    pub right_elbow: PoseKeypoint,
+    pub left_wrist: PoseKeypoint,
+    pub right_wrist: PoseKeypoint,
+    /// HP for both players: (player_1_hp, player_2_hp). Tuple renders as [number, number] in TypeScript.
+    pub hp: (u32, u32),
+    /// Seconds remaining in the current round. ≤ 0.0 when time expires.
+    pub round_timer: f64,
+}
+
+fn default_type_fps_hit() -> String {
+    "fps_hit".to_string()
+}
+
+/// Hit notification for fps_boxing rooms.
+/// Sent via SendToPlayer to the RECEIVING player only (not the attacker).
+#[derive(Serialize, Deserialize, TS, Clone, Debug)]
+#[ts(export)]
+pub struct MsgFpsHit {
+    #[serde(rename = "type", default = "default_type_fps_hit")]
+    pub msg_type: String,
+    /// Punch type string: "cross", "body_shot", "kick", or "blocked".
+    /// Uses same string enum convention as boxing protocol (D-06).
+    pub punch_type: String,
+    pub damage: u32,
+}
