@@ -28,7 +28,7 @@
 
 - [ ] **Phase 10: FPSBoxingPlugin** - New Rust crate implementing GamePlugin for fps_boxing rooms
 - [x] **Phase 11: Lobby + Room Updates** - Expose fps_boxing in the game picker and room page
-- [ ] **Phase 12: FPS Client Scaffold** - New fps/ Vite app with WebSocket connection and webcam permission
+- [x] **Phase 12: FPS Client Scaffold** - New fps/ Vite app with WebSocket connection and webcam permission
 - [ ] **Phase 13: MediaPipe + Calibration** - Webcam pose detection in a Web Worker with calibration step
 - [ ] **Phase 14: Three.js Renderer + Game Loop** - Full first-person rendering, hit feedback, and game loop HUD
 
@@ -65,10 +65,10 @@
   3. A waiting screen is displayed until both players have joined the room
 **Plans**: 4 plans
 Plans:
-- [ ] 12-01-PLAN.md — fps/ project scaffold + /fps Axum route + Dockerfile fps-builder stage
-- [ ] 12-02-PLAN.md — PermissionScreen component (LBY-03) + App.tsx permission→warmup wiring
-- [ ] 12-03-PLAN.md — useGameSocket copy + WaitingScreen component (LBY-04)
-- [ ] 12-04-PLAN.md — useWarmup hook + WarmupScreen + pose.worker.ts copy + App.tsx final wiring (WCI-03)
+- [x] 12-01-PLAN.md — fps/ project scaffold + /fps Axum route + Dockerfile fps-builder stage
+- [x] 12-02-PLAN.md — PermissionScreen component (LBY-03) + App.tsx permission→warmup wiring
+- [x] 12-03-PLAN.md — useGameSocket copy + WaitingScreen component (LBY-04)
+- [x] 12-04-PLAN.md — useWarmup hook + WarmupScreen + pose.worker.ts copy + App.tsx final wiring (WCI-03)
 **UI hint**: yes
 
 ### Phase 13: MediaPipe + Calibration
@@ -110,6 +110,6 @@ Plans:
 | 9. Dance Frontend | 4/4 | v1.0 | Complete | 2026-05-10 |
 | 10. FPSBoxingPlugin | 0/? | v2.0 | Not started | - |
 | 11. Lobby + Room Updates | 1/1 | v2.0 | Complete | 2026-05-13 |
-| 12. FPS Client Scaffold | 0/4 | v2.0 | Not started | - |
+| 12. FPS Client Scaffold | 4/4 | v2.0 | Complete | 2026-05-13 |
 | 13. MediaPipe + Calibration | 0/? | v2.0 | Not started | - |
 | 14. Three.js Renderer + Game Loop | 0/? | v2.0 | Not started | - |
