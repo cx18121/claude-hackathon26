@@ -4,14 +4,16 @@ use plugin_trait::{PoseFrame, PoseKeypoint, BodyRegion};
 // ---------------------------------------------------------------------------
 // Landmark index constants (server/hit_detection.py lines 19-27)
 // ---------------------------------------------------------------------------
-const WRIST_LEFT:     usize = 15;
-const WRIST_RIGHT:    usize = 16;
-const ANKLE_LEFT:     usize = 27;
-const ANKLE_RIGHT:    usize = 28;
-const LEFT_HIP:       usize = 23;
-const RIGHT_HIP:      usize = 24;
-const LEFT_SHOULDER:  usize = 11;
-const RIGHT_SHOULDER: usize = 12;
+pub const WRIST_LEFT:     usize = 15;
+pub const WRIST_RIGHT:    usize = 16;
+pub const ANKLE_LEFT:     usize = 27;
+pub const ANKLE_RIGHT:    usize = 28;
+pub const LEFT_HIP:       usize = 23;
+pub const RIGHT_HIP:      usize = 24;
+pub const LEFT_SHOULDER:  usize = 11;
+pub const RIGHT_SHOULDER: usize = 12;
+pub const LEFT_ELBOW:     usize = 13;
+pub const RIGHT_ELBOW:    usize = 14;
 
 // ---------------------------------------------------------------------------
 // Body-local threshold constants (server/hit_detection.py lines 30-41)

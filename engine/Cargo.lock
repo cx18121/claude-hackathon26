@@ -94,9 +94,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "boxing-core"
+version = "0.1.0"
+dependencies = [
+ "plugin-trait",
+]
+
+[[package]]
 name = "boxing-plugin"
 version = "0.1.0"
 dependencies = [
+ "boxing-core",
  "plugin-trait",
  "rand 0.8.6",
  "serde_json",

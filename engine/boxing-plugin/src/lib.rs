@@ -8,8 +8,8 @@ use std::collections::VecDeque;
 use plugin_trait::{GamePlugin, GameEvent, TickContext, BodyRegion};
 use serde_json::json;
 
-mod hit_detection;
-mod damage;
+use boxing_core::hit_detection;
+use boxing_core::damage;
 mod bot;
 
 pub use bot::Difficulty;

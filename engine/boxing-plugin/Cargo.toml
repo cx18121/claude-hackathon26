@@ -9,6 +9,7 @@ path = "src/lib.rs"
 
 [dependencies]
 plugin-trait = { path = "../plugin-trait" }
+boxing-core = { path = "../boxing-core" }
 serde_json = "1.0.149"
 rand = "0.8.6"
 tracing = "0.1.44"

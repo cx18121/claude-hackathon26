@@ -1,0 +1,11 @@
+[package]
+name = "boxing-core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "boxing_core"
+path = "src/lib.rs"
+
+[dependencies]
+plugin-trait = { path = "../plugin-trait" }
