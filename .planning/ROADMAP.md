@@ -3,6 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 PoseEngine MVP** — Phases 1–9 (shipped 2026-05-10) — [archive](.planning/milestones/v1.0-ROADMAP.md)
+- 🚧 **v2.0 First-Person Boxing** — Phases 10–14 (in progress)
 
 ## Phases
 
@@ -21,6 +22,74 @@
 
 </details>
 
+### 🚧 v2.0 First-Person Boxing (In Progress)
+
+**Milestone Goal:** A laptop-native, single-device FPS boxing game where the webcam tracks punches and renders a first-person Three.js view — no phone required.
+
+- [ ] **Phase 10: FPSBoxingPlugin** - New Rust crate implementing GamePlugin for fps_boxing rooms
+- [ ] **Phase 11: Lobby + Room Updates** - Expose fps_boxing in the game picker and room page
+- [ ] **Phase 12: FPS Client Scaffold** - New fps/ Vite app with WebSocket connection and webcam permission
+- [ ] **Phase 13: MediaPipe + Calibration** - Webcam pose detection in a Web Worker with calibration step
+- [ ] **Phase 14: Three.js Renderer + Game Loop** - Full first-person rendering, hit feedback, and game loop HUD
+
+## Phase Details
+
+### Phase 10: FPSBoxingPlugin
+**Goal**: The server can host fps_boxing rooms with authoritative hit detection, HP tracking, and per-tick opponent state broadcast
+**Depends on**: Nothing (new crate, no engine changes required)
+**Requirements**: FPSP-01, FPSP-02, FPSP-03, FPSP-04
+**Success Criteria** (what must be TRUE):
+  1. A client can create a room with game_type "fps_boxing" and the server routes it to FPSBoxingPlugin
+  2. The server emits MsgFpsState to each player every tick containing opponent's 6 arm landmarks, HP, and round timer
+  3. The server emits MsgFpsHit to the receiving player on each confirmed hit with punch type and damage
+  4. FPSBoxingPlugin's game_type() returns "fps_boxing" and a Rust test asserts it is not "boxing"
+**Plans**: TBD
+
+### Phase 11: Lobby + Room Updates
+**Goal**: Players can discover and enter fps_boxing rooms from the existing lobby UI
+**Depends on**: Phase 10
+**Requirements**: LBY-01, LBY-02
+**Success Criteria** (what must be TRUE):
+  1. "FPS BOXING" tile is visible on the SPECTRE game picker alongside Boxing and Dance
+  2. The room page for an fps_boxing room shows P1/P2 laptop join links and hides the Overlay QR card
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 12: FPS Client Scaffold
+**Goal**: The fps/ Vite app exists, connects to the server via WebSocket, requests webcam permission, and shows a waiting screen
+**Depends on**: Phase 11
+**Requirements**: LBY-03, LBY-04, WCI-03
+**Success Criteria** (what must be TRUE):
+  1. The browser prompts for webcam permission with a clear message before the game view loads
+  2. MediaPipe WASM and GPU delegate are pre-warmed on page load before the game can start
+  3. A waiting screen is displayed until both players have joined the room
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 13: MediaPipe + Calibration
+**Goal**: The player's webcam pose is tracked off the main thread, filtered for jitter, and calibrated to their arm length before a match starts
+**Depends on**: Phase 12
+**Requirements**: WCI-01, WCI-02, WCI-04
+**Success Criteria** (what must be TRUE):
+  1. MediaPipe PoseLandmarker runs in a Web Worker and landmark data reaches the main thread without dropping Three.js frame rate
+  2. Raw landmark stream is smoothed by OneEuroFilter — jitter false-positives are eliminated at rest
+  3. Player completes an arm-length calibration step (video preview + 3-punch prompt) and receives MsgMatchStart from the server
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 14: Three.js Renderer + Game Loop
+**Goal**: Players see a first-person boxing view with animated arms, opponent rendering, hit feedback, and a full game loop HUD
+**Depends on**: Phase 13
+**Requirements**: FPR-01, FPR-02, FPR-03, FPR-04, HFB-01, HFB-02, HFB-03, HFB-04, GML-01, GML-02, GML-03, GML-04
+**Success Criteria** (what must be TRUE):
+  1. Player sees their own cartoonish arms in first-person that mirror real-time MediaPipe wrist/elbow positions, depth-separated from the scene
+  2. Player arms visually extend/stretch when a punch is thrown; opponent arms are rendered from server-supplied keypoints with lerp smoothing
+  3. Camera shakes on incoming hit, HP bar drains smoothly in the HUD, and opponent arm snaps back on a landed punch
+  4. Round timer, win counter, and match end screen with rematch option are visible and functional during play
+  5. Player can start a solo match against a bot and can raise arms to guard against incoming punches
+**Plans**: TBD
+**UI hint**: yes
+
 ## Progress
 
 | Phase | Plans Complete | Milestone | Status | Completed |
@@ -34,3 +103,8 @@
 | 7. Dance Engine + Protocol | 3/3 | v1.0 | Complete | 2026-05-10 |
 | 8. Dance UX Design | 1/1 | v1.0 | Complete | 2026-05-10 |
 | 9. Dance Frontend | 4/4 | v1.0 | Complete | 2026-05-10 |
+| 10. FPSBoxingPlugin | 0/? | v2.0 | Not started | - |
+| 11. Lobby + Room Updates | 0/? | v2.0 | Not started | - |
+| 12. FPS Client Scaffold | 0/? | v2.0 | Not started | - |
+| 13. MediaPipe + Calibration | 0/? | v2.0 | Not started | - |
+| 14. Three.js Renderer + Game Loop | 0/? | v2.0 | Not started | - |

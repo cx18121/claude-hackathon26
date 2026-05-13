@@ -76,36 +76,36 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FPSP-01 | — | Pending |
-| FPSP-02 | — | Pending |
-| FPSP-03 | — | Pending |
-| FPSP-04 | — | Pending |
-| WCI-01 | — | Pending |
-| WCI-02 | — | Pending |
-| WCI-03 | — | Pending |
-| WCI-04 | — | Pending |
-| FPR-01 | — | Pending |
-| FPR-02 | — | Pending |
-| FPR-03 | — | Pending |
-| FPR-04 | — | Pending |
-| HFB-01 | — | Pending |
-| HFB-02 | — | Pending |
-| HFB-03 | — | Pending |
-| HFB-04 | — | Pending |
-| GML-01 | — | Pending |
-| GML-02 | — | Pending |
-| GML-03 | — | Pending |
-| GML-04 | — | Pending |
-| LBY-01 | — | Pending |
-| LBY-02 | — | Pending |
-| LBY-03 | — | Pending |
-| LBY-04 | — | Pending |
+| FPSP-01 | Phase 10 | Pending |
+| FPSP-02 | Phase 10 | Pending |
+| FPSP-03 | Phase 10 | Pending |
+| FPSP-04 | Phase 10 | Pending |
+| LBY-01 | Phase 11 | Pending |
+| LBY-02 | Phase 11 | Pending |
+| LBY-03 | Phase 12 | Pending |
+| LBY-04 | Phase 12 | Pending |
+| WCI-03 | Phase 12 | Pending |
+| WCI-01 | Phase 13 | Pending |
+| WCI-02 | Phase 13 | Pending |
+| WCI-04 | Phase 13 | Pending |
+| FPR-01 | Phase 14 | Pending |
+| FPR-02 | Phase 14 | Pending |
+| FPR-03 | Phase 14 | Pending |
+| FPR-04 | Phase 14 | Pending |
+| HFB-01 | Phase 14 | Pending |
+| HFB-02 | Phase 14 | Pending |
+| HFB-03 | Phase 14 | Pending |
+| HFB-04 | Phase 14 | Pending |
+| GML-01 | Phase 14 | Pending |
+| GML-02 | Phase 14 | Pending |
+| GML-03 | Phase 14 | Pending |
+| GML-04 | Phase 14 | Pending |
 
 **Coverage:**
 - v2.0 requirements: 24 total
-- Mapped to phases: 0 (populated by roadmapper)
-- Unmapped: 24 ⚠
+- Mapped to phases: 24
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-05-12*
-*Last updated: 2026-05-12 after initial definition*
+*Last updated: 2026-05-12 — traceability populated by roadmapper*
