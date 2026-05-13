@@ -30,6 +30,7 @@ qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 plugin-trait = { path = "../plugin-trait" }
 boxing-plugin = { path = "../boxing-plugin" }
 dance-plugin = { path = "../dance-plugin" }
+fps-boxing-plugin = { path = "../fps-boxing-plugin" }
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

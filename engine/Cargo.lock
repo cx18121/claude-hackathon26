@@ -258,6 +258,7 @@ dependencies = [
  "boxing-plugin",
  "dance-plugin",
  "dashmap",
+ "fps-boxing-plugin",
  "futures-util",
  "http-body-util",
  "plugin-trait",

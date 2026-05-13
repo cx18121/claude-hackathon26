@@ -15,6 +15,7 @@ use plugin_trait::GamePlugin;
 use boxing_plugin::{BoxingPlugin, BoxingConfig};
 use boxing_plugin::Difficulty;
 use dance_plugin::{DancePlugin, DanceConfig};
+use fps_boxing_plugin::{FPSBoxingPlugin, FPSBoxingConfig};
 
 mod protocol;
 mod commentator;
@@ -401,6 +402,14 @@ async fn main() {
     let mut plugins: HashMap<String, Arc<dyn GamePlugin + Send + Sync>> = HashMap::new();
     plugins.insert("boxing".to_string(), Arc::new(BoxingPlugin::new(boxing_config)));
     plugins.insert("dance".to_string(), Arc::new(DancePlugin::new(dance_config)));
+    plugins.insert(
+        "fps_boxing".to_string(),
+        Arc::new(FPSBoxingPlugin::new(FPSBoxingConfig {
+            hp: 800,
+            round_secs: 90.0,
+            max_wins: 3,
+        })),
+    );
     let state = Arc::new(AppState {
         rooms: Arc::new(room_manager::RoomManager::new()),
         plugins,
@@ -927,6 +936,9 @@ mod http_tests {
             hp: 100, round_secs: 10.0, max_wins: 1, bot_difficulty: Difficulty::Normal,
         })));
         plugins.insert("dance".to_string(), Arc::new(DancePlugin::new(DanceConfig { max_wins: 1 })));
+        plugins.insert("fps_boxing".to_string(), Arc::new(FPSBoxingPlugin::new(FPSBoxingConfig {
+            hp: 800, round_secs: 90.0, max_wins: 3,
+        })));
         Arc::new(AppState {
             rooms: Arc::new(room_manager::RoomManager::new()),
             plugins,
@@ -940,6 +952,16 @@ mod http_tests {
             .oneshot(Request::builder().method("POST").uri("/rooms?game=boxing").body(Body::empty()).unwrap())
             .await.unwrap();
         assert_eq!(resp.status(), StatusCode::CREATED);
+    }
+
+    #[tokio::test]
+    async fn post_rooms_fps_boxing_returns_201() {
+        let app = build_app(test_state());
+        let resp = app
+            .oneshot(Request::builder().method("POST").uri("/rooms?game=fps_boxing").body(Body::empty()).unwrap())
+            .await.unwrap();
+        assert_eq!(resp.status(), StatusCode::CREATED,
+            "fps_boxing room creation should return 201 — FPSP-01");
     }
 
     #[tokio::test]
