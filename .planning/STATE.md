@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: First-Person Boxing
 status: executing
-stopped_at: Phase 12 complete
-last_updated: "2026-05-13T07:40:00.000Z"
-last_activity: 2026-05-13 -- Phase 12 fps-client-scaffold execution complete
+stopped_at: Phase 13 complete
+last_updated: "2026-05-13T12:00:00.000Z"
+last_activity: 2026-05-13 -- Phase 13 mediapipe-calibration execution complete
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
-  percent: 40
+  completed_phases: 3
+  total_plans: 3
+  completed_plans: 3
+  percent: 60
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-12)
 
 **Core value:** The engine must make it trivially easy to add a new pose-based game by implementing a well-defined plugin interface — without touching the engine core or understanding its internals.
-**Current focus:** Phase 12 complete — Phase 13 (MediaPipe + Calibration) next
+**Current focus:** Phase 13 complete — Phase 14 (Three.js Renderer + Game Loop) next
 
 ## Current Position
 
-Phase: 12 (fps-client-scaffold) — COMPLETE
-Plan: 4 of 4 (all plans done)
-Status: Phase 12 complete, ready for Phase 13
-Last activity: 2026-05-13 -- Phase 12 execution complete (4 plans, 33 fps + 159 Rust tests green)
+Phase: 13 (mediapipe-calibration) — COMPLETE
+Plan: 3 of 3 (all plans done)
+Status: Phase 13 complete, ready for Phase 14
+Last activity: 2026-05-13 -- Phase 13 execution complete (3 plans, 71 fps + 159 Rust tests green)
 
 Progress: [██░░░░░░░░] 20%
 

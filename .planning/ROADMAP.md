@@ -29,7 +29,7 @@
 - [ ] **Phase 10: FPSBoxingPlugin** - New Rust crate implementing GamePlugin for fps_boxing rooms
 - [x] **Phase 11: Lobby + Room Updates** - Expose fps_boxing in the game picker and room page
 - [x] **Phase 12: FPS Client Scaffold** - New fps/ Vite app with WebSocket connection and webcam permission
-- [ ] **Phase 13: MediaPipe + Calibration** - Webcam pose detection in a Web Worker with calibration step
+- [x] **Phase 13: MediaPipe + Calibration** - Webcam pose detection in a Web Worker with calibration step
 - [ ] **Phase 14: Three.js Renderer + Game Loop** - Full first-person rendering, hit feedback, and game loop HUD
 
 ## Phase Details
@@ -81,9 +81,9 @@ Plans:
   3. Player completes an arm-length calibration step (video preview + 3-punch prompt) and receives MsgMatchStart from the server
 **Plans**: 3 plans
 Plans:
-- [ ] 13-01-PLAN.md — Install 1eurofilter + implement usePose (workerRef, detection loop) + useOneEuroFilter (99 stateful instances) — WCI-01, WCI-02
-- [ ] 13-02-PLAN.md — Copy velocity.ts from mobile/ + adapt useCalibration (import path only) + CalibrationScreen (video preview + stage UI) — WCI-04
-- [ ] 13-03-PLAN.md — Wire App.tsx: usePose + useOneEuroFilter + CalibrationScreen + MsgCalibrationDone send + match phase routing — WCI-01, WCI-02, WCI-04
+- [x] 13-01-PLAN.md — Install 1eurofilter + implement usePose (workerRef, detection loop) + useOneEuroFilter (99 stateful instances) — WCI-01, WCI-02
+- [x] 13-02-PLAN.md — Copy velocity.ts from mobile/ + adapt useCalibration (import path only) + CalibrationScreen (video preview + stage UI) — WCI-04
+- [x] 13-03-PLAN.md — Wire App.tsx: usePose + useOneEuroFilter + CalibrationScreen + MsgCalibrationDone send + match phase routing — WCI-01, WCI-02, WCI-04
 **UI hint**: yes
 
 ### Phase 14: Three.js Renderer + Game Loop
@@ -115,5 +115,5 @@ Plans:
 | 10. FPSBoxingPlugin | 0/? | v2.0 | Not started | - |
 | 11. Lobby + Room Updates | 1/1 | v2.0 | Complete | 2026-05-13 |
 | 12. FPS Client Scaffold | 4/4 | v2.0 | Complete | 2026-05-13 |
-| 13. MediaPipe + Calibration | 0/3 | v2.0 | Not started | - |
+| 13. MediaPipe + Calibration | 3/3 | v2.0 | Complete | 2026-05-13 |
 | 14. Three.js Renderer + Game Loop | 0/? | v2.0 | Not started | - |
