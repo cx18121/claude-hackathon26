@@ -726,6 +726,10 @@ const LOBBY_HTML: &str = r#"<!DOCTYPE html>
       border-color: var(--accent-p2);
       background: color-mix(in oklch, var(--accent-p2) 10%, transparent);
     }
+    .game-tile.selected-fps_boxing {
+      border-color: var(--accent);
+      background: color-mix(in oklch, var(--accent) 10%, transparent);
+    }
     .btn-create {
       width: 100%; min-height: 52px; border-radius: 4px; border: 1px solid var(--text-dim);
       background: var(--bg-surface); color: var(--text-primary); font-family: inherit;
@@ -794,6 +798,7 @@ const LOBBY_HTML: &str = r#"<!DOCTYPE html>
   <div class="game-picker">
     <button class="game-tile" id="tile-boxing" onclick="selectGame('boxing')">BOXING</button>
     <button class="game-tile" id="tile-dance" onclick="selectGame('dance')">DANCE</button>
+    <button class="game-tile" id="tile-fps_boxing" onclick="selectGame('fps_boxing')">FPS BOXING</button>
   </div>
 
   <button class="btn-create" id="btn-create" onclick="createRoom()">Create Room</button>
@@ -822,8 +827,9 @@ const LOBBY_HTML: &str = r#"<!DOCTYPE html>
     function selectGame(game) {
       if (selectedGame === game) return;
       selectedGame = game;
-      document.getElementById('tile-boxing').className = 'game-tile' + (game === 'boxing' ? ' selected-boxing' : '');
-      document.getElementById('tile-dance').className = 'game-tile' + (game === 'dance' ? ' selected-dance' : '');
+      document.getElementById('tile-boxing').className   = 'game-tile' + (game === 'boxing'     ? ' selected-boxing'     : '');
+      document.getElementById('tile-dance').className    = 'game-tile' + (game === 'dance'      ? ' selected-dance'      : '');
+      document.getElementById('tile-fps_boxing').className = 'game-tile' + (game === 'fps_boxing' ? ' selected-fps_boxing' : '');
       var btn = document.getElementById('btn-create');
       btn.classList.add('enabled');
     }
