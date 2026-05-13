@@ -1182,6 +1182,45 @@ mod http_tests {
         );
     }
 
+    #[test]
+    fn room_page_html_fps_boxing_uses_fps_urls() {
+        let html = room_page_html("ABCD", "fps_boxing", "https://example.com");
+        assert!(
+            html.contains("/fps?server="),
+            "fps_boxing room page must contain /fps?server= URL — LBY-02"
+        );
+        assert!(
+            html.contains("room=ABCD"),
+            "fps_boxing room page must include room code in URL — LBY-02"
+        );
+        assert!(
+            !html.contains("/mobile"),
+            "fps_boxing room page must NOT contain /mobile URL — LBY-02"
+        );
+    }
+
+    #[test]
+    fn room_page_html_fps_boxing_hides_overlay() {
+        let html = room_page_html("ABCD", "fps_boxing", "https://example.com");
+        assert!(
+            !html.contains("qr-card overlay"),
+            "fps_boxing room page must NOT contain the overlay QR card — LBY-02"
+        );
+    }
+
+    #[test]
+    fn room_page_html_boxing_unchanged() {
+        let html = room_page_html("ABCD", "boxing", "https://example.com");
+        assert!(
+            html.contains("/mobile"),
+            "boxing room page must still use /mobile URLs (regression check)"
+        );
+        assert!(
+            html.contains("qr-card overlay"),
+            "boxing room page must still contain overlay QR card (regression check)"
+        );
+    }
+
     /// BLK-01 regression: an unsafe Host header (containing characters
     /// outside `[A-Za-z0-9._:-]`) must be rejected and fall back to
     /// `localhost:8000` rather than being interpolated into URLs.
