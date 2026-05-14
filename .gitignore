@@ -17,3 +17,11 @@ AGENTS.md
 docs/agents/
 engine/target/
 .playwright-mcp/
+
+# ml/ training artifacts (too large for git)
+ml/data/**/*.mp4
+ml/data/**/*.avi
+ml/data/**/*.mov
+ml/models/*.pt
+ml/models/*.onnx
+# Keep the INT8 model in fps/public (small, committed separately)
