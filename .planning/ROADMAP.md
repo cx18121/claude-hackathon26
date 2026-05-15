@@ -26,7 +26,7 @@
 
 **Milestone Goal:** A laptop-native, single-device FPS boxing game where the webcam tracks punches and renders a first-person Three.js view — no phone required.
 
-- [ ] **Phase 10: FPSBoxingPlugin** - New Rust crate implementing GamePlugin for fps_boxing rooms
+- [x] **Phase 10: FPSBoxingPlugin** - New Rust crate implementing GamePlugin for fps_boxing rooms
 - [x] **Phase 11: Lobby + Room Updates** - Expose fps_boxing in the game picker and room page
 - [x] **Phase 12: FPS Client Scaffold** - New fps/ Vite app with WebSocket connection and webcam permission
 - [x] **Phase 13: MediaPipe + Calibration** - Webcam pose detection in a Web Worker with calibration step
@@ -43,7 +43,12 @@
   2. The server emits MsgFpsState to each player every tick containing opponent's 6 arm landmarks, HP, and round timer
   3. The server emits MsgFpsHit to the receiving player on each confirmed hit with punch type and damage
   4. FPSBoxingPlugin's game_type() returns "fps_boxing" and a Rust test asserts it is not "boxing"
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [x] 10-01-PLAN.md — fps_boxing Rust crate scaffold + Cargo workspace registration (FPSP-01)
+- [x] 10-02-PLAN.md — Hit detection + damage logic (FPSP-02, FPSP-03)
+- [x] 10-03-PLAN.md — HP tracking + MsgFpsState broadcast per tick (FPSP-02, FPSP-04)
+- [x] 10-04-PLAN.md — MsgFpsHit dispatch + game_type() test (FPSP-03, FPSP-04)
 
 ### Phase 11: Lobby + Room Updates
 **Goal**: Players can discover and enter fps_boxing rooms from the existing lobby UI
@@ -111,12 +116,13 @@ Plans:
   3. Camera shakes on incoming hit, HP bar drains smoothly in the HUD, and opponent arm snaps back on a landed punch
   4. Round timer, win counter, and match end screen with rematch option are visible and functional during play
   5. Player can start a solo match against a bot and can raise arms to guard against incoming punches
-**Plans**: 4 plans
+**Plans**: 5 plans
 Plans:
-- [ ] 14-01-PLAN.md — Install three@0.184.0; extend useGameSocket with fps_state/fps_hit; coordinateMap + armGeometry utils; useGameRenderer dual-scene loop; GameRenderer component; App.tsx wiring (FPR-01, FPR-03, FPR-04)
+- [ ] 14-01-PLAN.md — Install three@0.184.0; extend useGameSocket; coordinateMap + armGeometry utils; useGameRenderer dual-scene loop; GameRenderer component; App.tsx wiring (FPR-01, FPR-03, FPR-04)
+- [ ] 14-01b-PLAN.md — Per-frame GPU latency assertion (pose.worker.ts + usePose.ts); Y-axis sign + OutlineEffect verification spikes (D-15)
 - [ ] 14-02-PLAN.md — springPhysics + guardDetection modules; wire spring extension + opponent lerp + guard detection into useGameRenderer (FPR-02, FPR-03, GML-04)
-- [ ] 14-03-PLAN.md — useBoxingAudio synthesis; camera shake + opponent snap-back + hit flash wired to MsgFpsHit (HFB-01, HFB-03, HFB-04, HFB-02 partial)
-- [ ] 14-04-PLAN.md — GameHud component + CSS; HP bars + timer + win counter + match-end overlay + rematch flow; human verify checkpoint (HFB-02, GML-01, GML-02, GML-03, GML-04)
+- [ ] 14-03-PLAN.md — useBoxingAudio synthesis; camera shake + opponent snap-back + hit flash wired to MsgFpsHit (HFB-01, HFB-02 partial, HFB-03, HFB-04)
+- [ ] 14-04-PLAN.md — GameHud component + CSS; HP bars + timer + win counter + match-end overlay + rematch flow + guard multiplier; human verify checkpoint (HFB-02, GML-01, GML-02, GML-03, GML-04)
 **UI hint**: yes
 
 ## Progress
@@ -132,7 +138,7 @@ Plans:
 | 7. Dance Engine + Protocol | 3/3 | v1.0 | Complete | 2026-05-10 |
 | 8. Dance UX Design | 1/1 | v1.0 | Complete | 2026-05-10 |
 | 9. Dance Frontend | 4/4 | v1.0 | Complete | 2026-05-10 |
-| 10. FPSBoxingPlugin | 0/? | v2.0 | Not started | - |
+| 10. FPSBoxingPlugin | 4/4 | v2.0 | Complete | 2026-05-13 |
 | 11. Lobby + Room Updates | 1/1 | v2.0 | Complete | 2026-05-13 |
 | 12. FPS Client Scaffold | 4/4 | v2.0 | Complete | 2026-05-13 |
 | 13. MediaPipe + Calibration | 3/3 | v2.0 | Complete | 2026-05-13 |

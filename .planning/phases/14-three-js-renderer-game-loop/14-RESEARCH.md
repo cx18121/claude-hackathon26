@@ -892,22 +892,25 @@ opponentWristPos.lerp(targetWristFromServer, alpha);
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED — via Plan 14-01 Task 5 spike)
 
 1. **Y-axis sign in worldLandmarks**
    - What we know: MediaPipe normalizedLandmarks has Y+ downward (screen). WorldLandmarks uses hip-midpoint origin.
    - What's unclear: Whether worldLandmarks Y is positive-down or positive-up (docs are ambiguous).
    - Recommendation: Add a debug sphere at landmark[0] (nose) and landmark[11] (left shoulder) and verify on first implementation day. Flip Y if nose is below shoulder in Three.js world.
+   - **RESOLVED:** Confirmed or corrected via live webcam spike in 14-01 Task 5. See 14-01-SUMMARY.md.
 
 2. **Arm scale vs camera FOV tuning**
    - What we know: World landmarks are in meters (~0.65m arm length).
    - What's unclear: The exact FOV and camera position for the arms camera to make arms feel "right-sized" in first-person.
    - Recommendation: Start with FOV=60, arms camera at origin facing -Z, shoulder anchored at (±0.22, -0.25, -0.4). Iterate quickly — this is feel, not formula.
+   - **RESOLVED:** Implementation-time tuning — adjust FOV and shoulder anchor during 14-01 Task 3 implementation.
 
 3. **OutlineEffect + dual-scene: can one OutlineEffect instance render two scenes?**
    - What we know: OutlineEffect wraps the renderer and calls `renderer.render()` internally.
    - What's unclear: Whether `outlineEffect.render(armsScene, ...)` works after a plain `renderer.render(worldScene, ...)` with autoClear=false.
    - Recommendation: Use OutlineEffect only for the arms scene pass. Test first with plain `renderer.render()` for both passes to confirm depth separation, then add OutlineEffect on the arms pass only.
+   - **RESOLVED:** Confirmed working via Spike B in 14-01 Task 5. See 14-01-SUMMARY.md.
 
 ---
 
