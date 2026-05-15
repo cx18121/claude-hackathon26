@@ -190,6 +190,9 @@ export function useGameRenderer(
       }
 
       // Dual-scene render pass (FPR-04 depth separation)
+      // OutlineEffect + autoClear=false verified: CONFIRMED — renderer.clearDepth() before
+      // outlineEffect.render() prevents depth bleed; no autoClear override needed on OutlineEffect
+      // (OutlineEffect does not clobber the world pass when clearDepth() precedes it — Plan 14-01b Task 2 spike B)
       renderer.clear(); // clear color + depth once per frame
       renderer.render(worldScene, worldCamera); // pass 1: world (environment + opponent)
       renderer.clearDepth(); // reset depth buffer — player arms always render on top

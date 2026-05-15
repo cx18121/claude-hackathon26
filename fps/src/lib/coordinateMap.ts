@@ -12,8 +12,10 @@ export const WORLD_SCALE = 2.5;
  *
  * Coordinate mapping:
  *   threeX = -mediapipeX  (flip X: MediaPipe left = Three.js right for first-person laterality)
- *   threeY = -mediapipeY  (Y flip is [ASSUMED A2] — verify against live webcam in Plan 14-01b
- *                          Task 1 spike; flip sign if arms appear inverted)
+ *   threeY = -mediapipeY  (Y sign verified: MediaPipe worldLandmarks Y is positive-down per the
+ *                          MediaPipe coordinate system; negation maps it to Three.js positive-up
+ *                          convention so keypoints above the hip origin (head, shoulders) render
+ *                          above the world origin as expected — Plan 14-01b Task 2 spike A)
  *   threeZ = -mediapipeZ  (MediaPipe +Z toward camera → Three.js -Z into scene)
  *
  * @param kp - MediaPipe worldLandmarks keypoint (metric, hip-midpoint origin)
