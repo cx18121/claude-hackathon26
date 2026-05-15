@@ -4,7 +4,9 @@ import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import type { PoseKeypoint } from '@shared/protocol';
 import { buildArmSegment, updateArmSegment } from '../lib/armGeometry';
 import { keypointToWorld, WORLD_SCALE } from '../lib/coordinateMap';
-import { LANDMARK } from '../lib/velocity';
+import { LANDMARK, computeWristPeakSpeed, type TimedFrame } from '../lib/velocity';
+import { stepSpring, type SpringState } from '../lib/springPhysics';
+import { isGuardPose, updateGuard, type GuardState } from '../lib/guardDetection';
 import type { UseGameSocketResult } from './useGameSocket';
 
 interface ArmMeshes {
@@ -12,6 +14,15 @@ interface ArmMeshes {
   leftFore: THREE.Mesh;
   rightUpper: THREE.Mesh;
   rightFore: THREE.Mesh;
+}
+
+interface OpponentPositions {
+  lShoulder: THREE.Vector3;
+  lElbow: THREE.Vector3;
+  lWrist: THREE.Vector3;
+  rShoulder: THREE.Vector3;
+  rElbow: THREE.Vector3;
+  rWrist: THREE.Vector3;
 }
 
 /** Build a 2-band toon gradient DataTexture for MeshToonMaterial. */
@@ -34,18 +45,22 @@ function buildGradientMap(): THREE.DataTexture {
  *  - OutlineEffect wraps only the armsScene pass (Pitfall 6 — not world pass).
  *  - T-14-01-02: dt capped at 50ms to prevent spiral-of-death if tab is backgrounded.
  *  - T-14-01-04: cleanup disposes renderer and removes canvas on unmount.
+ *  - Spring physics (FPR-02): forearm scale.z driven by wrist velocity via stepSpring().
+ *  - Opponent lerp (FPR-03): frame-rate-independent exponential lerp at lambda=12.
+ *  - Guard detection (GML-04): isGuardPose() + updateGuard() hysteresis each frame.
  *
  * @param containerRef - ref to the div that will contain the Three.js canvas
  * @param smoothedKeypoints - filtered keypoints from usePose + useOneEuroFilter
  * @param socket - game socket result (reads lastFpsState each frame via ref)
  * @param playerSlot - 1 or 2; determines player arm color
+ * @returns { guardStateRef } — ref to guard state for Plan 14-04 damage reduction wiring
  */
 export function useGameRenderer(
   containerRef: React.RefObject<HTMLDivElement | null>,
   smoothedKeypoints: PoseKeypoint[] | null,
   socket: UseGameSocketResult,
   playerSlot: 1 | 2,
-): void {
+): { guardStateRef: React.MutableRefObject<GuardState> } {
   // Three.js scene objects — all in refs, never state
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const worldSceneRef = useRef<THREE.Scene | null>(null);
@@ -62,6 +77,31 @@ export function useGameRenderer(
   const latestSocketRef = useRef(socket);
   useEffect(() => { latestKeypointsRef.current = smoothedKeypoints; }, [smoothedKeypoints]);
   useEffect(() => { latestSocketRef.current = socket; }, [socket]);
+
+  // Spring physics state (FPR-02) — one per arm
+  const springStateRef = useRef<{ left: SpringState; right: SpringState }>({
+    left: { pos: 0, vel: 0 },
+    right: { pos: 0, vel: 0 },
+  });
+
+  // Guard detection state (GML-04) — exposed in return value for Plan 14-04
+  const guardStateRef = useRef<GuardState>({ active: false, consecutiveFrames: 0 });
+
+  // Rolling 5-frame keypoint buffer for computeWristPeakSpeed
+  const frameBufferRef = useRef<TimedFrame[]>([]);
+
+  // Opponent lerp targets (updated when a new MsgFpsState arrives)
+  const opponentTargetRef = useRef<OpponentPositions | null>(null);
+
+  // Opponent current positions (lerped toward targets each frame)
+  const opponentCurrentRef = useRef<OpponentPositions>({
+    lShoulder: new THREE.Vector3(),
+    lElbow:    new THREE.Vector3(),
+    lWrist:    new THREE.Vector3(),
+    rShoulder: new THREE.Vector3(),
+    rElbow:    new THREE.Vector3(),
+    rWrist:    new THREE.Vector3(),
+  });
 
   // Init Three.js once on mount — empty deps
   useEffect(() => {
@@ -154,8 +194,30 @@ export function useGameRenderer(
       const keypoints = latestKeypointsRef.current;
       const currentSocket = latestSocketRef.current;
 
+      // Guard detection (GML-04) — runs every frame regardless of keypoint availability
+      const rawGuard = isGuardPose(keypoints);
+      updateGuard(guardStateRef.current, rawGuard);
+
       // Update player arms from smoothed keypoints
       if (keypoints && keypoints.length > LANDMARK.RIGHT_WRIST) {
+        // Push current frame into rolling 5-frame buffer for peak speed computation
+        const frame: TimedFrame = { keypoints, t: performance.now() };
+        frameBufferRef.current.push(frame);
+        if (frameBufferRef.current.length > 5) {
+          frameBufferRef.current.shift();
+        }
+
+        // Compute wrist peak speed and map to spring target in [0, 1]
+        // Speed of 4 m/s → full extension (tune 4.0 if feel is wrong)
+        const leftPeakSpeed  = computeWristPeakSpeed(frameBufferRef.current, 'left');
+        const rightPeakSpeed = computeWristPeakSpeed(frameBufferRef.current, 'right');
+        const leftTarget  = Math.min(1.0, leftPeakSpeed  / 4.0);
+        const rightTarget = Math.min(1.0, rightPeakSpeed / 4.0);
+
+        // Step spring integrators (FPR-02)
+        stepSpring(springStateRef.current.left,  leftTarget,  dt);
+        stepSpring(springStateRef.current.right, rightTarget, dt);
+
         // Shoulder anchor offset: translate keypoints so arms sit naturally in first-person view
         // [ASSUMED A4] — tune against live webcam; shoulders ~(±0.22, -0.25, -0.4) in camera space
         const anchorOffset = new THREE.Vector3(0, -0.25 * WORLD_SCALE, -0.4 * WORLD_SCALE);
@@ -167,26 +229,50 @@ export function useGameRenderer(
         const rElbow    = keypointToWorld(keypoints[LANDMARK.RIGHT_ELBOW],    WORLD_SCALE).add(anchorOffset);
         const rWrist    = keypointToWorld(keypoints[LANDMARK.RIGHT_WRIST],    WORLD_SCALE).add(anchorOffset);
 
-        updateArmSegment(playerArms.leftUpper, lShoulder, lElbow);
-        updateArmSegment(playerArms.leftFore,  lElbow,    lWrist);
+        updateArmSegment(playerArms.leftUpper,  lShoulder, lElbow);
+        updateArmSegment(playerArms.leftFore,   lElbow,    lWrist);
         updateArmSegment(playerArms.rightUpper, rShoulder, rElbow);
         updateArmSegment(playerArms.rightFore,  rElbow,    rWrist);
+
+        // Apply spring extension to forearm meshes (scale.z drives Z-axis stretch)
+        // spring.pos in [0, 1] → scale factor 1.0 to 1.4 (40% max stretch at full extension)
+        playerArms.leftFore.scale.z  = 1.0 + springStateRef.current.left.pos  * 0.4;
+        playerArms.rightFore.scale.z = 1.0 + springStateRef.current.right.pos * 0.4;
       }
 
-      // Update opponent arms from MsgFpsState (no lerp in Plan 14-01; lerp added in Plan 14-02)
+      // Update opponent lerp targets from latest MsgFpsState
       const fpsState = currentSocket.lastFpsState;
       if (fpsState) {
-        const oLShoulder = keypointToWorld(fpsState.left_shoulder,  WORLD_SCALE);
-        const oLElbow    = keypointToWorld(fpsState.left_elbow,     WORLD_SCALE);
-        const oLWrist    = keypointToWorld(fpsState.left_wrist,     WORLD_SCALE);
-        const oRShoulder = keypointToWorld(fpsState.right_shoulder, WORLD_SCALE);
-        const oRElbow    = keypointToWorld(fpsState.right_elbow,    WORLD_SCALE);
-        const oRWrist    = keypointToWorld(fpsState.right_wrist,    WORLD_SCALE);
+        opponentTargetRef.current = {
+          lShoulder: keypointToWorld(fpsState.left_shoulder,  WORLD_SCALE),
+          lElbow:    keypointToWorld(fpsState.left_elbow,     WORLD_SCALE),
+          lWrist:    keypointToWorld(fpsState.left_wrist,     WORLD_SCALE),
+          rShoulder: keypointToWorld(fpsState.right_shoulder, WORLD_SCALE),
+          rElbow:    keypointToWorld(fpsState.right_elbow,    WORLD_SCALE),
+          rWrist:    keypointToWorld(fpsState.right_wrist,    WORLD_SCALE),
+        };
+      }
 
-        updateArmSegment(opponentArms.leftUpper,  oLShoulder, oLElbow);
-        updateArmSegment(opponentArms.leftFore,   oLElbow,    oLWrist);
-        updateArmSegment(opponentArms.rightUpper, oRShoulder, oRElbow);
-        updateArmSegment(opponentArms.rightFore,  oRElbow,    oRWrist);
+      // Lerp opponent arm positions toward targets (FPR-03)
+      // lambda=12 → reaches 99% of target in ~460ms; smooth for 30Hz server ticks
+      const target = opponentTargetRef.current;
+      if (target !== null) {
+        const alpha = 1 - Math.exp(-12 * dt);
+        const cur = opponentCurrentRef.current;
+        cur.lShoulder.lerp(target.lShoulder, alpha);
+        cur.lElbow.lerp(target.lElbow, alpha);
+        cur.lWrist.lerp(target.lWrist, alpha);
+        cur.rShoulder.lerp(target.rShoulder, alpha);
+        cur.rElbow.lerp(target.rElbow, alpha);
+        cur.rWrist.lerp(target.rWrist, alpha);
+
+        const opponentArms = opponentArmMeshesRef.current;
+        if (opponentArms) {
+          updateArmSegment(opponentArms.leftUpper,  cur.lShoulder, cur.lElbow);
+          updateArmSegment(opponentArms.leftFore,   cur.lElbow,    cur.lWrist);
+          updateArmSegment(opponentArms.rightUpper, cur.rShoulder, cur.rElbow);
+          updateArmSegment(opponentArms.rightFore,  cur.rElbow,    cur.rWrist);
+        }
       }
 
       // Dual-scene render pass (FPR-04 depth separation)
@@ -197,8 +283,6 @@ export function useGameRenderer(
       renderer.render(worldScene, worldCamera); // pass 1: world (environment + opponent)
       renderer.clearDepth(); // reset depth buffer — player arms always render on top
       outlineEffect.render(armsScene, armsCamera); // pass 2: player arms with toon outlines
-
-      void dt; // dt available for future spring/shake use in Plan 14-02/14-03
     });
 
     // T-14-01-04: cleanup on unmount — prevents renderer leak in React strict mode
@@ -208,6 +292,10 @@ export function useGameRenderer(
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
       }
+      // T-14-02-04: clear frame buffer on unmount
+      frameBufferRef.current = [];
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return { guardStateRef };
 }

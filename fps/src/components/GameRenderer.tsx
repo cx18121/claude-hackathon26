@@ -17,6 +17,7 @@ interface GameRendererProps {
  */
 export function GameRenderer({ smoothedKeypoints, socket, playerSlot }: GameRendererProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  useGameRenderer(containerRef, smoothedKeypoints, socket, playerSlot);
+  // guardStateRef exposed for Plan 14-04 damage reduction wiring — unused here
+  const { guardStateRef: _guardStateRef } = useGameRenderer(containerRef, smoothedKeypoints, socket, playerSlot);
   return <div ref={containerRef} style={{ width: '100vw', height: '100vh' }} />;
 }
