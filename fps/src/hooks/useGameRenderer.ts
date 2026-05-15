@@ -2,12 +2,14 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import type { PoseKeypoint } from '@shared/protocol';
+import type { MsgFpsHit } from '@shared/protocol';
 import { buildArmSegment, updateArmSegment } from '../lib/armGeometry';
 import { keypointToWorld, WORLD_SCALE } from '../lib/coordinateMap';
 import { LANDMARK, computeWristPeakSpeed, type TimedFrame } from '../lib/velocity';
 import { stepSpring, type SpringState } from '../lib/springPhysics';
 import { isGuardPose, updateGuard, type GuardState } from '../lib/guardDetection';
 import type { UseGameSocketResult } from './useGameSocket';
+import { useBoxingAudio } from './useBoxingAudio';
 
 interface ArmMeshes {
   leftUpper: THREE.Mesh;
@@ -48,19 +50,29 @@ function buildGradientMap(): THREE.DataTexture {
  *  - Spring physics (FPR-02): forearm scale.z driven by wrist velocity via stepSpring().
  *  - Opponent lerp (FPR-03): frame-rate-independent exponential lerp at lambda=12.
  *  - Guard detection (GML-04): isGuardPose() + updateGuard() hysteresis each frame.
+ *  - Camera shake (HFB-01): Eiserloh trauma-decay applied to worldCamera only.
+ *  - Opponent snap-back (HFB-03): lambda=80 boost for 3 frames on MsgFpsHit.
+ *  - Audio (D-09): useBoxingAudio playImpact/playBlocked triggered on MsgFpsHit.
+ *  - Hit flash (HFB-04): triggerFlashRef called on MsgFpsHit; implementation set by GameRenderer.
  *
  * @param containerRef - ref to the div that will contain the Three.js canvas
  * @param smoothedKeypoints - filtered keypoints from usePose + useOneEuroFilter
  * @param socket - game socket result (reads lastFpsState each frame via ref)
  * @param playerSlot - 1 or 2; determines player arm color
- * @returns { guardStateRef } — ref to guard state for Plan 14-04 damage reduction wiring
+ * @returns { guardStateRef, triggerFlashRef } — refs for Plan 14-04 and hit flash wiring
  */
 export function useGameRenderer(
   containerRef: React.RefObject<HTMLDivElement | null>,
   smoothedKeypoints: PoseKeypoint[] | null,
   socket: UseGameSocketResult,
   playerSlot: 1 | 2,
-): { guardStateRef: React.MutableRefObject<GuardState> } {
+): {
+  guardStateRef: React.MutableRefObject<GuardState>;
+  triggerFlashRef: React.MutableRefObject<() => void>;
+} {
+  // Audio synthesis — lazy AudioContext (browser autoplay policy)
+  const { playImpact, playBlocked } = useBoxingAudio();
+
   // Three.js scene objects — all in refs, never state
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const worldSceneRef = useRef<THREE.Scene | null>(null);
@@ -103,6 +115,23 @@ export function useGameRenderer(
     rWrist:    new THREE.Vector3(),
   });
 
+  // Camera shake state (HFB-01, Eiserloh trauma-decay)
+  // trauma in [0,1] — capped at 1.0 regardless of damage (T-14-03-01)
+  const shakeStateRef = useRef<{ trauma: number }>({ trauma: 0 });
+
+  // Camera rest position — shake offsets are applied relative to this base
+  const worldCameraBaseRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 5));
+
+  // Previously processed MsgFpsHit — compare by object reference to detect new hits
+  const lastFpsHitRef = useRef<MsgFpsHit | null>(null);
+
+  // Opponent snap-back (HFB-03) — use lambda=80 for 3 frames after a hit
+  const snapBackActiveRef = useRef(false);
+  const snapBackFramesRef = useRef(0);
+
+  // Hit flash trigger (HFB-04) — GameRenderer sets the actual implementation via useEffect
+  const triggerFlashRef = useRef<() => void>(() => {});
+
   // Init Three.js once on mount — empty deps
   useEffect(() => {
     const container = containerRef.current;
@@ -126,6 +155,7 @@ export function useGameRenderer(
     // --- Cameras ---
     const aspect = container.clientWidth / container.clientHeight;
     const worldCamera = new THREE.PerspectiveCamera(75, aspect, 0.1, 100);
+    worldCamera.position.copy(worldCameraBaseRef.current);
     const armsCamera = new THREE.PerspectiveCamera(60, aspect, 0.05, 10);
     worldCameraRef.current = worldCamera;
     armsCameraRef.current = armsCamera;
@@ -198,6 +228,41 @@ export function useGameRenderer(
       const rawGuard = isGuardPose(keypoints);
       updateGuard(guardStateRef.current, rawGuard);
 
+      // Hit detection (HFB-01, HFB-03, HFB-04, D-09) — compare by object reference
+      const hit = currentSocket.lastFpsHit;
+      if (hit && hit !== lastFpsHitRef.current) {
+        lastFpsHitRef.current = hit;
+
+        // T-14-03-01: trauma capped at 1.0 — server cannot cause unbounded shake
+        const traumaAmount = Math.min(0.6, hit.damage / 40);
+        shakeStateRef.current.trauma = Math.min(1.0, shakeStateRef.current.trauma + traumaAmount);
+
+        // Opponent snap-back (HFB-03): retract wrists/elbows toward shoulders for 3 frames
+        if (opponentTargetRef.current !== null) {
+          const t = opponentTargetRef.current;
+          opponentTargetRef.current = {
+            lShoulder: t.lShoulder.clone(),
+            lElbow:    t.lShoulder.clone(),
+            lWrist:    t.lShoulder.clone(),
+            rShoulder: t.rShoulder.clone(),
+            rElbow:    t.rShoulder.clone(),
+            rWrist:    t.rShoulder.clone(),
+          };
+        }
+        snapBackActiveRef.current = true;
+        snapBackFramesRef.current = 3;
+
+        // Audio (D-09): blocked → dull thud; any other punch_type → sharp impact
+        if (hit.punch_type === 'blocked') {
+          playBlocked();
+        } else {
+          playImpact(hit.damage);
+        }
+
+        // Hit flash (HFB-04): call triggerFlash implementation set by GameRenderer
+        triggerFlashRef.current();
+      }
+
       // Update player arms from smoothed keypoints
       if (keypoints && keypoints.length > LANDMARK.RIGHT_WRIST) {
         // Push current frame into rolling 5-frame buffer for peak speed computation
@@ -241,8 +306,9 @@ export function useGameRenderer(
       }
 
       // Update opponent lerp targets from latest MsgFpsState
+      // Skip target update during snap-back phase (snap-back sets its own retracted target)
       const fpsState = currentSocket.lastFpsState;
-      if (fpsState) {
+      if (fpsState && !snapBackActiveRef.current) {
         opponentTargetRef.current = {
           lShoulder: keypointToWorld(fpsState.left_shoulder,  WORLD_SCALE),
           lElbow:    keypointToWorld(fpsState.left_elbow,     WORLD_SCALE),
@@ -255,9 +321,11 @@ export function useGameRenderer(
 
       // Lerp opponent arm positions toward targets (FPR-03)
       // lambda=12 → reaches 99% of target in ~460ms; smooth for 30Hz server ticks
+      // snap-back active: use lambda=80 for faster snap (HFB-03)
       const target = opponentTargetRef.current;
       if (target !== null) {
-        const alpha = 1 - Math.exp(-12 * dt);
+        const lambda = snapBackActiveRef.current ? 80 : 12;
+        const alpha = 1 - Math.exp(-lambda * dt);
         const cur = opponentCurrentRef.current;
         cur.lShoulder.lerp(target.lShoulder, alpha);
         cur.lElbow.lerp(target.lElbow, alpha);
@@ -273,7 +341,23 @@ export function useGameRenderer(
           updateArmSegment(opponentArms.rightUpper, cur.rShoulder, cur.rElbow);
           updateArmSegment(opponentArms.rightFore,  cur.rElbow,    cur.rWrist);
         }
+
+        // Decrement snap-back frame counter (HFB-03)
+        if (snapBackActiveRef.current) {
+          snapBackFramesRef.current -= 1;
+          if (snapBackFramesRef.current <= 0) {
+            snapBackActiveRef.current = false;
+          }
+        }
       }
+
+      // Camera shake (HFB-01) — applied ONLY to worldCamera, never armsCamera
+      // Eiserloh trauma-decay: shake = trauma², decays at -2.0/s (full fade in ~0.5s)
+      const shake = shakeStateRef.current.trauma ** 2;
+      worldCamera.position.x = worldCameraBaseRef.current.x + (Math.random() * 2 - 1) * 0.05 * shake;
+      worldCamera.position.y = worldCameraBaseRef.current.y + (Math.random() * 2 - 1) * 0.05 * shake;
+      worldCamera.rotation.z = (Math.random() * 2 - 1) * 0.02 * shake;
+      shakeStateRef.current.trauma = Math.max(0, shakeStateRef.current.trauma - dt * 2.0);
 
       // Dual-scene render pass (FPR-04 depth separation)
       // OutlineEffect + autoClear=false verified: CONFIRMED — renderer.clearDepth() before
@@ -297,5 +381,5 @@ export function useGameRenderer(
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { guardStateRef };
+  return { guardStateRef, triggerFlashRef };
 }
