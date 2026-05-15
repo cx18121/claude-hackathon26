@@ -9,7 +9,8 @@ type InMessage =
 type OutMessage =
   | { type: 'ready' }
   | { type: 'error'; message: string }
-  | { type: 'result'; worldLandmarks: PoseKeypoint[] | null; landmarks: PoseKeypoint[] | null };
+  | { type: 'result'; worldLandmarks: PoseKeypoint[] | null; landmarks: PoseKeypoint[] | null }
+  | { type: 'latency_warning'; elapsedMs: number };
 
 const post = (msg: OutMessage) => (self as DedicatedWorkerGlobalScope).postMessage(msg);
 
@@ -61,7 +62,12 @@ self.onmessage = async (e: MessageEvent<InMessage>) => {
       if (ts <= lastTimestampMs) ts = lastTimestampMs + 1;
       lastTimestampMs = ts;
 
+      const detectStart = performance.now();
       const result = landmarker.detectForVideo(msg.bitmap, ts);
+      const elapsedMs = performance.now() - detectStart;
+      if (elapsedMs > 25) {
+        post({ type: 'latency_warning', elapsedMs });
+      }
 
       // FIX #1 (worker side): always include worldLandmarks/landmarks in the
       // result, even as null — the hook uses presence checks, not truthiness.

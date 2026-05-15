@@ -20,7 +20,6 @@ function supportsOffscreen() {
 
 // GPS timing: rolling window of last 10 detect→result latencies
 const LATENCY_WINDOW = 10;
-const LATENCY_THRESHOLD_MS = 25;
 
 export function usePose(
   videoRef: RefObject<HTMLVideoElement | null>,
@@ -35,7 +34,6 @@ export function usePose(
   const workerBusyRef = useRef(false);
   const detectSentAtRef = useRef<number | null>(null);
   const latencyWindowRef = useRef<number[]>([]);
-  const warnedRef = useRef(false);
 
   useEffect(() => {
     if (!cameraReady) return;
@@ -117,8 +115,14 @@ export function usePose(
         landmarks?: PoseKeypoint[] | null;
       };
 
+      if (msg.type === 'latency_warning') {
+        console.warn(
+          `[pose.worker] GPU fallback: detectForVideo took ${(msg as unknown as { elapsedMs: number }).elapsedMs.toFixed(0)}ms (threshold 25ms)`,
+        );
+      }
+
       if (msg.type === 'result') {
-        // Record latency for GPU timing diagnostic
+        // Record latency for round-trip diagnostic (retains window for future use)
         if (detectSentAtRef.current !== null) {
           const latency = performance.now() - detectSentAtRef.current;
           detectSentAtRef.current = null;
@@ -126,15 +130,6 @@ export function usePose(
           window.push(latency);
           if (window.length > LATENCY_WINDOW) {
             window.shift();
-          }
-          if (window.length >= LATENCY_WINDOW && !warnedRef.current) {
-            const avg = window.reduce((a, b) => a + b, 0) / window.length;
-            if (avg > LATENCY_THRESHOLD_MS) {
-              warnedRef.current = true;
-              console.warn(
-                `[usePose] GPU fallback detected: average detect→result latency ${avg.toFixed(0)}ms exceeds 25ms threshold`,
-              );
-            }
           }
         }
 
