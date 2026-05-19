@@ -26,4 +26,3 @@ ml/data/**/*.mov
 ml/models/*.pt
 ml/models/*.onnx
 # Keep the INT8 model in fps/public (small, committed separately)
-images/
