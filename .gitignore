@@ -12,6 +12,7 @@ node_modules/
 dist/
 .DS_Store
 .scratch/
+.claude/
 CLAUDE.md
 AGENTS.md
 docs/agents/
@@ -25,3 +26,4 @@ ml/data/**/*.mov
 ml/models/*.pt
 ml/models/*.onnx
 # Keep the INT8 model in fps/public (small, committed separately)
+images/
