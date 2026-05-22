@@ -44,6 +44,11 @@ pub struct RoomState {
     /// Set once at CalibrationDone when match starts (WR-01: avoid re-deriving per tick which
     /// would silently activate bot mode if P2 disconnects during a two-player match).
     pub solo_mode: bool,
+    /// Set true when the first joining client sent `solo: true` in MsgJoin. Gates the
+    /// solo auto-start branch in PlayerConnect — without this, the room would auto-start
+    /// a solo match the moment P1 connects to any room (because P2 isn't connected yet),
+    /// leaving a real P2 stuck on the waiting screen when they later join.
+    pub intended_solo: bool,
     pub hp: [u32; 2],
     /// Starting HP per player — set from plugin.initial_hp() at creation; used on round reset (WR-01).
     pub initial_hp: u32,
@@ -88,6 +93,7 @@ impl RoomState {
             last_player_disconnected_at,
             max_wins,
             solo_mode: false,
+            intended_solo: false,
             hp: [initial_hp, initial_hp],
             initial_hp,
             pose_tx,
@@ -123,6 +129,10 @@ pub enum RoomCmd {
         slot: usize,
         tx: mpsc::Sender<String>,
         reply: oneshot::Sender<Option<ConnectResult>>,
+        /// True if the joining client signalled solo intent (MsgJoin.solo). Only the
+        /// first connecting player can set this — once a real opponent has joined, the
+        /// room can't be retroactively turned into a solo session.
+        solo: bool,
     },
     PoseFrame {
         slot: usize,
@@ -239,13 +249,19 @@ pub async fn room_actor(
 
 fn handle_cmd(state: &mut RoomState, cmd: RoomCmd) {
     match cmd {
-        RoomCmd::PlayerConnect { slot, tx, reply } => {
+        RoomCmd::PlayerConnect { slot, tx, reply, solo } => {
             if state.players[slot].connected {
                 let _ = reply.send(None);
                 return;
             }
             state.players[slot].tx = Some(tx);
             state.players[slot].connected = true;
+            // Latch intended_solo from the first join that requests it. Subsequent
+            // joins can't turn it on (a real P2 connecting must mean two-player),
+            // and can't turn it off either (P1 already committed to solo).
+            if solo && !state.players[1 - slot].connected {
+                state.intended_solo = true;
+            }
             state.plugin.on_player_join(slot as u8, &mut *state.plugin_state);
             let opponent_idx = 1 - slot;
             let result = ConnectResult {
@@ -263,11 +279,12 @@ fn handle_cmd(state: &mut RoomState, cmd: RoomCmd) {
             }
             // Two-player mode: both players connected — send calibration_start to both (ENG-11).
             // Solo mode: only player 0 connected (player 1 is a bot) — send calibration_start to
-            // slot 0 only. Mobile client stays in lobby until this message is received, so without
-            // this solo path the client never transitions to calibration and CalibrationDone is
-            // never sent, blocking the entire solo flow (CR-01).
+            // slot 0 only. The solo branch is now gated on state.intended_solo (set from the
+            // first MsgJoin.solo) — without this, the server treats any first-joiner as solo
+            // and a real P2 joining later sits on the waiting screen forever because the
+            // calibration_start gate (round_start_time.is_none()) has already fired.
             // Dance rooms: skip calibration entirely; set sentinel velocities and start match now.
-            let solo_mode = !state.players[1].connected;
+            let solo_mode = state.intended_solo && !state.players[1].connected;
             if state.players[0].connected && state.players[1].connected
                 && state.round_start_time.is_none()  // CR-02: guard against restarting an already-running match when P2 joins late
             {
@@ -462,11 +479,11 @@ mod player_connect_tests {
         // Slot 0 outbound channel (capacity 16 — enough for lobby_update + calibration_start)
         let (tx0, mut rx0) = mpsc::channel::<String>(16);
 
-        // Player 0 connects; player 1 is never connected.
+        // Player 0 connects with solo=true; player 1 is never connected.
         let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
         handle_cmd(
             &mut state,
-            RoomCmd::PlayerConnect { slot: 0, tx: tx0, reply: reply_tx },
+            RoomCmd::PlayerConnect { slot: 0, tx: tx0, reply: reply_tx, solo: true },
         );
         // reply_rx is a oneshot; we don't need the value, just confirm handle_cmd ran.
         drop(reply_rx);
@@ -486,16 +503,21 @@ mod player_connect_tests {
         let (tx0, mut rx0) = mpsc::channel::<String>(16);
         let (tx1, mut rx1) = mpsc::channel::<String>(16);
 
-        // Player 0 connects first — solo_mode is true at this point, so calibration_start is
-        // sent to slot 0 alone (solo path). We drain and discard these early messages.
+        // Player 0 connects WITHOUT solo flag — server must NOT auto-start solo mode.
+        // (This is the regression test for the "P2 stuck on waiting" bug.)
         let (r0_tx, r0_rx) = tokio::sync::oneshot::channel();
-        handle_cmd(&mut state, RoomCmd::PlayerConnect { slot: 0, tx: tx0, reply: r0_tx });
+        handle_cmd(&mut state, RoomCmd::PlayerConnect { slot: 0, tx: tx0, reply: r0_tx, solo: false });
         drop(r0_rx);
-        let _early = drain_channel(&mut rx0); // discard solo calibration_start
+        let early = drain_channel(&mut rx0);
+        assert!(
+            !has_calibration_start(&early),
+            "regression: P1 joining a two-player room must NOT receive calibration_start before P2; got: {:?}",
+            early
+        );
 
         // Player 1 connects — now both are connected. Two-player calibration_start sent to both.
         let (r1_tx, r1_rx) = tokio::sync::oneshot::channel();
-        handle_cmd(&mut state, RoomCmd::PlayerConnect { slot: 1, tx: tx1, reply: r1_tx });
+        handle_cmd(&mut state, RoomCmd::PlayerConnect { slot: 1, tx: tx1, reply: r1_tx, solo: false });
         drop(r1_rx);
 
         let msgs0 = drain_channel(&mut rx0);
@@ -521,7 +543,7 @@ mod player_connect_tests {
 
         let (tx0, mut rx0) = mpsc::channel::<String>(16);
         let (r_tx, r_rx) = tokio::sync::oneshot::channel();
-        handle_cmd(&mut state, RoomCmd::PlayerConnect { slot: 0, tx: tx0, reply: r_tx });
+        handle_cmd(&mut state, RoomCmd::PlayerConnect { slot: 0, tx: tx0, reply: r_tx, solo: true });
         drop(r_rx);
 
         let msgs = drain_channel(&mut rx0);

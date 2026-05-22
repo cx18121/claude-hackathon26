@@ -11,6 +11,9 @@ interface ConnectionScreenProps {
   fastJoin: boolean;
   gameType: string | null;
   onConnect: (serverUrl: string, roomCode: string, slot: 1 | 2) => void;
+  // Creates a fresh room on the server and joins it solo-vs-bot. Only the
+  // server URL is required; the room code is generated server-side.
+  onPlaySolo: (serverUrl: string) => void;
   onRetry: () => void;
 }
 
@@ -24,6 +27,7 @@ export function ConnectionScreen({
   fastJoin,
   gameType,
   onConnect,
+  onPlaySolo,
   onRetry,
 }: ConnectionScreenProps) {
   const [serverUrl, setServerUrl] = useState(initialServerUrl);
@@ -142,6 +146,17 @@ export function ConnectionScreen({
           disabled={connecting || !serverUrl || !roomCode}
         >
           {connecting ? 'Connecting...' : 'Connect'}
+        </button>
+
+        {/* Solo button creates a fresh room and joins as P1 vs the bot — no
+            room code required. Disabled until the user has typed a server URL. */}
+        <button
+          type="button"
+          className="solo-button"
+          disabled={connecting || !serverUrl.trim()}
+          onClick={() => onPlaySolo(serverUrl.trim())}
+        >
+          {connecting ? 'Starting solo…' : 'Play solo (vs bot)'}
         </button>
       </form>
 

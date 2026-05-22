@@ -25,6 +25,10 @@ export interface MsgJoin {
   type: "join";
   room_code: string;
   player_slot: 1 | 2;
+  // Set true for solo-vs-bot sessions. When absent or false the server treats
+  // the room as two-player and waits for P2 instead of auto-starting solo
+  // mode the moment P1 is the only connected player.
+  solo?: boolean;
 }
 
 export interface MsgPoseFrame {

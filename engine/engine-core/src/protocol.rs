@@ -46,6 +46,10 @@ pub struct MsgJoin {
     pub msg_type: String,
     pub room_code: String,
     pub player_slot: u8,
+    // Set true for solo-vs-bot sessions. Default false means the server
+    // treats the room as two-player and waits for P2.
+    #[serde(default)]
+    pub solo: bool,
 }
 
 fn default_type_pose_frame() -> String {

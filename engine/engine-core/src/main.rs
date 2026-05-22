@@ -481,8 +481,8 @@ async fn handle_player(
     let (player_tx, mut player_rx) = tokio::sync::mpsc::channel::<String>(32);
 
     // PROTO-01 / join-first: read the first message — must be MsgJoin.
-    // Extract player_slot (1-indexed from client, convert to 0-indexed).
-    let slot_idx: usize = match ws_stream.next().await {
+    // Extract player_slot (1-indexed from client, convert to 0-indexed) AND solo flag.
+    let (slot_idx, join_solo): (usize, bool) = match ws_stream.next().await {
         Some(Ok(Message::Text(raw))) => {
             match serde_json::from_str::<InboundMobileMsg>(&raw) {
                 Ok(InboundMobileMsg::Join(msg)) => {
@@ -492,7 +492,7 @@ async fn handle_player(
                         return;
                     }
                     // player_slot is 1 or 2; convert to 0-indexed
-                    (msg.player_slot as usize) - 1
+                    ((msg.player_slot as usize) - 1, msg.solo)
                 }
                 Ok(_) | Err(_) => {
                     tracing::warn!("handle_player: first message was not a join, closing {}", room_code);
@@ -540,6 +540,7 @@ async fn handle_player(
         slot: slot_idx,
         tx: player_tx.clone(),
         reply: reply_tx,
+        solo: join_solo,
     }).await.is_err() {
         return;
     }

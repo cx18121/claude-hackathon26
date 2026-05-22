@@ -35,7 +35,12 @@ function App() {
   const [serverUrl, setServerUrl] = useState(readInitialServerUrl);
   const [roomCode, setRoomCode] = useState(readInitialRoomCode);
   const [playerSlot, setPlayerSlot] = useState<1 | 2>(readInitialSlot);
-  const isSolo = new URLSearchParams(window.location.search).get('solo') === '1';
+  // Legacy ?solo=1 URL param stays supported; setIsSolo also flips when the
+  // Play Solo button is used so the game screen knows to hide opponent UI.
+  const [isSolo, setIsSolo] = useState<boolean>(
+    () => new URLSearchParams(window.location.search).get('solo') === '1',
+  );
+  const [soloError, setSoloError] = useState<string | null>(null);
   const [gameType] = useState<string | null>(readInitialGame);
   const connectionArgsRef = useRef<{ serverUrl: string; roomCode: string; slot: 1 | 2 } | null>(null);
 
@@ -64,7 +69,23 @@ function App() {
     setServerUrl(server);
     setRoomCode(room);
     setPlayerSlot(slot);
+    setIsSolo(false);
     socket.connect(server, room, slot);
+  };
+
+  const handlePlaySolo = async (server: string) => {
+    setSoloError(null);
+    setServerUrl(server);
+    setPlayerSlot(1);
+    setIsSolo(true);
+    try {
+      const code = await socket.connectSolo(server);
+      connectionArgsRef.current = { serverUrl: server, roomCode: code, slot: 1 };
+      setRoomCode(code);
+    } catch (err) {
+      setIsSolo(false);
+      setSoloError(err instanceof Error ? err.message : String(err));
+    }
   };
 
   const handleRetry = useCallback(() => {
@@ -108,11 +129,12 @@ function App() {
           initialRoomCode={roomCode}
           initialSlot={playerSlot}
           status={socket.status}
-          errorMessage={socket.errorMessage}
+          errorMessage={socket.errorMessage ?? soloError}
           errorCode={socket.errorCode}
           fastJoin={allParamsPrefilled}
           gameType={gameType}
           onConnect={handleConnect}
+          onPlaySolo={handlePlaySolo}
           onRetry={handleRetry}
         />
       )}

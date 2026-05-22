@@ -42,7 +42,10 @@ export interface UseGameSocketResult {
   errorMessage: string | null;
   errorCode: 'unreachable' | 'room_not_found' | 'slot_taken' | null;
   send: (msg: OutboundMobileMsg) => void;
-  connect: (serverUrl: string, roomCode: string, playerSlot: 1 | 2) => void;
+  connect: (serverUrl: string, roomCode: string, playerSlot: 1 | 2, solo?: boolean) => void;
+  // Creates a fresh boxing room on the server and connects to it as solo P1.
+  // Returns the room code (caller persists it for the UI) or throws on failure.
+  connectSolo: (serverUrl: string) => Promise<string>;
   disconnect: () => void;
   // Mobile drives its own phase transitions because the current server build
   // does not emit calibration_start / match_start. These setters let the
@@ -91,6 +94,7 @@ interface ConnectionArgs {
   serverUrl: string;
   roomCode: string;
   playerSlot: 1 | 2;
+  solo: boolean;
 }
 
 export function useGameSocket(): UseGameSocketResult {
@@ -248,13 +252,13 @@ export function useGameSocket(): UseGameSocketResult {
 
     ws.addEventListener('open', () => {
       reconnectAttemptsRef.current = 0;
-      // Send join for protocol completeness; current server ignores its body
-      // and assigns the slot itself based on first open. The 'joined'
-      // response carries the authoritative slot.
+      // Send join with solo flag — the server only enters its solo auto-start
+      // branch when this is true; otherwise it waits for P2 to join.
       send({
         type: 'join',
         room_code: args.roomCode,
         player_slot: args.playerSlot,
+        solo: args.solo,
       });
 
       pingTimerRef.current = window.setInterval(() => {
@@ -318,10 +322,37 @@ export function useGameSocket(): UseGameSocketResult {
   }, []);
 
   const connect = useCallback(
-    (serverUrl: string, roomCode: string, playerSlot: 1 | 2) => {
-      connectionArgsRef.current = { serverUrl, roomCode, playerSlot };
+    (serverUrl: string, roomCode: string, playerSlot: 1 | 2, solo: boolean = false) => {
+      connectionArgsRef.current = { serverUrl, roomCode, playerSlot, solo };
       reconnectAttemptsRef.current = 0;
       open();
+    },
+    [open],
+  );
+
+  const connectSolo = useCallback(
+    async (serverUrl: string): Promise<string> => {
+      // Create a fresh boxing room then connect to it as P1 with solo=true.
+      // Surface fetch failures so the UI can show a meaningful error instead
+      // of silently doing nothing.
+      const base = normalizeHttpUrl(serverUrl);
+      const res = await fetch(`${base}/rooms?game=boxing`, { method: 'POST' });
+      if (!res.ok) {
+        throw new Error(`Server refused room creation (status ${res.status})`);
+      }
+      const data = (await res.json()) as { room_code?: string };
+      if (!data.room_code) {
+        throw new Error('Server returned no room_code');
+      }
+      connectionArgsRef.current = {
+        serverUrl,
+        roomCode: data.room_code,
+        playerSlot: 1,
+        solo: true,
+      };
+      reconnectAttemptsRef.current = 0;
+      open();
+      return data.room_code;
     },
     [open],
   );
@@ -380,6 +411,7 @@ export function useGameSocket(): UseGameSocketResult {
     errorCode,
     send,
     connect,
+    connectSolo,
     disconnect,
     setPhase,
     playAgain,
