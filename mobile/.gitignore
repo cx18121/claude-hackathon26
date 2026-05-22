@@ -9,8 +9,13 @@ lerna-debug.log*
 
 node_modules
 dist
+dist-e2e
 dist-ssr
 *.local
+
+# Playwright artifacts
+test-results
+playwright-report
 
 # Throwaway local dev mock per docs/plans/mobile.md.
 # Recreate from the snippet in mobile.md when needed.

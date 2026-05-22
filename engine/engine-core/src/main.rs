@@ -6,6 +6,7 @@ use axum::{
     Json, Router,
 };
 use tower_http::services::ServeDir;
+use tower_http::cors::{Any, CorsLayer};
 use std::sync::Arc;
 use std::collections::HashMap;
 use futures_util::{SinkExt, StreamExt};
@@ -31,6 +32,18 @@ pub struct AppState {
 }
 
 fn build_app(state: Arc<AppState>) -> Router {
+    // Permissive CORS — Any origin / GET+POST / Any header. The mobile and fps
+    // frontends are deployed on separate origins (Vercel) from the engine
+    // (Railway), so cross-origin `POST /rooms` from the Play Solo button
+    // otherwise fails with "Failed to fetch". WebSocket upgrades don't go
+    // through CORS at the browser level, so the existing WS routes are
+    // unaffected. Methods/headers are restricted; opening the auth surface
+    // beyond rooms+lobby would require a separate review.
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
+        .allow_headers(Any);
+
     Router::new()
         .route("/", get(lobby_html))
         .route("/rooms", post(create_room))
@@ -40,6 +53,7 @@ fn build_app(state: Arc<AppState>) -> Router {
         .nest_service("/mobile", ServeDir::new("mobile/dist"))
         .nest_service("/overlay", ServeDir::new("overlay/dist"))
         .nest_service("/fps", ServeDir::new("fps/dist"))
+        .layer(cors)
         .with_state(state)
 }
 
