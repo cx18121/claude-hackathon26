@@ -17,11 +17,4 @@ export default defineConfig(({ command }) => ({
     host: true,
     port: 5173,
   },
-  // Match the `new Worker(..., { type: 'module' })` in usePose. Vite's default
-  // worker format is 'iife', which emits `self.import(...)` calls to load
-  // chunks — `self.import` doesn't exist, so the worker throws
-  // "self.import is not a function" on first load in production builds.
-  worker: {
-    format: 'es',
-  },
 }))

@@ -1,14 +1,4 @@
 /// <reference lib="webworker" />
-
-// MediaPipe's WASM loader, when running in a module worker, tries
-// `importScripts(url)` first (which throws TypeError — module workers forbid
-// it), then falls back to `await self.import(url)`. `self.import` is not a
-// native function, so this throws "self.import is not a function" before
-// PoseLandmarker.createFromOptions can resolve. Polyfill it to a real dynamic
-// import so the fallback path actually works.
-(self as unknown as { import?: (url: string) => Promise<unknown> }).import =
-  (url: string) => import(/* @vite-ignore */ url);
-
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import type { PoseKeypoint } from '@shared/protocol';
 

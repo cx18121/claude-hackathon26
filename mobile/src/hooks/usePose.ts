@@ -153,11 +153,16 @@ export function usePose(
       scheduleNext();
     }
 
-    // Spawn the Worker — MediaPipe initialises inside it so the main thread
-    // never blocks on WASM loading or GPU shader compilation.
+    // Spawn the Worker as CLASSIC (not { type: 'module' }). MediaPipe's WASM
+    // loader uses `importScripts(url)` to fetch a UMD-style glue script that
+    // sets `self.ModuleFactory` as a side effect on the worker's global scope.
+    // `importScripts` is forbidden in module workers — it throws TypeError,
+    // and MediaPipe's `await self.import(url)` fallback won't restore the
+    // global side effect even if polyfilled, because dynamic `import()` runs
+    // the script in an isolated module scope. Classic worker is the only
+    // shape MediaPipe's loader is actually compatible with.
     const worker = new Worker(
       new URL('../workers/pose.worker.ts', import.meta.url),
-      { type: 'module' },
     );
     workerRef.current = worker;
     workerBusyRef.current = false;
