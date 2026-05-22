@@ -18,5 +18,7 @@ export default defineConfig(({ command }) => ({
     environment: 'jsdom',
     globals: true,
     setupFiles: [],
+    // e2e/ is Playwright, not vitest — its imports of node:* fixtures crash vitest's bundler.
+    exclude: ['e2e/**', 'node_modules/**', 'dist/**', 'dist-e2e/**'],
   },
 }))

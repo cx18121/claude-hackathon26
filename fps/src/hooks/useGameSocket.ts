@@ -266,13 +266,15 @@ export function useGameSocket(): UseGameSocketResult {
 
     ws.addEventListener('open', () => {
       reconnectAttemptsRef.current = 0;
-      // Send join for protocol completeness; current server ignores its body
-      // and assigns the slot itself based on first open. The 'joined'
-      // response carries the authoritative slot.
+      // Send join with solo: false so the server's two-player gate works
+      // correctly. Without this, the server falls back to its solo branch
+      // the moment P1 connects, leaving a real P2 stuck on waiting. See
+      // engine/engine-core/src/room.rs intended_solo handling.
       send({
         type: 'join',
         room_code: args.roomCode,
         player_slot: args.playerSlot,
+        solo: false,
       });
 
       pingTimerRef.current = window.setInterval(() => {

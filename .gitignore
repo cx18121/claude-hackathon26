@@ -19,6 +19,11 @@ docs/agents/
 engine/target/
 .playwright-mcp/
 
+# Per-app Playwright artifacts (mobile/fps/overlay)
+dist-e2e/
+test-results/
+playwright-report/
+
 # ml/ training artifacts (too large for git)
 ml/data/**/*.mp4
 ml/data/**/*.avi
