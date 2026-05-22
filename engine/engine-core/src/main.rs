@@ -983,6 +983,16 @@ mod http_tests {
     use http_body_util::BodyExt;
     use tower::ServiceExt;
 
+    /// Module-level lock for tests that mutate the process-global PUBLIC_URL
+    /// env var. Previously each test declared its own `static ENV_LOCK` inside
+    /// its function body; those are *distinct* mutex instances (each `static`
+    /// inside a `fn` is scoped to that function), so they didn't actually
+    /// serialize against each other. With cargo's default parallel test
+    /// runner, two PUBLIC_URL tests could observe each other's mid-flight
+    /// env mutations, intermittently flipping the assertion. One shared lock
+    /// here is the actual fix.
+    static PUBLIC_URL_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     fn test_state() -> Arc<AppState> {
         let mut plugins: HashMap<String, Arc<dyn GamePlugin + Send + Sync>> = HashMap::new();
         plugins.insert("boxing".to_string(), Arc::new(BoxingPlugin::new(BoxingConfig {
@@ -1273,9 +1283,10 @@ mod http_tests {
     /// `localhost:8000` rather than being interpolated into URLs.
     #[test]
     fn public_base_url_rejects_unsafe_host_header() {
-        use std::sync::Mutex;
-        static ENV_LOCK: Mutex<()> = Mutex::new(());
-        let _guard = ENV_LOCK.lock().unwrap();
+        // Hold the shared lock until the env is restored — see PUBLIC_URL_ENV_LOCK doc.
+        // `.unwrap_or_else` rather than `.unwrap()` so a sibling test panicking
+        // mid-section (poisoning the mutex) doesn't cascade-fail this test.
+        let _guard = PUBLIC_URL_ENV_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
 
         let prev = std::env::var("PUBLIC_URL").ok();
         std::env::remove_var("PUBLIC_URL");
@@ -1517,10 +1528,8 @@ mod http_tests {
     /// that would cascade into broken `ws://...` URLs in QR codes.
     #[test]
     fn public_base_url_handles_missing_scheme() {
-        // serialize against any other PUBLIC_URL test in this suite
-        use std::sync::Mutex;
-        static ENV_LOCK: Mutex<()> = Mutex::new(());
-        let _guard = ENV_LOCK.lock().unwrap();
+        // Hold the shared lock until the env is restored — see PUBLIC_URL_ENV_LOCK doc.
+        let _guard = PUBLIC_URL_ENV_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
 
         let prev = std::env::var("PUBLIC_URL").ok();
         std::env::set_var("PUBLIC_URL", "spectre.example.com");
