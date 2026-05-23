@@ -1,0 +1,67 @@
+// ----------------------------------------------------------------------------
+// Hand-maintained aliases + discriminated unions
+//
+// ts-rs cannot emit these — the unions need literal-type narrowing across
+// individual message structs, which lives entirely on the TypeScript side.
+// Edit this file (NOT the generated shared/protocol.ts) and re-run
+// `scripts/regen-protocol.sh` to publish.
+// ----------------------------------------------------------------------------
+
+export type PlayerSlot = 1 | 2;
+export type HpPair = [number, number];
+
+// Mobile -> Server
+export type OutboundMobileMsg =
+  | MsgJoin
+  | MsgPoseFrame
+  | MsgCalibrationDone
+  | MsgPing
+  | MsgPong;
+
+// Everything the engine can push to a player WebSocket. mobile/ and fps/
+// dispatch off this union; spectator-only messages (game_state, pose_update,
+// commentary_*) also arrive here on the same socket and are ignored by the
+// shared message switch in useGameSocketBase.
+export type InboundServerMsg =
+  | MsgJoined
+  | MsgPing
+  | MsgPong
+  | MsgCalibrationStart
+  | MsgMatchStart
+  | MsgYouWereHit
+  | MsgPlayerDisconnected
+  | MsgRoundStart
+  | MsgRoundEnd
+  | MsgMatchEnd
+  | MsgRematchStart
+  | MsgGameState
+  | MsgPoseUpdate
+  | MsgDanceBeat
+  | MsgDanceScore
+  | MsgFpsState
+  | MsgFpsHit
+  | MsgCommentaryStart
+  | MsgCommentaryText
+  | MsgCommentaryAudio
+  | MsgCommentaryEnd;
+
+// Everything the engine can push to a spectator overlay WebSocket. Distinct
+// from InboundServerMsg because spectators never get join handshake or
+// per-player hit events — they get game_state ticks and lobby state instead.
+export type ServerMessage =
+  | MsgJoined
+  | MsgLobbyUpdate
+  | MsgGameState
+  | MsgPoseUpdate
+  | MsgRoundStart
+  | MsgRoundEnd
+  | MsgMatchEnd
+  | MsgRematchStart
+  | MsgPlayerDisconnected
+  | MsgDanceBeat
+  | MsgDanceScore
+  | MsgDanceSnapshot
+  | MsgCommentaryStart
+  | MsgCommentaryText
+  | MsgCommentaryAudio
+  | MsgCommentaryEnd;

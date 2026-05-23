@@ -2,7 +2,7 @@
 import type { HitEvent } from "./HitEvent";
 import type { PoseKeypoint } from "./PoseKeypoint";
 
-export type MsgGameState = { type: string, tick: bigint, hp: [number, number], 
+export type MsgGameState = { type: "game_state", tick: bigint, hp: [number, number], 
 /**
  * FIX-02: wins counter in snapshot prevents overlay desync on reconnect
  */

@@ -6,7 +6,7 @@
  * dance messages so the TS binding stays on the same ts-rs generation
  * path instead of drifting as a hand-written entry in shared/protocol.ts.
  */
-export type MsgDanceSnapshot = { type: string, 
+export type MsgDanceSnapshot = { type: "dance_snapshot", 
 /**
  * Always "dance" — kept explicit so spectators can pre-narrow on it
  * before applying the rest of the fields.

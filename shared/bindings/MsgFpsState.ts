@@ -7,7 +7,7 @@ import type { PoseKeypoint } from "./PoseKeypoint";
  * Two separate SendToPlayer events per tick — player 0 gets player 1's landmarks; player 1 gets player 0's.
  * Uses protocol::PoseKeypoint (has Serialize) NOT plugin_trait::PoseKeypoint (no Serialize).
  */
-export type MsgFpsState = { type: string, left_shoulder: PoseKeypoint, right_shoulder: PoseKeypoint, left_elbow: PoseKeypoint, right_elbow: PoseKeypoint, left_wrist: PoseKeypoint, right_wrist: PoseKeypoint, 
+export type MsgFpsState = { type: "fps_state", left_shoulder: PoseKeypoint, right_shoulder: PoseKeypoint, left_elbow: PoseKeypoint, right_elbow: PoseKeypoint, left_wrist: PoseKeypoint, right_wrist: PoseKeypoint, 
 /**
  * HP for both players: (player_1_hp, player_2_hp). Tuple renders as [number, number] in TypeScript.
  */

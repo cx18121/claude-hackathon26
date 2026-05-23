@@ -4,7 +4,7 @@
  * Hit notification for fps_boxing rooms.
  * Sent via SendToPlayer to the RECEIVING player only (not the attacker).
  */
-export type MsgFpsHit = { type: string, 
+export type MsgFpsHit = { type: "fps_hit", 
 /**
  * Punch type string: "cross", "body_shot", "kick", or "blocked".
  * Uses same string enum convention as boxing protocol (D-06).

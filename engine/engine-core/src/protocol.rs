@@ -43,6 +43,7 @@ fn default_type_join() -> String {
 #[ts(export)]
 pub struct MsgJoin {
     #[serde(rename = "type", default = "default_type_join")]
+    #[ts(type = "\"join\"")]
     pub msg_type: String,
     pub room_code: String,
     pub player_slot: u8,
@@ -60,6 +61,7 @@ fn default_type_pose_frame() -> String {
 #[ts(export)]
 pub struct MsgPoseFrame {
     #[serde(rename = "type", default = "default_type_pose_frame")]
+    #[ts(type = "\"pose_frame\"")]
     pub msg_type: String,
     pub timestamp: f64,
     pub keypoints: Vec<PoseKeypoint>,
@@ -73,6 +75,7 @@ fn default_type_calibration_done() -> String {
 #[ts(export)]
 pub struct MsgCalibrationDone {
     #[serde(rename = "type", default = "default_type_calibration_done")]
+    #[ts(type = "\"calibration_done\"")]
     pub msg_type: String,
     pub reference_velocity: f64,
 }
@@ -85,6 +88,7 @@ fn default_type_ping() -> String {
 #[ts(export)]
 pub struct MsgPing {
     #[serde(rename = "type", default = "default_type_ping")]
+    #[ts(type = "\"ping\"")]
     pub msg_type: String,
     pub t: f64,
 }
@@ -97,6 +101,7 @@ fn default_type_pong() -> String {
 #[ts(export)]
 pub struct MsgPong {
     #[serde(rename = "type", default = "default_type_pong")]
+    #[ts(type = "\"pong\"")]
     pub msg_type: String,
     pub t: f64,
 }
@@ -115,6 +120,7 @@ fn default_game_type_unknown() -> String { "unknown".to_string() }
 #[ts(export)]
 pub struct MsgJoined {
     #[serde(rename = "type", default = "default_type_joined")]
+    #[ts(type = "\"joined\"")]
     pub msg_type: String,
     pub room_code: String,
     pub player_slot: u8,
@@ -131,6 +137,7 @@ fn default_type_calibration_start() -> String {
 #[ts(export)]
 pub struct MsgCalibrationStart {
     #[serde(rename = "type", default = "default_type_calibration_start")]
+    #[ts(type = "\"calibration_start\"")]
     pub msg_type: String,
 }
 
@@ -142,6 +149,7 @@ fn default_type_match_start() -> String {
 #[ts(export)]
 pub struct MsgMatchStart {
     #[serde(rename = "type", default = "default_type_match_start")]
+    #[ts(type = "\"match_start\"")]
     pub msg_type: String,
 }
 
@@ -153,6 +161,7 @@ fn default_type_you_were_hit() -> String {
 #[ts(export)]
 pub struct MsgYouWereHit {
     #[serde(rename = "type", default = "default_type_you_were_hit")]
+    #[ts(type = "\"you_were_hit\"")]
     pub msg_type: String,
     pub region: String,
     pub damage: f64,
@@ -166,6 +175,7 @@ fn default_type_player_disconnected() -> String {
 #[ts(export)]
 pub struct MsgPlayerDisconnected {
     #[serde(rename = "type", default = "default_type_player_disconnected")]
+    #[ts(type = "\"player_disconnected\"")]
     pub msg_type: String,
     pub player: u8,
 }
@@ -178,6 +188,7 @@ fn default_type_round_start() -> String {
 #[ts(export)]
 pub struct MsgRoundStart {
     #[serde(rename = "type", default = "default_type_round_start")]
+    #[ts(type = "\"round_start\"")]
     pub msg_type: String,
     pub round_number: u32,
 }
@@ -190,6 +201,7 @@ fn default_type_round_end() -> String {
 #[ts(export)]
 pub struct MsgRoundEnd {
     #[serde(rename = "type", default = "default_type_round_end")]
+    #[ts(type = "\"round_end\"")]
     pub msg_type: String,
     /// null means draw; 1 or 2 is the winning player
     pub winner: Option<u8>,
@@ -204,6 +216,7 @@ fn default_type_match_end() -> String {
 #[ts(export)]
 pub struct MsgMatchEnd {
     #[serde(rename = "type", default = "default_type_match_end")]
+    #[ts(type = "\"match_end\"")]
     pub msg_type: String,
     pub winner: u8,
 }
@@ -216,6 +229,7 @@ fn default_type_rematch_start() -> String {
 #[ts(export)]
 pub struct MsgRematchStart {
     #[serde(rename = "type", default = "default_type_rematch_start")]
+    #[ts(type = "\"rematch_start\"")]
     pub msg_type: String,
 }
 
@@ -227,6 +241,7 @@ fn default_type_dance_beat() -> String {
 #[ts(export)]
 pub struct MsgDanceBeat {
     #[serde(rename = "type", default = "default_type_dance_beat")]
+    #[ts(type = "\"dance_beat\"")]
     pub msg_type: String,
     #[ts(type = "number")]  // WR-04: override bigint → number; shared/protocol.ts is authoritative
     pub beat: u64,
@@ -245,6 +260,7 @@ fn default_type_dance_score() -> String {
 #[ts(export)]
 pub struct MsgDanceScore {
     #[serde(rename = "type", default = "default_type_dance_score")]
+    #[ts(type = "\"dance_score\"")]
     pub msg_type: String,
     #[ts(type = "number")]  // WR-04: override bigint → number; shared/protocol.ts is authoritative
     pub beat: u64,
@@ -269,6 +285,7 @@ fn default_type_commentary_start() -> String {
 #[ts(export)]
 pub struct MsgCommentaryStart {
     #[serde(rename = "type", default = "default_type_commentary_start")]
+    #[ts(type = "\"commentary_start\"")]
     pub msg_type: String,
     pub id: u32,
 }
@@ -281,6 +298,7 @@ fn default_type_commentary_text() -> String {
 #[ts(export)]
 pub struct MsgCommentaryText {
     #[serde(rename = "type", default = "default_type_commentary_text")]
+    #[ts(type = "\"commentary_text\"")]
     pub msg_type: String,
     pub id: u32,
     pub delta: String,
@@ -294,6 +312,7 @@ fn default_type_commentary_audio() -> String {
 #[ts(export)]
 pub struct MsgCommentaryAudio {
     #[serde(rename = "type", default = "default_type_commentary_audio")]
+    #[ts(type = "\"commentary_audio\"")]
     pub msg_type: String,
     pub id: u32,
     pub idx: u32,
@@ -309,6 +328,7 @@ fn default_type_commentary_end() -> String {
 #[ts(export)]
 pub struct MsgCommentaryEnd {
     #[serde(rename = "type", default = "default_type_commentary_end")]
+    #[ts(type = "\"commentary_end\"")]
     pub msg_type: String,
     pub id: u32,
 }
@@ -325,6 +345,7 @@ fn default_type_dance_snapshot() -> String {
 #[ts(export)]
 pub struct MsgDanceSnapshot {
     #[serde(rename = "type", default = "default_type_dance_snapshot")]
+    #[ts(type = "\"dance_snapshot\"")]
     pub msg_type: String,
     /// Always "dance" — kept explicit so spectators can pre-narrow on it
     /// before applying the rest of the fields.
@@ -347,6 +368,7 @@ fn default_type_game_state() -> String {
 #[ts(export)]
 pub struct MsgGameState {
     #[serde(rename = "type", default = "default_type_game_state")]
+    #[ts(type = "\"game_state\"")]
     pub msg_type: String,
     pub tick: u64,
     pub hp: (u32, u32),
@@ -367,6 +389,7 @@ fn default_type_pose_update() -> String {
 #[ts(export)]
 pub struct MsgPoseUpdate {
     #[serde(rename = "type", default = "default_type_pose_update")]
+    #[ts(type = "\"pose_update\"")]
     pub msg_type: String,
     pub player: u8,
     pub keypoints: Vec<PoseKeypoint>,
@@ -380,6 +403,7 @@ fn default_type_lobby_update() -> String {
 #[ts(export)]
 pub struct MsgLobbyUpdate {
     #[serde(rename = "type", default = "default_type_lobby_update")]
+    #[ts(type = "\"lobby_update\"")]
     pub msg_type: String,
     pub p1: bool,
     pub p2: bool,
@@ -428,6 +452,7 @@ fn default_type_fps_state() -> String {
 #[ts(export)]
 pub struct MsgFpsState {
     #[serde(rename = "type", default = "default_type_fps_state")]
+    #[ts(type = "\"fps_state\"")]
     pub msg_type: String,
     pub left_shoulder: PoseKeypoint,
     pub right_shoulder: PoseKeypoint,
@@ -451,6 +476,7 @@ fn default_type_fps_hit() -> String {
 #[ts(export)]
 pub struct MsgFpsHit {
     #[serde(rename = "type", default = "default_type_fps_hit")]
+    #[ts(type = "\"fps_hit\"")]
     pub msg_type: String,
     /// Punch type string: "cross", "body_shot", "kick", or "blocked".
     /// Uses same string enum convention as boxing protocol (D-06).
