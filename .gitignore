@@ -18,6 +18,8 @@ AGENTS.md
 docs/agents/
 engine/target/
 games/*/plugin/target/
+games/*/server/target/
+games/*/server/Cargo.lock
 .playwright-mcp/
 
 # Per-app Playwright artifacts (mobile/fps/overlay)
