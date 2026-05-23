@@ -184,6 +184,7 @@ export function usePunchClassifier(
         });
       } else {
         // Logits-based classification (no prototypes built yet).
+        // Logits are temperature-scaled (T baked into ONNX at export — see export_onnx.py).
         const logits = output.logits.data as Float32Array;
         const probs = softmax(logits);
         const maxIdx = probs.indexOf(Math.max(...probs));

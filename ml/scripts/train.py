@@ -140,6 +140,45 @@ def _qat_clean_state_dict(qat_model: nn.Module) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Temperature scaling (Guo et al. 2017)
+# ---------------------------------------------------------------------------
+def fit_temperature(best_path: str, val_loader) -> float:
+    """
+    Post-hoc calibration: fit a scalar T on the val set by minimising NLL of
+    softmax(logits / T).  T > 1 softens an overconfident model; T < 1 sharpens
+    an underconfident one.  Writes 'temperature' back into the saved checkpoint.
+
+    The fitted T is later baked into the ONNX graph by export_onnx.py so that
+    usePunchClassifier.ts receives calibrated probabilities without any
+    client-side changes — softmax(logits) ≈ empirical accuracy.
+    """
+    from scipy.optimize import minimize_scalar
+
+    ckpt = torch.load(best_path, map_location="cpu", weights_only=True)
+    model = PunchTCN()
+    model.load_state_dict(ckpt["model_state_dict"])
+    model.eval()
+
+    all_logits, all_labels = [], []
+    with torch.no_grad():
+        for xb, yb in val_loader:
+            all_logits.append(model(xb))
+            all_labels.append(yb)
+    logits = torch.cat(all_logits)  # (N, C)
+    labels = torch.cat(all_labels)  # (N,)
+
+    def nll(t: float) -> float:
+        return nn.functional.cross_entropy(logits / t, labels).item()
+
+    result = minimize_scalar(nll, bounds=(0.1, 10.0), method="bounded")
+    T = float(result.x)
+
+    ckpt["temperature"] = T
+    torch.save(ckpt, best_path)
+    return T
+
+
+# ---------------------------------------------------------------------------
 # Data loading
 # ---------------------------------------------------------------------------
 def load_dataset(data_dir: str):
@@ -281,6 +320,9 @@ def train(args):
 
     print(f"\nTraining complete. Best val_acc={best_acc:.4f}")
     print(f"Checkpoint saved to: {best_path}")
+
+    T = fit_temperature(best_path, val_loader)
+    print(f"Temperature scaling:  T={T:.4f}  (>1 = overconfident, <1 = underconfident)")
 
 
 # ---------------------------------------------------------------------------
