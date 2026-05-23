@@ -9,9 +9,7 @@
 // unions.
 
 
-import type { Position } from "./Position";
-
-export type HitEvent = { player: number, region: string, damage: number, position: Position, };
+export type HitEvent = { player: 1 | 2, region: string, damage: number, position: Position, };
 
 export type MsgCalibrationDone = { type: "calibration_done", reference_velocity: number, };
 
@@ -66,8 +64,6 @@ export type MsgFpsHit = { type: "fps_hit",
  */
 punch_type: string, damage: number, };
 
-import type { PoseKeypoint } from "./PoseKeypoint";
-
 /**
  * Per-tick state broadcast for fps_boxing rooms.
  * Sent to each player containing their OPPONENT's 6 arm landmarks, both HP values, and round timer.
@@ -84,18 +80,15 @@ hp: [number, number],
  */
 round_timer: number, };
 
-import type { HitEvent } from "./HitEvent";
-import type { PoseKeypoint } from "./PoseKeypoint";
-
-export type MsgGameState = { type: "game_state", tick: bigint, hp: [number, number], 
+export type MsgGameState = { type: "game_state", tick: number, hp: [number, number], 
 /**
  * FIX-02: wins counter in snapshot prevents overlay desync on reconnect
  */
 wins: [number, number], poses: [Array<PoseKeypoint>, Array<PoseKeypoint>], recent_hits: Array<HitEvent>, high_latency: boolean, remaining_time: number, max_wins: number, };
 
-export type MsgJoin = { type: "join", room_code: string, player_slot: number, solo: boolean, };
+export type MsgJoin = { type: "join", room_code: string, player_slot: 1 | 2, solo: boolean, };
 
-export type MsgJoined = { type: "joined", room_code: string, player_slot: number, opponent_connected: boolean, game_type: string, };
+export type MsgJoined = { type: "joined", room_code: string, player_slot: 1 | 2, opponent_connected: boolean, game_type: string, };
 
 export type MsgLobbyUpdate = { type: "lobby_update", p1: boolean, p2: boolean, 
 /**
@@ -106,23 +99,19 @@ export type MsgLobbyUpdate = { type: "lobby_update", p1: boolean, p2: boolean,
  */
 game_type: string, };
 
-export type MsgMatchEnd = { type: "match_end", winner: number, };
+export type MsgMatchEnd = { type: "match_end", winner: 1 | 2, };
 
 export type MsgMatchStart = { type: "match_start", };
 
 export type MsgPing = { type: "ping", t: number, };
 
-export type MsgPlayerDisconnected = { type: "player_disconnected", player: number, };
+export type MsgPlayerDisconnected = { type: "player_disconnected", player: 1 | 2, };
 
 export type MsgPong = { type: "pong", t: number, };
 
-import type { PoseKeypoint } from "./PoseKeypoint";
-
 export type MsgPoseFrame = { type: "pose_frame", timestamp: number, keypoints: Array<PoseKeypoint>, };
 
-import type { PoseKeypoint } from "./PoseKeypoint";
-
-export type MsgPoseUpdate = { type: "pose_update", player: number, keypoints: Array<PoseKeypoint>, };
+export type MsgPoseUpdate = { type: "pose_update", player: 1 | 2, keypoints: Array<PoseKeypoint>, };
 
 export type MsgRematchStart = { type: "rematch_start", };
 
@@ -130,7 +119,7 @@ export type MsgRoundEnd = { type: "round_end",
 /**
  * null means draw; 1 or 2 is the winning player
  */
-winner: number | null, final_hp: [number, number], };
+winner: 1 | 2 | null, final_hp: [number, number], };
 
 export type MsgRoundStart = { type: "round_start", round_number: number, };
 

@@ -19,7 +19,11 @@
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["../shared/*"]
+      "@shared/*": ["../shared/*"],
+      "react": ["./node_modules/@types/react", "./node_modules/react"],
+      "react-dom": ["./node_modules/@types/react-dom", "./node_modules/react-dom"],
+      "react-dom/*": ["./node_modules/@types/react-dom/*", "./node_modules/react-dom/*"],
+      "@mediapipe/tasks-vision": ["./node_modules/@mediapipe/tasks-vision"]
     }
   },
   "include": ["src", "../shared"]

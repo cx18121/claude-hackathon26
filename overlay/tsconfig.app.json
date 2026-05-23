@@ -26,5 +26,11 @@
       "@shared/*": ["../shared/*"]
     }
   },
-  "include": ["src", "../shared"]
+  // shared/client/ houses mobile- and fps-specific hooks (useGameSocket,
+  // useCalibration, pose-worker-impl). overlay imports nothing from it
+  // and has no @mediapipe/tasks-vision dep — exclude the directory so
+  // tsc -b doesn't try to type-check those files against this app's
+  // (smaller) node_modules.
+  "include": ["src", "../shared"],
+  "exclude": ["../shared/client"]
 }

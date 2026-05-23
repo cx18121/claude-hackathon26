@@ -4,4 +4,4 @@ export type MsgRoundEnd = { type: "round_end",
 /**
  * null means draw; 1 or 2 is the winning player
  */
-winner: number | null, final_hp: [number, number], };
+winner: 1 | 2 | null, final_hp: [number, number], };

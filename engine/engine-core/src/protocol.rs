@@ -25,6 +25,7 @@ pub struct Position {
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct HitEvent {
+    #[ts(type = "1 | 2")]
     pub player: u8,
     pub region: String,
     pub damage: f64,
@@ -46,6 +47,7 @@ pub struct MsgJoin {
     #[ts(type = "\"join\"")]
     pub msg_type: String,
     pub room_code: String,
+    #[ts(type = "1 | 2")]
     pub player_slot: u8,
     // Set true for solo-vs-bot sessions. Default false means the server
     // treats the room as two-player and waits for P2.
@@ -119,6 +121,7 @@ pub struct MsgJoined {
     #[ts(type = "\"joined\"")]
     pub msg_type: String,
     pub room_code: String,
+    #[ts(type = "1 | 2")]
     pub player_slot: u8,
     pub opponent_connected: bool,
     #[serde(default = "default_game_type_unknown")]
@@ -157,6 +160,7 @@ pub struct MsgPlayerDisconnected {
     #[serde(rename = "type")]
     #[ts(type = "\"player_disconnected\"")]
     pub msg_type: String,
+    #[ts(type = "1 | 2")]
     pub player: u8,
 }
 
@@ -176,6 +180,7 @@ pub struct MsgRoundEnd {
     #[ts(type = "\"round_end\"")]
     pub msg_type: String,
     /// null means draw; 1 or 2 is the winning player
+    #[ts(type = "1 | 2 | null")]
     pub winner: Option<u8>,
     pub final_hp: (u32, u32),
 }
@@ -186,6 +191,7 @@ pub struct MsgMatchEnd {
     #[serde(rename = "type")]
     #[ts(type = "\"match_end\"")]
     pub msg_type: String,
+    #[ts(type = "1 | 2")]
     pub winner: u8,
 }
 
@@ -302,6 +308,7 @@ pub struct MsgGameState {
     #[serde(rename = "type")]
     #[ts(type = "\"game_state\"")]
     pub msg_type: String,
+    #[ts(type = "number")]
     pub tick: u64,
     pub hp: (u32, u32),
     /// FIX-02: wins counter in snapshot prevents overlay desync on reconnect
@@ -319,6 +326,7 @@ pub struct MsgPoseUpdate {
     #[serde(rename = "type")]
     #[ts(type = "\"pose_update\"")]
     pub msg_type: String,
+    #[ts(type = "1 | 2")]
     pub player: u8,
     pub keypoints: Vec<PoseKeypoint>,
 }

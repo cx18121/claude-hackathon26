@@ -23,7 +23,17 @@
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["../shared/*"]
+      "@shared/*": ["../shared/*"],
+      // shared/client/*.ts imports bare specifiers (`react`, `react-dom`,
+      // `@mediapipe/tasks-vision`) and shared/ has no node_modules of its
+      // own. With moduleResolution: "bundler", TS walks up from each file's
+      // directory and can't find the deps there. Route the lookups back to
+      // THIS app's node_modules — same fix as the resolve.dedupe + alias
+      // pair already in vite.config.ts / vitest.config.ts.
+      "react": ["./node_modules/@types/react", "./node_modules/react"],
+      "react-dom": ["./node_modules/@types/react-dom", "./node_modules/react-dom"],
+      "react-dom/*": ["./node_modules/@types/react-dom/*", "./node_modules/react-dom/*"],
+      "@mediapipe/tasks-vision": ["./node_modules/@mediapipe/tasks-vision"]
     }
   },
   "include": ["src", "../shared"]
