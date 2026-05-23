@@ -1,0 +1,15 @@
+[package]
+name = "boxing-plugin"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "boxing_plugin"
+path = "src/lib.rs"
+
+[dependencies]
+plugin-trait = { path = "../../../engine/plugin-trait" }
+boxing-core = { path = "../../../engine/boxing-core" }
+serde_json = "1.0.149"
+rand = "0.8.6"
+tracing = "0.1.44"

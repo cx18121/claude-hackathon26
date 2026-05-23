@@ -29,6 +29,6 @@ base64 = "0.22"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 plugin-trait = { path = "../plugin-trait" }
 [dev-dependencies]
-boxing-plugin = { path = "../boxing-plugin" }
+boxing-plugin = { path = "../../games/boxing/plugin" }
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"

@@ -1,0 +1,1 @@
+/Users/sickle/Coding/spectre/games/dance/plugin/target/debug/libdance_plugin.rlib: /Users/sickle/Coding/spectre/engine/plugin-trait/src/lib.rs /Users/sickle/Coding/spectre/games/dance/plugin/src/lib.rs /Users/sickle/Coding/spectre/games/dance/plugin/src/poses.rs

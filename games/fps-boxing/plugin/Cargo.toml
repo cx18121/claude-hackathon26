@@ -1,0 +1,17 @@
+[package]
+name = "fps-boxing-plugin"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "fps_boxing_plugin"
+path = "src/lib.rs"
+
+[dependencies]
+plugin-trait = { path = "../../../engine/plugin-trait" }
+boxing-core = { path = "../../../engine/boxing-core" }
+serde_json = "1.0.149"
+tracing = "0.1.44"
+
+[dev-dependencies]
+engine-core = { path = "../../../engine/engine-core" }
