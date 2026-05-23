@@ -7,7 +7,7 @@
 //! Broadcast messages sent to game_tx (received by spectator overlay):
 //!   {"type":"commentary_start","id":N}
 //!   {"type":"commentary_text","id":N,"delta":"..."}   (one per streamed chunk)
-//!   {"type":"commentary_audio","id":N,"idx":M,"data":"<b64 mp3>"}
+//!   {"type":"commentary_audio","id":N,"idx":M,"mime":"audio/mpeg","audio_b64":"<b64 mp3>"}
 //!   {"type":"commentary_end","id":N}
 //!
 //! Both keys are optional — missing key disables that half gracefully.
@@ -230,7 +230,7 @@ async fn tts_and_broadcast(
                 Ok(audio) => {
                     let b64 = base64::engine::general_purpose::STANDARD.encode(&audio);
                     let _ = game_tx.send(format!(
-                        r#"{{"type":"commentary_audio","id":{call_id},"idx":{sentence_idx},"data":"{b64}"}}"#
+                        r#"{{"type":"commentary_audio","id":{call_id},"idx":{sentence_idx},"mime":"audio/mpeg","audio_b64":"{b64}"}}"#
                     ));
                 }
                 Err(e) => tracing::warn!("room {}: ElevenLabs read failed: {}", room_code, e),

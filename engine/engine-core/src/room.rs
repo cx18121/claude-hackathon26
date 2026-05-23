@@ -154,6 +154,16 @@ pub enum RoomCmd {
         reply: oneshot::Sender<RoomSnapshot>,
     },
     MarkMatchOver,
+    /// B1: rematch handshake from the HTTP `POST /rooms/{code}/rematch` route.
+    /// Resets engine-owned match state (wins, round_number, hp, match_over),
+    /// calls `plugin.on_round_reset` to clear round-scoped plugin state while
+    /// preserving each player's `reference_velocity` (calibration persists
+    /// through rematches — FIX-01), then broadcasts MsgRematchStart to all
+    /// spectators and connected players. The reply oneshot fires once the
+    /// reset + broadcast completes so the HTTP handler can return 200.
+    Rematch {
+        reply: oneshot::Sender<()>,
+    },
 }
 
 /// Helper to send a message to a player slot's outbound task.
@@ -435,6 +445,46 @@ fn handle_cmd(state: &mut RoomState, cmd: RoomCmd) {
         RoomCmd::MarkMatchOver => {
             state.match_over = true;
         }
+        RoomCmd::Rematch { reply } => {
+            // B1: reset engine-owned match state. Calibration (reference_velocity)
+            // is deliberately preserved — both the plugin trait docs (FIX-01) and
+            // the per-plugin on_round_reset implementations explicitly guarantee
+            // ref_vel survives between rounds/rematches.
+            state.match_over = false;
+            state.match_over_flag.store(false, std::sync::atomic::Ordering::Relaxed);
+            state.round_number = 1;
+            state.wins = [0, 0];
+            state.hp = [state.initial_hp, state.initial_hp];
+            // Clear round_start_time so the post-rematch flow re-enters
+            // calibration (or, if both calibrations are still latched, the
+            // client's rematch_start handler will route the UI as it pleases).
+            state.round_start_time = None;
+            state.recent_hits.clear();
+            // The plugin trait has no `on_match_reset` method. After reading
+            // the trait docs (plugin-trait/src/lib.rs:306-323) plus the three
+            // plugin impls (boxing, fps_boxing, dance), `on_round_reset` is
+            // the right call here: it clears round-scoped fields (HP,
+            // cooldowns, round_ended flag, dance score accumulators) while
+            // explicitly preserving ref_vel. The engine itself owns wins /
+            // round_number / hp / match_over above, so the plugin reset alone
+            // is sufficient for full match-level cleanup.
+            state.plugin.on_round_reset(&mut *state.plugin_state);
+
+            // Broadcast rematch_start to all spectators (via game_tx) and to
+            // every connected player slot (via the player outbound channel).
+            // The mobile/fps useGameSocket handlers transition back to the
+            // calibration phase on receipt; we deliberately do NOT auto-emit
+            // calibration_start here — clients re-enter calibration from
+            // their own UI side, matching the existing handler in fps's
+            // useGameSocket.
+            use crate::protocol::MsgRematchStart;
+            if let Ok(json) = serde_json::to_string(&MsgRematchStart {
+                msg_type: "rematch_start".to_string(),
+            }) {
+                broadcast_all(state, &json);
+            }
+            let _ = reply.send(());
+        }
     }
 }
 
@@ -534,6 +584,90 @@ mod player_connect_tests {
             has_calibration_start(&msgs1),
             "two-player: slot 1 must receive calibration_start after both connect; got: {:?}",
             msgs1
+        );
+    }
+
+    /// B1: Rematch must reset engine-owned match state (wins, round_number, hp,
+    /// match_over) and broadcast MsgRematchStart to all connected players AND
+    /// the spectator game_tx. ref_vel is intentionally NOT cleared.
+    #[test]
+    fn rematch_resets_state_and_broadcasts_rematch_start() {
+        let mut state = make_state();
+        // Subscribe to game_tx BEFORE the rematch broadcast so we can observe
+        // the spectator fan-out. broadcast::Sender drops messages when there
+        // are zero subscribers, so without this subscription the test would
+        // pass vacuously regardless of whether broadcast_all wired the
+        // spectator path.
+        let mut spectator_rx = state.game_tx.subscribe();
+
+        // Connect both players (their outbound channels are required so that
+        // broadcast_all → send_to_slot has somewhere to deliver rematch_start).
+        let (tx0, mut rx0) = mpsc::channel::<String>(16);
+        let (tx1, mut rx1) = mpsc::channel::<String>(16);
+        let (r0, _) = tokio::sync::oneshot::channel();
+        handle_cmd(&mut state, RoomCmd::PlayerConnect { slot: 0, tx: tx0, reply: r0, solo: false });
+        let (r1, _) = tokio::sync::oneshot::channel();
+        handle_cmd(&mut state, RoomCmd::PlayerConnect { slot: 1, tx: tx1, reply: r1, solo: false });
+        // Drain the connect-time messages (calibration_start, lobby_update).
+        let _ = drain_channel(&mut rx0);
+        let _ = drain_channel(&mut rx1);
+        // Also drain anything the spectator subscription already received.
+        while spectator_rx.try_recv().is_ok() {}
+
+        // Simulate a finished match: HP depleted, wins accrued, match flagged.
+        state.match_over = true;
+        state.match_over_flag.store(true, std::sync::atomic::Ordering::Relaxed);
+        state.round_number = 3;
+        state.wins = [2, 1];
+        state.hp = [0, 10];
+        state.round_start_time = Some(std::time::Instant::now());
+        // Both players latched calibration during the match.
+        state.players[0].reference_velocity = Some(5.0);
+        state.players[1].reference_velocity = Some(6.0);
+
+        let (reply_tx, _reply_rx) = tokio::sync::oneshot::channel();
+        handle_cmd(&mut state, RoomCmd::Rematch { reply: reply_tx });
+
+        // Engine-owned state is reset.
+        assert!(!state.match_over, "match_over must reset to false");
+        assert!(
+            !state.match_over_flag.load(std::sync::atomic::Ordering::Relaxed),
+            "match_over_flag must reset to false"
+        );
+        assert_eq!(state.round_number, 1, "round_number must reset to 1");
+        assert_eq!(state.wins, [0, 0], "wins must reset to [0, 0]");
+        assert_eq!(state.hp, [state.initial_hp, state.initial_hp], "hp must reset to initial_hp");
+        assert!(state.round_start_time.is_none(), "round_start_time must clear");
+        assert!(state.recent_hits.is_empty(), "recent_hits must clear");
+
+        // Calibration MUST survive — clients shouldn't be forced through a
+        // second calibration handshake on rematch (FIX-01 invariant).
+        assert_eq!(state.players[0].reference_velocity, Some(5.0));
+        assert_eq!(state.players[1].reference_velocity, Some(6.0));
+
+        // Both connected players received rematch_start.
+        let msgs0 = drain_channel(&mut rx0);
+        let msgs1 = drain_channel(&mut rx1);
+        assert!(
+            msgs0.iter().any(|m| m.contains("\"rematch_start\"")),
+            "slot 0 must receive rematch_start; got: {:?}",
+            msgs0
+        );
+        assert!(
+            msgs1.iter().any(|m| m.contains("\"rematch_start\"")),
+            "slot 1 must receive rematch_start; got: {:?}",
+            msgs1
+        );
+
+        // Spectator channel also got it.
+        let mut spec_msgs = Vec::new();
+        while let Ok(m) = spectator_rx.try_recv() {
+            spec_msgs.push(m);
+        }
+        assert!(
+            spec_msgs.iter().any(|m| m.contains("\"rematch_start\"")),
+            "spectators must receive rematch_start via game_tx; got: {:?}",
+            spec_msgs
         );
     }
 

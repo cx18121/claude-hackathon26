@@ -48,6 +48,7 @@ fn build_app(state: Arc<AppState>) -> Router {
         .route("/", get(lobby_html))
         .route("/rooms", post(create_room))
         .route("/rooms/{code}", get(get_room_page))
+        .route("/rooms/{code}/rematch", post(rematch_room))
         .route("/ws/player/{room_code}", get(ws_player))
         .route("/ws/spectator/{room_code}", get(ws_spectator))
         .nest_service("/mobile", ServeDir::new("mobile/dist"))
@@ -972,6 +973,33 @@ async fn create_room(
             axum::http::StatusCode::BAD_REQUEST,
             Json(serde_json::json!({ "error": format!("unknown game: {}", game) })),
         ).into_response(),
+    }
+}
+
+/// B1: POST /rooms/{code}/rematch — triggers a match reset and broadcasts
+/// MsgRematchStart to all clients in the room. Both mobile and fps
+/// useGameSocket.playAgain() callers POST this endpoint; before this route
+/// existed the fetch silently 404'd and neither player could rematch.
+async fn rematch_room(
+    Path(code): Path<String>,
+    State(app): State<Arc<AppState>>,
+) -> impl IntoResponse {
+    use tokio::sync::oneshot;
+    use crate::room::RoomCmd;
+    // Room codes are stored uppercase (see room_manager.create_room) — match
+    // get_room_page's behavior so clients can send either case.
+    let code_upper = code.to_ascii_uppercase();
+    let cmd_tx = match app.rooms.get_cmd_tx(&code_upper) {
+        Some(tx) => tx,
+        None => return axum::http::StatusCode::NOT_FOUND,
+    };
+    let (reply_tx, reply_rx) = oneshot::channel();
+    if cmd_tx.send(RoomCmd::Rematch { reply: reply_tx }).await.is_err() {
+        return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
+    }
+    match reply_rx.await {
+        Ok(()) => axum::http::StatusCode::OK,
+        Err(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
 

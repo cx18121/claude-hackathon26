@@ -169,7 +169,9 @@ export interface MsgLobbyUpdate {
   // Identifies the game running in the room ("boxing", "fps_boxing", "dance").
   // The spectator overlay uses this to pick which HUD to render — without it,
   // gameType stays null on the client and the HUD is silently disabled.
-  game_type?: string;
+  // The Rust side keeps `#[serde(default)]` as a forwards-compat shim for
+  // legacy fixtures, but the server always emits this field today.
+  game_type: string;
 }
 
 export interface MsgRematchStart {

@@ -60,21 +60,17 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>): UseCame
         if (!video) return;
         video.srcObject = s;
 
-        const onLoaded = () => {
-          if (!cancelledRef.current) setReady(true);
-        };
-        if (video.readyState >= 1) {
-          onLoaded();
-        } else {
-          video.addEventListener('loadedmetadata', onLoaded, { once: true });
-        }
-
         // iOS Safari requires an explicit play() after srcObject assignment.
+        // Wait for play() to resolve before flipping ready=true. On iOS,
+        // 'loadedmetadata' fires before any frames render, so signalling
+        // ready on that event would let usePose pull 0x0 bitmaps from the
+        // video and feed garbage to MediaPipe, stalling calibration.
         try {
           await video.play();
         } catch {
           /* play() may reject silently if already playing */
         }
+        if (!cancelledRef.current) setReady(true);
       } catch (err) {
         const e = err as DOMException;
         if (e.name === 'NotAllowedError') {

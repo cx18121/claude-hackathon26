@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   InboundServerMsg,
+  MsgFpsHit,
   MsgYouWereHit,
   OutboundMobileMsg,
 } from '@shared/protocol';
@@ -55,35 +56,59 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 const PING_INTERVAL_MS = 500;
 const HIT_FLASH_MS = 1500;
 
+// Detect a secure page origin so we can auto-upgrade insecure URLs and
+// avoid the browser's mixed-content block (the #1 deployment failure when
+// the mobile app is served from Vercel/https). typeof guard keeps this
+// SSR-safe even though we don't currently SSR.
+function isSecurePage(): boolean {
+  return typeof location !== 'undefined' && location.protocol === 'https:';
+}
+
 export function normalizeHttpUrl(input: string): string {
   const trimmed = input.trim();
   if (!trimmed) return trimmed;
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+  const secure = isSecurePage();
+  if (trimmed.startsWith('https://')) {
+    return trimmed.replace(/\/$/, '');
+  }
+  if (trimmed.startsWith('http://')) {
+    if (secure) {
+      return 'https://' + trimmed.slice('http://'.length).replace(/\/$/, '');
+    }
     return trimmed.replace(/\/$/, '');
   }
   if (trimmed.startsWith('ws://')) {
-    return 'http://' + trimmed.slice('ws://'.length).replace(/\/$/, '');
+    const host = trimmed.slice('ws://'.length).replace(/\/$/, '');
+    return (secure ? 'https://' : 'http://') + host;
   }
   if (trimmed.startsWith('wss://')) {
     return 'https://' + trimmed.slice('wss://'.length).replace(/\/$/, '');
   }
-  return 'http://' + trimmed.replace(/\/$/, '');
+  return (secure ? 'https://' : 'http://') + trimmed.replace(/\/$/, '');
 }
 
 export function normalizeWsUrl(input: string): string {
   const trimmed = input.trim();
   if (!trimmed) return trimmed;
-  if (trimmed.startsWith('ws://') || trimmed.startsWith('wss://')) {
+  const secure = isSecurePage();
+  if (trimmed.startsWith('wss://')) {
+    return trimmed.replace(/\/$/, '');
+  }
+  if (trimmed.startsWith('ws://')) {
+    if (secure) {
+      return 'wss://' + trimmed.slice('ws://'.length).replace(/\/$/, '');
+    }
     return trimmed.replace(/\/$/, '');
   }
   if (trimmed.startsWith('http://')) {
-    return 'ws://' + trimmed.slice('http://'.length).replace(/\/$/, '');
+    const host = trimmed.slice('http://'.length).replace(/\/$/, '');
+    return (secure ? 'wss://' : 'ws://') + host;
   }
   if (trimmed.startsWith('https://')) {
     return 'wss://' + trimmed.slice('https://'.length).replace(/\/$/, '');
   }
   // Bare host:port
-  return 'ws://' + trimmed.replace(/\/$/, '');
+  return (secure ? 'wss://' : 'ws://') + trimmed.replace(/\/$/, '');
 }
 
 interface ConnectionArgs {
@@ -218,9 +243,45 @@ export function useGameSocket(): UseGameSocketResult {
         setPhase('ended');
         break;
 
-      // game_state goes to spectators only; mobile ignores it if it ever arrives.
-      default:
+      case 'dance_beat':
+        // Dance UI on mobile is not implemented yet; ignore to avoid the
+        // noisy default-warn if one is ever added.
         break;
+
+      case 'dance_score':
+        // Dance UI on mobile is not implemented yet; ignore to avoid the
+        // noisy default-warn if one is ever added.
+        break;
+
+      // game_state goes to spectators only; mobile ignores it if it ever arrives.
+      default: {
+        // Some messages (fps_hit, rematch_start) aren't in the
+        // InboundServerMsg union but the engine emits them to player
+        // connections. Mirror the fps app's default-branch dispatch pattern
+        // so we can react without widening the shared union.
+        const raw = msg as unknown as { type: string };
+        if (raw.type === 'fps_hit') {
+          // fps_boxing equivalent of you_were_hit — mirror its flash pattern
+          // so the mobile player sees damage feedback in fps matches.
+          const hit = msg as unknown as MsgFpsHit;
+          setLastHit({ region: hit.punch_type, damage: hit.damage });
+          if (hitClearTimerRef.current !== null) {
+            window.clearTimeout(hitClearTimerRef.current);
+          }
+          hitClearTimerRef.current = window.setTimeout(() => {
+            setLastHit(null);
+            hitClearTimerRef.current = null;
+          }, HIT_FLASH_MS);
+        } else if (raw.type === 'rematch_start') {
+          // Server-initiated rematch — drop back to calibration so the UI
+          // cleanly transitions out of 'ended'.
+          setPhase('calibration');
+          setMatchEnd(null);
+          setLastRoundEnd(null);
+          setRoundNumber(1);
+        }
+        break;
+      }
     }
   }, [send]);
 

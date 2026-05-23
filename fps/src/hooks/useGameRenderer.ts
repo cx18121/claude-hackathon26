@@ -32,8 +32,8 @@ interface OpponentPositions {
 
 /** Build a 2-band toon gradient DataTexture for MeshToonMaterial. */
 function buildGradientMap(): THREE.DataTexture {
-  const tones = new Uint8Array([80, 80, 80, 255, 255, 255]);
-  const gradientMap = new THREE.DataTexture(tones, 2, 1, THREE.RGBFormat);
+  const tones = new Uint8Array([80, 80, 80, 255, 255, 255, 255, 255]);
+  const gradientMap = new THREE.DataTexture(tones, 2, 1, THREE.RGBAFormat);
   gradientMap.needsUpdate = true;
   gradientMap.minFilter = THREE.NearestFilter;
   gradientMap.magFilter = THREE.NearestFilter;

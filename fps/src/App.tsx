@@ -46,7 +46,7 @@ function App() {
   // Phase-driven screen routing
   const showWaiting     = screen === 'waiting' && socket.phase === 'lobby';
   const showCalibration = screen === 'waiting' && socket.phase === 'calibration';
-  const showMatch       = screen === 'waiting' && socket.phase === 'match';
+  const showMatch       = screen === 'waiting' && (socket.phase === 'match' || socket.phase === 'ended');
   const effectiveSlot: 1 | 2 = socket.assignedSlot ?? playerSlot;
 
   return (
