@@ -252,6 +252,67 @@ pub struct MsgDanceScore {
     pub scores: [f64; 2],
 }
 
+// ============================================================================
+// Commentary stream (server -> overlay only)
+//
+// The commentator task in src/commentator.rs serializes these via
+// serde_json::to_string instead of raw format!() — same drift-prevention
+// pattern as MsgDanceSnapshot. Roundtrip tests in tests/protocol_roundtrip.rs
+// keep the wire shape locked.
+// ============================================================================
+
+fn default_type_commentary_start() -> String {
+    "commentary_start".to_string()
+}
+
+#[derive(Serialize, Deserialize, TS, Clone, Debug)]
+#[ts(export)]
+pub struct MsgCommentaryStart {
+    #[serde(rename = "type", default = "default_type_commentary_start")]
+    pub msg_type: String,
+    pub id: u32,
+}
+
+fn default_type_commentary_text() -> String {
+    "commentary_text".to_string()
+}
+
+#[derive(Serialize, Deserialize, TS, Clone, Debug)]
+#[ts(export)]
+pub struct MsgCommentaryText {
+    #[serde(rename = "type", default = "default_type_commentary_text")]
+    pub msg_type: String,
+    pub id: u32,
+    pub delta: String,
+}
+
+fn default_type_commentary_audio() -> String {
+    "commentary_audio".to_string()
+}
+
+#[derive(Serialize, Deserialize, TS, Clone, Debug)]
+#[ts(export)]
+pub struct MsgCommentaryAudio {
+    #[serde(rename = "type", default = "default_type_commentary_audio")]
+    pub msg_type: String,
+    pub id: u32,
+    pub idx: u32,
+    pub mime: String,
+    pub audio_b64: String,
+}
+
+fn default_type_commentary_end() -> String {
+    "commentary_end".to_string()
+}
+
+#[derive(Serialize, Deserialize, TS, Clone, Debug)]
+#[ts(export)]
+pub struct MsgCommentaryEnd {
+    #[serde(rename = "type", default = "default_type_commentary_end")]
+    pub msg_type: String,
+    pub id: u32,
+}
+
 fn default_type_dance_snapshot() -> String {
     "dance_snapshot".to_string()
 }

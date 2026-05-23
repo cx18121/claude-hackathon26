@@ -17,6 +17,16 @@ use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, mpsc};
 use serde_json::{json, Value};
 use base64::Engine as _;
+use crate::protocol::{
+    MsgCommentaryAudio, MsgCommentaryEnd, MsgCommentaryStart, MsgCommentaryText,
+};
+
+/// Helper: serialize a typed commentary message to its wire JSON.
+/// Panics on serialization failure — these structs only contain primitives
+/// and Strings, so failure here would indicate a serde bug, not user input.
+fn encode<T: serde::Serialize>(msg: &T) -> String {
+    serde_json::to_string(msg).expect("commentary message must serialize")
+}
 
 const CLAUDE_MODEL: &str = "claude-haiku-4-5-20251001";
 const CLAUDE_MAX_TOKENS: u32 = 120;
@@ -133,7 +143,10 @@ async fn run(
             }
         };
 
-        let _ = game_tx.send(format!(r#"{{"type":"commentary_start","id":{id}}}"#));
+        let _ = game_tx.send(encode(&MsgCommentaryStart {
+            msg_type: "commentary_start".to_string(),
+            id,
+        }));
 
         // Collect full text while streaming deltas to the overlay
         let mut full_text = String::new();
@@ -162,9 +175,17 @@ async fn run(
                 full_text.push_str(delta);
                 sentence_buf.push_str(delta);
 
-                // Escape for inline JSON string
-                let safe = delta.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', " ");
-                let _ = game_tx.send(format!(r#"{{"type":"commentary_text","id":{id},"delta":"{safe}"}}"#));
+                // serde_json handles all JSON escaping (\, ", control chars,
+                // including newlines as \n). The previous hand-rolled
+                // `delta.replace('\\','\\\\').replace('"','\\"').replace('\n',' ')`
+                // pass missed every other control character and silently
+                // dropped \r / \t — typed serialization eliminates that
+                // entire escape-mismatch class.
+                let _ = game_tx.send(encode(&MsgCommentaryText {
+                    msg_type: "commentary_text".to_string(),
+                    id,
+                    delta: delta.to_string(),
+                }));
 
                 // Sentence boundary — fire TTS for each completed sentence
                 if let Some(el_key) = &elevenlabs_key {
@@ -189,7 +210,10 @@ async fn run(
             }
         }
 
-        let _ = game_tx.send(format!(r#"{{"type":"commentary_end","id":{id}}}"#));
+        let _ = game_tx.send(encode(&MsgCommentaryEnd {
+            msg_type: "commentary_end".to_string(),
+            id,
+        }));
 
         if !full_text.is_empty() {
             recent_calls.push(full_text);
@@ -229,9 +253,13 @@ async fn tts_and_broadcast(
             match r.bytes().await {
                 Ok(audio) => {
                     let b64 = base64::engine::general_purpose::STANDARD.encode(&audio);
-                    let _ = game_tx.send(format!(
-                        r#"{{"type":"commentary_audio","id":{call_id},"idx":{sentence_idx},"mime":"audio/mpeg","audio_b64":"{b64}"}}"#
-                    ));
+                    let _ = game_tx.send(encode(&MsgCommentaryAudio {
+                        msg_type: "commentary_audio".to_string(),
+                        id: call_id,
+                        idx: sentence_idx,
+                        mime: "audio/mpeg".to_string(),
+                        audio_b64: b64,
+                    }));
                 }
                 Err(e) => tracing::warn!("room {}: ElevenLabs read failed: {}", room_code, e),
             }

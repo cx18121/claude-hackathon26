@@ -242,6 +242,70 @@ fn msg_dance_score_roundtrip() {
 }
 
 #[test]
+fn msg_commentary_start_roundtrip() {
+    let raw = fixture("msg_commentary_start");
+    let msg: MsgCommentaryStart = serde_json::from_str(&raw).expect("deserialize MsgCommentaryStart");
+    let re = serde_json::to_string(&msg).expect("serialize MsgCommentaryStart");
+    let orig: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    let round: serde_json::Value = serde_json::from_str(&re).unwrap();
+    assert_type_field(&round, "commentary_start");
+    assert_eq!(orig["id"], round["id"]);
+}
+
+#[test]
+fn msg_commentary_text_roundtrip() {
+    let raw = fixture("msg_commentary_text");
+    let msg: MsgCommentaryText = serde_json::from_str(&raw).expect("deserialize MsgCommentaryText");
+    let re = serde_json::to_string(&msg).expect("serialize MsgCommentaryText");
+    let orig: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    let round: serde_json::Value = serde_json::from_str(&re).unwrap();
+    assert_type_field(&round, "commentary_text");
+    assert_eq!(orig["id"], round["id"]);
+    assert_eq!(orig["delta"], round["delta"]);
+}
+
+#[test]
+fn msg_commentary_text_escapes_control_chars() {
+    // serde_json must escape backslash, double-quote, newline, tab, CR.
+    // The hand-rolled escape pass in commentator.rs only handled \ and "
+    // and squashed \n to space — typed serialization closes that gap.
+    let msg = MsgCommentaryText {
+        msg_type: "commentary_text".to_string(),
+        id: 1,
+        delta: "line1\nline2\t\"quoted\"\\backslash\rret".to_string(),
+    };
+    let wire = serde_json::to_string(&msg).expect("serialize");
+    // Round-trips back to the exact same delta.
+    let back: MsgCommentaryText = serde_json::from_str(&wire).expect("deserialize");
+    assert_eq!(back.delta, msg.delta);
+}
+
+#[test]
+fn msg_commentary_audio_roundtrip() {
+    let raw = fixture("msg_commentary_audio");
+    let msg: MsgCommentaryAudio = serde_json::from_str(&raw).expect("deserialize MsgCommentaryAudio");
+    let re = serde_json::to_string(&msg).expect("serialize MsgCommentaryAudio");
+    let orig: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    let round: serde_json::Value = serde_json::from_str(&re).unwrap();
+    assert_type_field(&round, "commentary_audio");
+    assert_eq!(orig["id"], round["id"]);
+    assert_eq!(orig["idx"], round["idx"]);
+    assert_eq!(orig["mime"], round["mime"]);
+    assert_eq!(orig["audio_b64"], round["audio_b64"]);
+}
+
+#[test]
+fn msg_commentary_end_roundtrip() {
+    let raw = fixture("msg_commentary_end");
+    let msg: MsgCommentaryEnd = serde_json::from_str(&raw).expect("deserialize MsgCommentaryEnd");
+    let re = serde_json::to_string(&msg).expect("serialize MsgCommentaryEnd");
+    let orig: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    let round: serde_json::Value = serde_json::from_str(&re).unwrap();
+    assert_type_field(&round, "commentary_end");
+    assert_eq!(orig["id"], round["id"]);
+}
+
+#[test]
 fn msg_dance_snapshot_roundtrip() {
     // Locks the wire shape against MsgDanceSnapshot. dance-plugin emits the
     // payload via json!() (it can't `use engine_core::protocol::*` without
