@@ -146,6 +146,16 @@ pub fn game_tick(state: &mut RoomState) {
     // Clear recent_hits from previous tick before dispatch adds new hits
     state.recent_hits.clear();
 
+    // Sync engine-side HP mirror from the plugin. The plugin is the source of
+    // truth for HP — it's where damage is actually subtracted in `on_tick` and
+    // where round-over is detected. Engine `state.hp` is purely a mirror used
+    // for MsgGameState broadcasts and MsgRoundEnd.final_hp. Doing this BEFORE
+    // dispatch_events means handle_round_over (called inside dispatch_events
+    // for round-over events) sees the post-tick HP when assembling final_hp.
+    if let Some(hp) = state.plugin.current_hp(state.plugin_state.as_ref()) {
+        state.hp = hp;
+    }
+
     dispatch_events(state, events);
 
     // Broadcast live game_state (poses always empty per _EMPTY_POSES pattern)
@@ -189,14 +199,11 @@ fn dispatch_events(state: &mut RoomState, events: Vec<GameEvent>) {
     for event in events {
         match event {
             GameEvent::Hit { attacker, defender, region, damage, position } => {
-                // HP update: plugin tracks HP in BoxingState; engine also mirrors HP on RoomState
-                // for snapshot/spectator use (FIX-02 snapshot includes hp). Subtract from engine hp too.
-                // T-02-15: bounds-check defender index before HP subtraction
-                let def_idx = (defender - 1) as usize;
-                if def_idx < 2 {
-                    state.hp[def_idx] = state.hp[def_idx].saturating_sub(damage as u32);
-                }
-                // Accumulate hit for MsgGameState.recent_hits broadcast
+                // HP is owned by the plugin (BoxingState/FPSBoxingState) and mirrored
+                // into state.hp by the per-tick current_hp() sync above. Subtracting
+                // here too would double-count damage on the spectator-visible mirror,
+                // making the HP bar drain at 2× the actual gameplay rate.
+                // Accumulate the hit record for MsgGameState.recent_hits broadcast.
                 state.recent_hits.push(crate::protocol::HitEvent {
                     player: attacker,
                     region: region.to_wire().to_string(), // CR-05: snake_case via to_wire()
@@ -436,5 +443,90 @@ mod solo_mode_tests {
         };
 
         assert!(!ready_to_start, "two-player mode: only one player calibrated must NOT be ready_to_start");
+    }
+}
+
+#[cfg(test)]
+mod hp_sync_tests {
+    //! Regression coverage for the double-subtract bug fixed by introducing
+    //! `GamePlugin::current_hp` and removing the engine-side HP decrement
+    //! from `dispatch_events`'s Hit arm. Before the fix, every Hit event
+    //! drained `RoomState.hp` once from the plugin's `on_tick` (which
+    //! subtracts in `BoxingState.hp`) and once from `dispatch_events`,
+    //! making the spectator HP bar drain 2× as fast as the actual game.
+
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicBool;
+    use tokio::sync::broadcast;
+    use boxing_plugin::{BoxingPlugin, BoxingConfig, Difficulty};
+    use plugin_trait::{GameEvent, BodyRegion, GamePlugin};
+    use crate::room::RoomState;
+    use super::dispatch_events;
+
+    fn make_room_state() -> RoomState {
+        let (pose_tx, _) = broadcast::channel(64);
+        let (game_tx, _) = broadcast::channel(64);
+        let plugin: Arc<dyn plugin_trait::GamePlugin + Send + Sync> = Arc::new(
+            BoxingPlugin::new(BoxingConfig {
+                hp: 800,
+                round_secs: 90.0,
+                max_wins: 3,
+                bot_difficulty: Difficulty::Normal,
+            })
+        );
+        RoomState::new(
+            "TEST".to_string(),
+            3,
+            pose_tx,
+            game_tx,
+            Arc::new(AtomicBool::new(false)),
+            Arc::new(std::sync::Mutex::new(None)),
+            plugin,
+            "boxing".to_string(),
+        )
+    }
+
+    /// dispatch_events must NOT mutate `state.hp` on a Hit event. HP is owned
+    /// by the plugin and synced into `state.hp` by the per-tick `current_hp`
+    /// call in `game_tick` (before dispatch_events runs).
+    #[test]
+    fn dispatch_events_does_not_subtract_hp_on_hit() {
+        let mut state = make_room_state();
+        state.hp = [800, 800];
+
+        let events = vec![GameEvent::Hit {
+            attacker: 1,
+            defender: 2,
+            region: BodyRegion::HeadFace,
+            damage: 50.0,
+            position: [0.0, 0.0],
+        }];
+
+        dispatch_events(&mut state, events);
+
+        assert_eq!(state.hp, [800, 800],
+            "dispatch_events must not mutate state.hp on Hit — HP is plugin-owned and synced separately");
+        assert_eq!(state.recent_hits.len(), 1, "the hit must still be recorded in recent_hits");
+    }
+
+    /// BoxingPlugin::current_hp must read live HP out of BoxingState, not just
+    /// initial_hp. This is the trait surface the engine relies on for syncing.
+    #[test]
+    fn boxing_plugin_current_hp_reflects_live_state() {
+        use boxing_plugin::BoxingState;
+
+        let plugin = BoxingPlugin::new(BoxingConfig {
+            hp: 800,
+            round_secs: 90.0,
+            max_wins: 3,
+            bot_difficulty: Difficulty::Normal,
+        });
+        let mut state = plugin.init_state();
+        // Mutate the plugin's internal HP to a non-initial value.
+        state.downcast_mut::<BoxingState>().unwrap().hp = [600, 250];
+
+        let hp = plugin.current_hp(state.as_ref());
+        assert_eq!(hp, Some([600, 250]),
+            "current_hp must read s.hp out of the live BoxingState, not return initial_hp");
     }
 }

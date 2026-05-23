@@ -342,4 +342,16 @@ pub trait GamePlugin: Send + Sync {
     /// Default 800 matches the canonical boxing value.
     /// Override in boxing plugin to return self.config.hp.
     fn initial_hp(&self) -> u32 { 800 }
+
+    /// Returns the current per-player HP after the most recent on_tick, or None if
+    /// this game has no HP concept (e.g. dance). The plugin is the source of truth
+    /// for HP — it's the one that subtracts damage in `on_tick`. The engine calls
+    /// this method once per tick to mirror that value into `RoomState.hp` for
+    /// MsgGameState broadcasts and MsgRoundEnd.final_hp.
+    ///
+    /// Without this hook, the engine had to either re-subtract damage from
+    /// GameEvent::Hit (which double-counted, draining the spectator HP bar at
+    /// 2× the rate of actual gameplay) or downcast the plugin state by concrete
+    /// type (couples engine to plugin internals).
+    fn current_hp(&self, _state: &dyn Any) -> Option<[u32; 2]> { None }
 }

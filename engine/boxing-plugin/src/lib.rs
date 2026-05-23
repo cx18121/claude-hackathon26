@@ -218,6 +218,9 @@ impl GamePlugin for BoxingPlugin {
 
     fn game_type(&self) -> &'static str { "boxing" }
     fn initial_hp(&self) -> u32 { self.config.hp }
+    fn current_hp(&self, state: &dyn Any) -> Option<[u32; 2]> {
+        state.downcast_ref::<BoxingState>().map(|s| s.hp)
+    }
     // requires_calibration uses default true — no override needed
     // spectator_snapshot uses default None — no override needed
 }

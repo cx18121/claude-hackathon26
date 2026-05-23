@@ -128,6 +128,10 @@ impl GamePlugin for FPSBoxingPlugin {
         self.config.hp
     }
 
+    fn current_hp(&self, state: &dyn Any) -> Option<[u32; 2]> {
+        state.downcast_ref::<FPSBoxingState>().map(|s| s.hp)
+    }
+
     fn init_state(&self) -> Box<dyn Any + Send> {
         Box::new(FPSBoxingState {
             hp: [self.config.hp; 2],
