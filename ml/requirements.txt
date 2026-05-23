@@ -1,6 +1,10 @@
 torch>=2.1.0
 onnxruntime>=1.20.0
 onnx>=1.16.0
+# torch>=2.6 routes torch.onnx.export through the dynamo path, which
+# requires onnxscript at runtime — pin it here so export_onnx.py works
+# off a fresh `pip install -r requirements.txt`.
+onnxscript>=0.1.0
 numpy>=1.26.0
 mediapipe==0.10.14
 opencv-python>=4.9.0

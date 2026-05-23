@@ -65,6 +65,14 @@ def main():
 
     print(f"Loading checkpoint: {args.checkpoint}")
     ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=True)
+
+    classes = ckpt.get("classes", None)
+    epoch = ckpt.get("epoch", "?")
+    val_acc = ckpt.get("val_acc", "?")
+    temperature = float(ckpt.get("temperature", 1.0))
+    print(f"  epoch={epoch}, val_acc={val_acc}, classes={classes}")
+    print(f"  temperature={temperature:.4f}" + (" (baking into logits output)" if temperature != 1.0 else " (not calibrated — run train.py to fit T)"))
+
     backbone = PunchTCN()
     backbone.load_state_dict(ckpt["model_state_dict"])
     backbone.eval()
@@ -76,13 +84,6 @@ def main():
         else export_model
     )
     model.eval()
-
-    classes = ckpt.get("classes", None)
-    epoch = ckpt.get("epoch", "?")
-    val_acc = ckpt.get("val_acc", "?")
-    temperature = float(ckpt.get("temperature", 1.0))
-    print(f"  epoch={epoch}, val_acc={val_acc}, classes={classes}")
-    print(f"  temperature={temperature:.4f}" + (" (baking into logits output)" if temperature != 1.0 else " (not calibrated — run train.py to fit T)"))
 
     os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
 
