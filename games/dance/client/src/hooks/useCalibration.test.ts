@@ -213,7 +213,7 @@ describe('useCalibration -- full happy path', () => {
     expect(result.current.stage).toBe('done');
     expect(result.current.referenceVelocity).toBeGreaterThan(0);
     expect(onComplete).toHaveBeenCalledTimes(1);
-    expect(onComplete).toHaveBeenCalledWith(result.current.referenceVelocity);
+    expect(onComplete).toHaveBeenCalledWith(result.current.referenceVelocity, undefined);
   });
 
   it('clears state when active flips back off mid-calibration', () => {
