@@ -13,7 +13,7 @@ use rand::{distributions::Alphanumeric, Rng};
 use serde::Serialize;
 use plugin_trait::GamePlugin;
 
-mod protocol;
+pub mod protocol;
 mod commentator;
 mod room;
 mod room_manager;
