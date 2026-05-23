@@ -120,6 +120,7 @@ export function GameRenderer({ smoothedKeypoints, socket, playerSlot }: GameRend
         playerSlot={playerSlot}
         roundNumber={socket.roundNumber}
         lastRoundEnd={socket.lastRoundEnd}
+        roundWins={socket.roundWins}
         onRematch={handleRematch}
       />
     </div>

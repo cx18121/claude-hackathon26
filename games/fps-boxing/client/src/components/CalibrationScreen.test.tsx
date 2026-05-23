@@ -11,6 +11,7 @@ const defaultCalResult: UseCalibrationResult = {
   neutralProgress: 0,
   referenceVelocity: null,
   instruction: 'Stand facing camera, arms out wide. Hold still. (0%)',
+  calibrationSamples: [],
 };
 
 const mockUseCalibration = vi.spyOn(useCalibrationModule, 'useCalibration');
@@ -20,33 +21,24 @@ beforeEach(() => {
 });
 
 describe('CalibrationScreen', () => {
-  it('Test 1: renders video element with autoPlay, playsInline, and muted attributes', () => {
-    render(
+  it('Test 1: renders calibration-screen container', () => {
+    const { container } = render(
       <CalibrationScreen
-        stream={null}
         keypoints={null}
         onCalibrationDone={vi.fn()}
       />,
     );
-    const video = document.querySelector('video');
-    expect(video).not.toBeNull();
-    expect(video!.autoplay).toBe(true);
-    expect(video!.playsInline).toBe(true);
-    expect(video!.muted).toBe(true);
+    expect(container.querySelector('.calibration-screen')).not.toBeNull();
   });
 
-  it('Test 2: video srcObject set from stream prop', () => {
-    // Create a mock MediaStream-like object
-    const mockStream = { id: 'mock-stream' } as unknown as MediaStream;
-    render(
+  it('Test 2: renders calibration-ui panel', () => {
+    const { container } = render(
       <CalibrationScreen
-        stream={mockStream}
         keypoints={null}
         onCalibrationDone={vi.fn()}
       />,
     );
-    const video = document.querySelector('video') as HTMLVideoElement;
-    expect(video.srcObject).toBe(mockStream);
+    expect(container.querySelector('.calibration-ui')).not.toBeNull();
   });
 
   it('Test 3: shows instruction text from useCalibration', () => {
@@ -57,7 +49,6 @@ describe('CalibrationScreen', () => {
     });
     render(
       <CalibrationScreen
-        stream={null}
         keypoints={null}
         onCalibrationDone={vi.fn()}
       />,
@@ -73,7 +64,6 @@ describe('CalibrationScreen', () => {
     });
     render(
       <CalibrationScreen
-        stream={null}
         keypoints={null}
         onCalibrationDone={vi.fn()}
       />,
@@ -81,21 +71,21 @@ describe('CalibrationScreen', () => {
     expect(screen.getByText('60%')).toBeTruthy();
   });
 
-  it('Test 5: shows punch counter during punches stage', () => {
+  it('Test 5: shows punch counter during labeled punch stage', () => {
     mockUseCalibration.mockReturnValue({
       ...defaultCalResult,
-      stage: 'punches',
+      stage: 'punch_cross',
       punchesRecorded: 2,
-      instruction: 'Throw 3 punches at full speed! (2/3)',
+      instruction: 'CROSS — throw your back-hand straight punch (2/4)',
     });
     render(
       <CalibrationScreen
-        stream={null}
         keypoints={null}
         onCalibrationDone={vi.fn()}
       />,
     );
-    expect(screen.getByText('2/3')).toBeTruthy();
+    expect(screen.getByText('2/4')).toBeTruthy();
+    expect(screen.getByText('CROSS')).toBeTruthy();
   });
 
   it('Test 6: shows full upper body visibility hint during tpose', () => {
@@ -105,22 +95,17 @@ describe('CalibrationScreen', () => {
     });
     render(
       <CalibrationScreen
-        stream={null}
         keypoints={null}
         onCalibrationDone={vi.fn()}
       />,
     );
-    // Should show the "Step back" or "full upper body" hint
     const hint = screen.getByText(/full upper body|Step back/i);
     expect(hint).toBeTruthy();
   });
 
   it('Test 7: calls onCalibrationDone when useCalibration calls onComplete', () => {
-    // When useCalibration is called, intercept the onComplete argument
-    // and immediately invoke it with a test velocity
     const onCalibrationDone = vi.fn();
     mockUseCalibration.mockImplementation(({ onComplete }) => {
-      // Simulate onComplete being called synchronously during render
       onComplete(3.5);
       return {
         ...defaultCalResult,
@@ -131,7 +116,6 @@ describe('CalibrationScreen', () => {
     });
     render(
       <CalibrationScreen
-        stream={null}
         keypoints={null}
         onCalibrationDone={onCalibrationDone}
       />,

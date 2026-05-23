@@ -1,47 +1,38 @@
-import { useEffect, useRef } from 'react';
-import type React from 'react';
 import type { PoseKeypoint } from '@shared/protocol';
+import type { LabeledSample } from '@shared/client/useCalibration';
 import { useCalibration } from '@shared/client/useCalibration';
 
 interface CalibrationScreenProps {
-  stream: MediaStream | null;
   keypoints: PoseKeypoint[] | null;
-  onCalibrationDone: (referenceVelocity: number) => void;
-  videoRef?: React.RefObject<HTMLVideoElement | null>;
+  onCalibrationDone: (referenceVelocity: number, calibrationSamples?: LabeledSample[]) => void;
 }
 
+const LABELED_PUNCH_STAGES = new Set([
+  'punch_jab', 'punch_cross', 'punch_hook_l', 'punch_hook_r',
+]);
+
+const PUNCH_LABEL: Record<string, string> = {
+  punch_jab:    'JAB',
+  punch_cross:  'CROSS',
+  punch_hook_l: 'LEFT HOOK',
+  punch_hook_r: 'RIGHT HOOK',
+};
+
 export function CalibrationScreen({
-  stream,
   keypoints,
   onCalibrationDone,
-  videoRef: externalVideoRef,
 }: CalibrationScreenProps) {
-  const internalVideoRef = useRef<HTMLVideoElement | null>(null);
-  const videoRef = externalVideoRef ?? internalVideoRef;
-
-  // Wire camera stream to video element
-  useEffect(() => {
-    const video = videoRef.current;
-    if (video && stream) {
-      video.srcObject = stream;
-    }
-  }, [stream, videoRef]);
-
   const cal = useCalibration({
     keypoints,
     active: true,
+    labeledPunchMode: true,
     onComplete: onCalibrationDone,
   });
 
+  const isLabeledPunch = LABELED_PUNCH_STAGES.has(cal.stage);
+
   return (
     <div className="calibration-screen">
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        className="calibration-video"
-      />
       <div className="calibration-ui">
         <p className="calibration-instruction">{cal.instruction}</p>
 
@@ -60,9 +51,10 @@ export function CalibrationScreen({
           </div>
         )}
 
-        {cal.stage === 'punches' && (
+        {isLabeledPunch && (
           <div className="punches-panel">
-            <span className="punch-counter">{cal.punchesRecorded}/3</span>
+            <span className="punch-type-label">{PUNCH_LABEL[cal.stage]}</span>
+            <span className="punch-counter">{cal.punchesRecorded}/4</span>
           </div>
         )}
 

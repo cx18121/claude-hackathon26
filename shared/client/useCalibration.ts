@@ -17,10 +17,19 @@ import {
   type TimedFrame,
 } from '@shared/client/velocity';
 
+export interface LabeledSample {
+  label: 'jab' | 'cross' | 'hook_l' | 'hook_r';
+  window: PoseKeypoint[][];  // CAPTURE_WINDOW_SIZE frames
+}
+
 export type CalibrationStage =
   | 'idle'
   | 'tpose'
   | 'punches'
+  | 'punch_jab'
+  | 'punch_cross'
+  | 'punch_hook_l'
+  | 'punch_hook_r'
   | 'neutral'
   | 'done';
 
@@ -31,12 +40,15 @@ export interface UseCalibrationResult {
   neutralProgress: number; // 0..1
   referenceVelocity: number | null;
   instruction: string;
+  calibrationSamples: LabeledSample[];
 }
 
 interface UseCalibrationArgs {
   keypoints: PoseKeypoint[] | null;
   active: boolean; // true when phase === 'calibration'
-  onComplete: (referenceVelocity: number) => void;
+  onComplete: (referenceVelocity: number, calibrationSamples?: LabeledSample[]) => void;
+  /** When true, replaces the single 'punches' stage with 4 labeled per-class stages. */
+  labeledPunchMode?: boolean;
 }
 
 const TPOSE_STABLE_FRAMES_NEEDED = 30;
@@ -60,6 +72,8 @@ const NEUTRAL_STILLNESS_THRESHOLD = 0.2; // m/s
 const NEUTRAL_FRAMES_NEEDED = 60;
 
 const FRAME_WINDOW = 3;
+const CAPTURE_WINDOW_SIZE = 20; // frames kept for ONNX prototype extraction
+
 const FRAME_BUFFER_TS_KEY = 'cap_t';
 
 interface PunchTracker {
@@ -67,6 +81,13 @@ interface PunchTracker {
   peakVelocity: number; // running max during the current armed window
   ready: boolean; // true once wrist has been still (< reset threshold) at least once
 }
+
+const LABELED_PUNCHES: ReadonlyArray<{ stage: CalibrationStage; label: LabeledSample['label'] }> = [
+  { stage: 'punch_jab',    label: 'jab'    },
+  { stage: 'punch_cross',  label: 'cross'  },
+  { stage: 'punch_hook_l', label: 'hook_l' },
+  { stage: 'punch_hook_r', label: 'hook_r' },
+];
 
 function distancePoints(a: PoseKeypoint, b: PoseKeypoint): number {
   const dx = a.x - b.x;
@@ -79,12 +100,14 @@ export function useCalibration({
   keypoints,
   active,
   onComplete,
+  labeledPunchMode = false,
 }: UseCalibrationArgs): UseCalibrationResult {
   const [stage, setStage] = useState<CalibrationStage>('idle');
   const [punchesRecorded, setPunchesRecorded] = useState(0);
   const [tposeProgress, setTposeProgress] = useState(0);
   const [neutralProgress, setNeutralProgress] = useState(0);
   const [referenceVelocity, setReferenceVelocity] = useState<number | null>(null);
+  const [calibrationSamples, setCalibrationSamples] = useState<LabeledSample[]>([]);
 
   const stageRef = useRef<CalibrationStage>('idle');
   const frameWindowRef = useRef<TimedFrame[]>([]);
@@ -95,6 +118,9 @@ export function useCalibration({
   const rightTrackerRef = useRef<PunchTracker>({ armed: false, peakVelocity: 0, ready: false });
   const neutralStillCountRef = useRef(0);
   const completedRef = useRef(false);
+  // Labeled mode only — 20-frame rolling capture buffer and collected samples
+  const captureWindowRef = useRef<PoseKeypoint[][]>([]);
+  const calibrationSamplesRef = useRef<LabeledSample[]>([]);
 
   // Lifecycle: enter / exit calibration. Refs and surface state are reset
   // together when `active` flips. See the file header for the eslint note.
@@ -110,11 +136,14 @@ export function useCalibration({
       rightTrackerRef.current = { armed: false, peakVelocity: 0, ready: false };
       neutralStillCountRef.current = 0;
       completedRef.current = false;
+      captureWindowRef.current = [];
+      calibrationSamplesRef.current = [];
       setStage('tpose');
       setPunchesRecorded(0);
       setTposeProgress(0);
       setNeutralProgress(0);
       setReferenceVelocity(null);
+      setCalibrationSamples([]);
     } else {
       stageRef.current = 'idle';
       setStage('idle');
@@ -167,8 +196,15 @@ export function useCalibration({
       );
 
       if (tposeStableCountRef.current >= TPOSE_STABLE_FRAMES_NEEDED) {
-        stageRef.current = 'punches';
-        setStage('punches');
+        if (labeledPunchMode) {
+          leftTrackerRef.current = { armed: false, peakVelocity: 0, ready: false };
+          rightTrackerRef.current = { armed: false, peakVelocity: 0, ready: false };
+          stageRef.current = 'punch_jab';
+          setStage('punch_jab');
+        } else {
+          stageRef.current = 'punches';
+          setStage('punches');
+        }
       }
     } else if (current === 'punches') {
       // Use the higher of the windowed average and the per-pair peak so a fast
@@ -190,6 +226,56 @@ export function useCalibration({
         setStage('neutral');
         neutralStillCountRef.current = 0;
       }
+    } else if (
+      current === 'punch_jab' ||
+      current === 'punch_cross' ||
+      current === 'punch_hook_l' ||
+      current === 'punch_hook_r'
+    ) {
+      // Labeled mode: one labeled punch per stage.
+      // Keep a 20-frame capture buffer so we can snapshot the window on peak completion.
+      captureWindowRef.current.push(keypoints);
+      if (captureWindowRef.current.length > CAPTURE_WINDOW_SIZE) captureWindowRef.current.shift();
+
+      const left  = Math.max(computeWristVelocity(window, 'left'),  computeWristPeakSpeed(window, 'left'));
+      const right = Math.max(computeWristVelocity(window, 'right'), computeWristPeakSpeed(window, 'right'));
+
+      const labeledIdx = LABELED_PUNCHES.findIndex(lp => lp.stage === current);
+      const expectedCount = labeledIdx; // one peak added per stage
+
+      // Only allow one tracker to fire per stage (check count before trying right).
+      if (peakVelocitiesRef.current.length === expectedCount) {
+        processLabeledTracker(leftTrackerRef.current, left, peakVelocitiesRef);
+      }
+      if (peakVelocitiesRef.current.length === expectedCount) {
+        processLabeledTracker(rightTrackerRef.current, right, peakVelocitiesRef);
+      }
+
+      if (peakVelocitiesRef.current.length === expectedCount + 1) {
+        // Peak recorded — snapshot the capture window and label it.
+        const capturedWindow = captureWindowRef.current.slice();
+        const label = LABELED_PUNCHES[labeledIdx].label;
+        const newSamples: LabeledSample[] = [
+          ...calibrationSamplesRef.current,
+          { label, window: capturedWindow },
+        ];
+        calibrationSamplesRef.current = newSamples;
+        setCalibrationSamples(newSamples);
+        setPunchesRecorded(newSamples.length);
+
+        // Advance to next labeled stage or neutral.
+        const nextIdx = labeledIdx + 1;
+        if (nextIdx < LABELED_PUNCHES.length) {
+          leftTrackerRef.current  = { armed: false, peakVelocity: 0, ready: false };
+          rightTrackerRef.current = { armed: false, peakVelocity: 0, ready: false };
+          stageRef.current = LABELED_PUNCHES[nextIdx].stage;
+          setStage(LABELED_PUNCHES[nextIdx].stage);
+        } else {
+          stageRef.current = 'neutral';
+          setStage('neutral');
+          neutralStillCountRef.current = 0;
+        }
+      }
     } else if (current === 'neutral') {
       const left = computeWristVelocity(window, 'left');
       const right = computeWristVelocity(window, 'right');
@@ -203,19 +289,19 @@ export function useCalibration({
         Math.min(1, neutralStillCountRef.current / NEUTRAL_FRAMES_NEEDED),
       );
       if (neutralStillCountRef.current >= NEUTRAL_FRAMES_NEEDED) {
-        const peaks = peakVelocitiesRef.current.slice(0, 3);
+        const peaks = peakVelocitiesRef.current.slice(0, labeledPunchMode ? 4 : 3);
         const ref =
           peaks.reduce((a, b) => a + b, 0) / Math.max(1, peaks.length);
         completedRef.current = true;
         stageRef.current = 'done';
         setStage('done');
         setReferenceVelocity(ref);
-        onComplete(ref);
+        onComplete(ref, labeledPunchMode ? calibrationSamplesRef.current : undefined);
       }
     }
 
     prevFrameRef.current = frame;
-  }, [keypoints, active, punchesRecorded, onComplete]);
+  }, [keypoints, active, punchesRecorded, onComplete, labeledPunchMode]);
 
   const instruction = instructionFor(stage, punchesRecorded, tposeProgress);
   return {
@@ -225,7 +311,32 @@ export function useCalibration({
     neutralProgress,
     referenceVelocity,
     instruction,
+    calibrationSamples,
   };
+}
+
+// Single-peak tracker for labeled mode — no count limit; returns true when a peak completes.
+function processLabeledTracker(
+  tracker: PunchTracker,
+  velocity: number,
+  peaksRef: { current: number[] },
+): void {
+  if (!tracker.armed) {
+    if (velocity < PUNCH_RESET_THRESHOLD) tracker.ready = true;
+    if (tracker.ready && velocity >= PUNCH_PEAK_THRESHOLD) {
+      tracker.armed = true;
+      tracker.ready = false;
+      tracker.peakVelocity = velocity;
+    }
+  } else {
+    if (velocity > tracker.peakVelocity) tracker.peakVelocity = velocity;
+    if (velocity < PUNCH_RESET_THRESHOLD) {
+      peaksRef.current.push(tracker.peakVelocity);
+      tracker.armed = false;
+      tracker.ready = true;
+      tracker.peakVelocity = 0;
+    }
+  }
 }
 
 function processPunchTracker(
@@ -270,6 +381,14 @@ function instructionFor(
       )}%)`;
     case 'punches':
       return `Throw 3 punches at full speed! (${punches}/3)`;
+    case 'punch_jab':
+      return 'JAB — throw your front-hand straight punch (1/4)';
+    case 'punch_cross':
+      return 'CROSS — throw your back-hand straight punch (2/4)';
+    case 'punch_hook_l':
+      return 'LEFT HOOK — swinging left punch (3/4)';
+    case 'punch_hook_r':
+      return 'RIGHT HOOK — swinging right punch (4/4)';
     case 'neutral':
       return 'Hold a fighting stance, still...';
     case 'done':

@@ -1,5 +1,5 @@
 """
-train.py — PunchMLP training pipeline.
+train.py — PunchTCN training pipeline.
 
 Loads .npy keypoint sequences from a data directory, applies shoulder-midpoint
 normalization and horizontal-flip augmentation, trains a small MLP classifier,
@@ -77,19 +77,66 @@ def flip_sequence(kps: np.ndarray, label: str):
 # ---------------------------------------------------------------------------
 # Model
 # ---------------------------------------------------------------------------
-class PunchMLP(nn.Module):
-    def __init__(self, input_dim: int = 480, num_classes: int = 5):
-        """input_dim = 20 frames * 8 joints * 3 coords = 480"""
+class _TCNBlock(nn.Module):
+    def __init__(self, in_ch: int, out_ch: int, dilation: int, dropout: float = 0.3):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, 256), nn.ReLU(), nn.Dropout(0.3),
-            nn.Linear(256, 128), nn.ReLU(), nn.Dropout(0.3),
-            nn.Linear(128, 64), nn.ReLU(),
-            nn.Linear(64, num_classes),
-        )
+        # padding=dilation keeps output length == input length for kernel_size=3
+        self.conv = nn.Conv1d(in_ch, out_ch, kernel_size=3, dilation=dilation, padding=dilation)
+        self.relu = nn.ReLU()
+        self.drop = nn.Dropout(dropout)
+        self.shortcut = nn.Conv1d(in_ch, out_ch, 1) if in_ch != out_ch else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x.view(x.size(0), -1))
+        return self.relu(self.drop(self.conv(x)) + self.shortcut(x))
+
+
+class PunchTCN(nn.Module):
+    def __init__(self, in_channels: int = 24, hidden: int = 64, num_classes: int = 5, dropout: float = 0.3):
+        """
+        in_channels = 8 joints * 3 coords = 24
+        Input: (B, T=20, J=8, C=3) — same shape as PunchMLP accepted.
+        Receptive field with dilations [1,2,4]: 15 frames (~500ms at 30fps).
+        """
+        super().__init__()
+        self.blocks = nn.Sequential(
+            _TCNBlock(in_channels, hidden, dilation=1, dropout=dropout),
+            _TCNBlock(hidden, hidden, dilation=2, dropout=dropout),
+            _TCNBlock(hidden, hidden, dilation=4, dropout=dropout),
+        )
+        self.classifier = nn.Linear(hidden, num_classes)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        B, T, J, C = x.shape
+        x = x.view(B, T, J * C).permute(0, 2, 1)  # (B, 24, 20)
+        x = self.blocks(x)                          # (B, hidden, 20)
+        x = x.mean(dim=-1)                          # (B, hidden) — global avg pool
+        return self.classifier(x)                   # (B, num_classes)
+
+
+class PunchTCNExport(nn.Module):
+    """ONNX export wrapper — exposes both logits and backbone features as separate outputs.
+
+    The training loop uses PunchTCN directly (single output). This wrapper is only
+    instantiated in export_onnx.py so the ONNX graph has a 'features' output that
+    usePunchClassifier.ts uses to build per-player nearest-centroid prototypes.
+    """
+    def __init__(self, backbone: PunchTCN):
+        super().__init__()
+        self.backbone = backbone
+
+    def forward(self, x: torch.Tensor):
+        B, T, J, C = x.shape
+        x = x.view(B, T, J * C).permute(0, 2, 1)   # (B, 24, 20)
+        x = self.backbone.blocks(x)                  # (B, hidden, 20)
+        features = x.mean(dim=-1)                    # (B, hidden)
+        logits = self.backbone.classifier(features)  # (B, num_classes)
+        return logits, features
+
+
+def _qat_clean_state_dict(qat_model: nn.Module) -> dict:
+    """Strip fake-quant observer states, keeping only base PunchTCN weights."""
+    base_keys = set(PunchTCN().state_dict().keys())
+    return {k: v for k, v in qat_model.state_dict().items() if k in base_keys}
 
 
 # ---------------------------------------------------------------------------
@@ -164,7 +211,13 @@ def train(args):
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, drop_last=False)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False)
 
-    model = PunchMLP()
+    model = PunchTCN()
+    if args.qat:
+        import torch.ao.quantization as tq
+        model.qconfig = tq.get_default_qat_qconfig("fbgemm")
+        tq.prepare_qat(model, inplace=True)
+        print("QAT enabled — fake-quant observers inserted")
+
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
     criterion = nn.CrossEntropyLoss(weight=weight_tensor)
@@ -205,12 +258,14 @@ def train(args):
 
         if val_acc > best_acc:
             best_acc = val_acc
+            sd = _qat_clean_state_dict(model) if args.qat else model.state_dict()
             torch.save(
                 {
-                    "model_state_dict": model.state_dict(),
+                    "model_state_dict": sd,
                     "epoch": epoch,
                     "val_acc": best_acc,
                     "classes": CLASSES,
+                    "qat": args.qat,
                 },
                 best_path,
             )
@@ -232,14 +287,14 @@ def train(args):
 # --dry-run
 # ---------------------------------------------------------------------------
 def dry_run():
-    print("=== PunchMLP dry-run ===")
-    model = PunchMLP()
+    print("=== PunchTCN dry-run ===")
+    model = PunchTCN()
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"\nArchitecture:\n{model}")
     print(f"\nTotal parameters:     {total_params:,}")
     print(f"Trainable parameters: {trainable_params:,}")
-    print(f"(Expected: ~155K)")
+    print(f"(Expected: ~31K)")
 
     # Synthetic batch (zeros)
     dummy = torch.zeros(4, 20, 8, 3)
@@ -269,6 +324,8 @@ def main():
                         help="Batch size (default: 64)")
     parser.add_argument("--lr", type=float, default=1e-3,
                         help="Learning rate (default: 1e-3)")
+    parser.add_argument("--qat", action="store_true",
+                        help="Quantization-aware training: simulate int8 noise during training")
     parser.add_argument("--dry-run", action="store_true",
                         help="Build model, print summary, run one forward pass, exit 0")
     args = parser.parse_args()

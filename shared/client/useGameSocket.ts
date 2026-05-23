@@ -89,6 +89,8 @@ export interface UseGameSocketBase {
   rttMs: number;
   roundNumber: number;
   lastRoundEnd: RoundEnd | null;
+  /** Accumulated round wins for [player1, player2]. Reset on rematch/new match. */
+  roundWins: [number, number];
   matchEnd: MatchEnd | null;
   errorMessage: string | null;
   errorCode: 'unreachable' | 'room_not_found' | 'slot_taken' | null;
@@ -133,6 +135,7 @@ export function useGameSocketBase(config: UseGameSocketBaseConfig): UseGameSocke
   const [rttMs, setRttMs] = useState(0);
   const [roundNumber, setRoundNumber] = useState(1);
   const [lastRoundEnd, setLastRoundEnd] = useState<RoundEnd | null>(null);
+  const [roundWins, setRoundWins] = useState<[number, number]>([0, 0]);
   const [matchEnd, setMatchEnd] = useState<MatchEnd | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<'unreachable' | 'room_not_found' | 'slot_taken' | null>(null);
@@ -224,6 +227,7 @@ export function useGameSocketBase(config: UseGameSocketBaseConfig): UseGameSocke
         setMatchEnd(null);
         setLastRoundEnd(null);
         setRoundNumber(1);
+        setRoundWins([0, 0]);
         break;
       case 'match_start':
         setPhase('match');
@@ -241,6 +245,14 @@ export function useGameSocketBase(config: UseGameSocketBaseConfig): UseGameSocke
         break;
       case 'round_end':
         setLastRoundEnd({ winner: msg.winner, final_hp: msg.final_hp });
+        if (msg.winner !== null) {
+          const idx = msg.winner - 1;
+          setRoundWins(prev => {
+            const next: [number, number] = [prev[0], prev[1]];
+            next[idx] += 1;
+            return next;
+          });
+        }
         break;
       case 'match_end':
         setMatchEnd({ winner: msg.winner });
@@ -251,6 +263,7 @@ export function useGameSocketBase(config: UseGameSocketBaseConfig): UseGameSocke
         setMatchEnd(null);
         setLastRoundEnd(null);
         setRoundNumber(1);
+        setRoundWins([0, 0]);
         break;
     }
 
@@ -420,6 +433,7 @@ export function useGameSocketBase(config: UseGameSocketBaseConfig): UseGameSocke
     rttMs,
     roundNumber,
     lastRoundEnd,
+    roundWins,
     matchEnd,
     errorMessage,
     errorCode,

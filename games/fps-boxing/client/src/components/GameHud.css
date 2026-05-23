@@ -1,16 +1,14 @@
 /* GameHud.css — Phase 14 game-specific HUD tokens and styles */
 
 :root {
-  --hp-full: #22c55e;
-  --hp-low: #ef4444;
-  --hp-bar-bg: rgba(0, 0, 0, 0.55);
-  --hud-bg: rgba(0, 0, 0, 0.45);
-  --hit-flash: rgba(255, 255, 255, 0.35);
+  --hp-bar-bg:   rgba(0, 0, 0, 0.55);
+  --hud-bg:      rgba(0, 0, 0, 0.45);
+  --hit-flash:   rgba(255, 255, 255, 0.35);
   --overlay-dim: rgba(0, 0, 0, 0.65);
-  --win-color: #fbbf24;
-  --lose-color: #ef4444;
-  --p1-arm: #e8440a;
-  --p2-arm: #1a7fe8;
+  --win-color:   var(--gold, oklch(78% 0.14 85));
+  --lose-color:  oklch(55% 0.22 22);
+  --p1-arm:      oklch(44% 0.22 22);
+  --p2-arm:      oklch(52% 0.20 240);
 }
 
 .game-hud {
@@ -45,6 +43,7 @@
   color: var(--text-primary);
   text-transform: uppercase;
   margin-bottom: 4px;
+  font-family: var(--font-body, system-ui);
 }
 
 .hp-bar-container--p2 .hp-bar-label {
@@ -56,6 +55,7 @@
   border-radius: 4px;
   height: 20px;
   overflow: hidden;
+  border: 1px solid var(--gold, oklch(78% 0.14 85));
 }
 
 /* P2 bar fills right-to-left via rtl direction */
@@ -65,13 +65,22 @@
 
 .hp-bar-fill {
   height: 100%;
-  background: var(--hp-full);
-  transition: width 200ms ease-out, background-color 300ms ease;
+  transition: width 200ms ease-out;
   border-radius: 4px;
 }
 
+/* Per-player HP bar colors */
+.hp-bar-fill--p1-color { background: var(--accent, oklch(44% 0.22 22)); }
+.hp-bar-fill--p2-color { background: var(--accent-p2, oklch(52% 0.20 240)); }
+
+/* Low HP: pulse animation at ≤20% HP (160/800) — no color change */
+@keyframes hp-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+
 .hp-bar-fill--low {
-  background: var(--hp-low);
+  animation: hp-pulse 600ms ease-in-out infinite;
 }
 
 /* Round timer */
@@ -87,7 +96,7 @@
   font-size: 24px;
   font-weight: 700;
   letter-spacing: 0.04em;
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-body, system-ui);
   color: var(--text-primary);
   background: var(--hud-bg);
   padding: 4px 16px;
@@ -101,10 +110,45 @@
   color: var(--text-primary);
   text-align: center;
   margin-top: 4px;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.08em;
 }
 
-/* Match end overlay */
+.win-counter--p1 { color: var(--accent, oklch(44% 0.22 22)); }
+.win-counter--p2 { color: var(--accent-p2, oklch(52% 0.20 240)); }
+
+/* Round end overlay — shown between rounds */
+.round-end-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--overlay-dim);
+  z-index: 15;
+}
+
+.round-end-heading {
+  font-family: var(--font-display, 'Bebas Neue', system-ui);
+  font-size: 28px;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.round-end-result {
+  font-family: var(--font-display, 'Bebas Neue', system-ui);
+  font-size: 72px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.round-end-result--win   { color: var(--gold, oklch(78% 0.14 85)); }
+.round-end-result--lose  { color: var(--lose-color); }
+.round-end-result--draw  { color: var(--text-secondary); }
+
+/* Match end overlay — rendered only when matchEnd !== null */
 .match-end-overlay {
   position: absolute;
   inset: 0;
@@ -118,20 +162,14 @@
 }
 
 .match-end-result {
-  font-family: 'Anton', system-ui, sans-serif;
+  font-family: var(--font-display, 'Achafont', 'Bebas Neue', system-ui);
   font-size: 80px;
-  font-weight: 400;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.match-end-result--win {
-  color: var(--win-color);
-}
-
-.match-end-result--lose {
-  color: var(--lose-color);
-}
+.match-end-result--win  { color: var(--win-color); }
+.match-end-result--lose { color: var(--lose-color); }
 
 .rematch-button {
   margin-top: 48px;
@@ -145,20 +183,17 @@
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  font-family: var(--font-body, system-ui);
 }
 
 .rematch-button:hover {
   filter: brightness(1.15);
 }
 
-/* Hit flash animation (shared with GameRenderer inline style, also defined here for completeness) */
+/* Hit flash animation */
 @keyframes hit-flash-anim {
-  0% {
-    opacity: 0.8;
-  }
-  100% {
-    opacity: 0;
-  }
+  0%   { opacity: 0.8; }
+  100% { opacity: 0; }
 }
 
 .flash-active {

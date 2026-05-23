@@ -11,6 +11,14 @@ vi.mock('./hooks/useGameSocket');
 vi.mock('./hooks/useWarmup');
 vi.mock('./hooks/usePose');
 vi.mock('./hooks/useOneEuroFilter');
+vi.mock('./hooks/usePunchClassifier', () => ({
+  usePunchClassifier: vi.fn().mockReturnValue({
+    type: null,
+    confidence: 0,
+    speed: 0,
+    setPrototypes: vi.fn(),
+  }),
+}));
 vi.mock('./components/CalibrationScreen', () => ({
   CalibrationScreen: ({ onCalibrationDone }: { onCalibrationDone: (v: number) => void }) => (
     <div data-testid="calibration-screen">
@@ -65,6 +73,7 @@ function setupMocks(phase: 'lobby' | 'calibration' | 'match' = 'lobby') {
     rttMs: 0,
     roundNumber: 1,
     lastRoundEnd: null,
+    roundWins: [0, 0] as [number, number],
     matchEnd: null,
     errorMessage: null,
     errorCode: null,

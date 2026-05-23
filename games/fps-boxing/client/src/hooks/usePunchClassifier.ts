@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as ort from 'onnxruntime-web';
 import type { PoseKeypoint } from '@shared/protocol';
+import type { LabeledSample } from '@shared/client/useCalibration';
 import { normalizeWindow } from '../lib/normalizeWindow';
 import { computeWristPeakSpeed, LANDMARK } from '@shared/client/velocity';
 import type { TimedFrame } from '@shared/client/velocity';
@@ -28,11 +29,13 @@ const JOINT_INDICES = [
 
 const WINDOW_SIZE = 20;             // T=20 frames (667ms at 30fps, per D3)
 const CONFIDENCE_THRESHOLD = 0.7;  // per D9
+const FEAT_DIM = 64;               // backbone embedding dimension
 
 export interface PunchClassifierResult {
   type: PunchType | null;
   confidence: number;
   speed: number; // wrist speed in m/s (from computeWristPeakSpeed, not model output — per D8)
+  setPrototypes: (samples: LabeledSample[]) => void;
 }
 
 // MsgPunchDetected is defined here (not in shared/protocol.ts) because
@@ -51,13 +54,20 @@ function softmax(logits: Float32Array): number[] {
   return exps.map((v) => v / sum);
 }
 
+function l2Distance(a: Float32Array, b: Float32Array): number {
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d += (a[i] - b[i]) ** 2;
+  return Math.sqrt(d);
+}
+
 export function usePunchClassifier(
   keypoints: PoseKeypoint[] | null,
 ): PunchClassifierResult {
   const sessionRef = useRef<ort.InferenceSession | null>(null);
   const bufferRef = useRef<PoseKeypoint[][]>([]);
   const timedBufferRef = useRef<TimedFrame[]>([]);
-  const [result, setResult] = useState<PunchClassifierResult>({
+  const prototypesRef = useRef<Array<{ label: PunchType; centroid: Float32Array }> | null>(null);
+  const [result, setResult] = useState<Omit<PunchClassifierResult, 'setPrototypes'>>({
     type: null,
     confidence: 0,
     speed: 0,
@@ -83,6 +93,43 @@ export function usePunchClassifier(
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Build per-class centroids from labeled calibration windows.
+  // Called once after calibration completes, before the match starts.
+  const setPrototypes = useCallback(async (samples: LabeledSample[]) => {
+    const session = sessionRef.current;
+    if (!session || samples.length === 0) return;
+
+    const embsByClass = new Map<PunchType, Float32Array[]>();
+
+    for (const sample of samples) {
+      const normalizedData = normalizeWindow(sample.window, JOINT_INDICES);
+      const tensor = new ort.Tensor('float32', normalizedData, [1, WINDOW_SIZE, JOINT_INDICES.length, 3]);
+      try {
+        const output = await session.run({ input: tensor });
+        const featData = output.features?.data as Float32Array | undefined;
+        if (!featData) continue; // placeholder model without features output — skip
+        const copy = new Float32Array(featData); // clone before next run reuses buffer
+        const label = sample.label as PunchType;
+        if (!embsByClass.has(label)) embsByClass.set(label, []);
+        embsByClass.get(label)!.push(copy);
+      } catch {
+        // silent — session may be mid-unload on hot reload
+      }
+    }
+
+    const prototypes: Array<{ label: PunchType; centroid: Float32Array }> = [];
+    for (const [label, embs] of embsByClass) {
+      const centroid = new Float32Array(FEAT_DIM);
+      for (const emb of embs) {
+        for (let i = 0; i < FEAT_DIM; i++) centroid[i] += emb[i];
+      }
+      for (let i = 0; i < FEAT_DIM; i++) centroid[i] /= embs.length;
+      prototypes.push({ label, centroid });
+    }
+
+    prototypesRef.current = prototypes;
   }, []);
 
   // Run inference on each new frame
@@ -113,26 +160,44 @@ export function usePunchClassifier(
     const tensor = new ort.Tensor('float32', normalizedData, [1, WINDOW_SIZE, JOINT_INDICES.length, 3]);
 
     session.run({ input: tensor }).then((output) => {
-      const logits = output.logits.data as Float32Array;
-      const probs = softmax(logits);
-      const maxIdx = probs.indexOf(Math.max(...probs));
-      const confidence = probs[maxIdx];
-
       // Compute wrist speed from the timed ring buffer (per D8: not a model output)
       const speed = Math.max(
         computeWristPeakSpeed(timedSnapshot, 'left'),
         computeWristPeakSpeed(timedSnapshot, 'right'),
       );
 
-      setResult({
-        type: confidence >= CONFIDENCE_THRESHOLD ? LABELS[maxIdx] : null,
-        confidence,
-        speed,
-      });
+      const prototypes = prototypesRef.current;
+      const featData = output.features?.data as Float32Array | undefined;
+
+      if (prototypes && prototypes.length > 0 && featData) {
+        // Nearest-centroid classification using backbone features.
+        // Convert L2 distances to confidence via softmax over negative distances.
+        const distances = prototypes.map(({ centroid }) => l2Distance(featData, centroid));
+        const negDists = new Float32Array(distances.map(d => -d));
+        const probs = softmax(negDists);
+        const maxIdx = probs.indexOf(Math.max(...probs));
+        const confidence = probs[maxIdx];
+        setResult({
+          type: confidence >= CONFIDENCE_THRESHOLD ? prototypes[maxIdx].label : null,
+          confidence,
+          speed,
+        });
+      } else {
+        // Logits-based classification (no prototypes built yet).
+        const logits = output.logits.data as Float32Array;
+        const probs = softmax(logits);
+        const maxIdx = probs.indexOf(Math.max(...probs));
+        const confidence = probs[maxIdx];
+        setResult({
+          type: confidence >= CONFIDENCE_THRESHOLD ? LABELS[maxIdx] : null,
+          confidence,
+          speed,
+        });
+      }
     }).catch(() => {
       // Silent fail: session may be mid-load or model is placeholder — do not update state
     });
   }, [keypoints]);
 
-  return result;
+  return { ...result, setPrototypes };
 }

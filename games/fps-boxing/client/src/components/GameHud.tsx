@@ -10,7 +10,8 @@ interface GameHudProps {
   matchEnd: { winner: 1 | 2 } | null;
   playerSlot: 1 | 2;
   roundNumber: number;
-  lastRoundEnd: RoundEnd | null;   // for win counter dots
+  lastRoundEnd: RoundEnd | null;
+  roundWins: [number, number];  // accumulated [p1Wins, p2Wins] across all rounds
   onRematch: () => void;
 }
 
@@ -22,6 +23,7 @@ export function GameHud({
   playerSlot,
   roundNumber,
   lastRoundEnd,
+  roundWins,
   onRematch,
 }: GameHudProps) {
   // T-14-04-01: clamp HP percentage to prevent negative or >100% bars from malformed server data
@@ -31,13 +33,34 @@ export function GameHud({
   // T-14-04-03: guard against NaN/Infinity from server
   const timerDisplay = isFinite(roundTimer) && roundTimer >= 0 ? Math.ceil(roundTimer) : 0;
 
-  // Win counter dots — show filled dot for winner of last round, empty for other
-  const p1WonLastRound = lastRoundEnd?.winner === 1;
-  const p2WonLastRound = lastRoundEnd?.winner === 2;
-  // Show dots only if we have at least round 2 context (after first round ends)
-  const showDots = roundNumber > 1 || lastRoundEnd !== null;
+  // Low HP at ≤20% (160/800) — pulse animation, no color change
+  const playerLow = playerHp <= 160;
+  const opponentLow = opponentHp <= 160;
 
-  // Determine if the player is the match winner (for WIN vs LOSE display)
+  // HP fill color class based on actual player slot
+  const playerFillColor  = playerSlot === 1 ? 'hp-bar-fill--p1-color' : 'hp-bar-fill--p2-color';
+  const opponentFillColor = playerSlot === 1 ? 'hp-bar-fill--p2-color' : 'hp-bar-fill--p1-color';
+
+  // Accumulated wins for each side (from perspective of this player)
+  const myWins  = roundWins[playerSlot - 1];
+  const oppWins = roundWins[playerSlot === 1 ? 1 : 0];
+  const showWins = myWins > 0 || oppWins > 0;
+
+  // Round end overlay (shown between rounds, hidden when matchEnd takes over)
+  const showRoundEnd = lastRoundEnd !== null && matchEnd === null;
+  let roundEndResultText = 'DRAW';
+  let roundEndResultMod = 'round-end-result--draw';
+  if (lastRoundEnd !== null && lastRoundEnd.winner !== null) {
+    if (lastRoundEnd.winner === playerSlot) {
+      roundEndResultText = 'YOU WIN';
+      roundEndResultMod = 'round-end-result--win';
+    } else {
+      roundEndResultText = 'OPPONENT WINS';
+      roundEndResultMod = 'round-end-result--lose';
+    }
+  }
+
+  // Match end
   const isWinner = matchEnd?.winner === playerSlot;
 
   return (
@@ -47,7 +70,7 @@ export function GameHud({
         <div className="hp-bar-label">YOU</div>
         <div className="hp-bar-track">
           <div
-            className={`hp-bar-fill${playerHp <= 400 ? ' hp-bar-fill--low' : ''}`}
+            className={`hp-bar-fill ${playerFillColor}${playerLow ? ' hp-bar-fill--low' : ''}`}
             style={{ width: `${playerPct}%` }}
           />
         </div>
@@ -56,11 +79,15 @@ export function GameHud({
       {/* Round timer (center) */}
       <div className="round-timer-wrapper">
         <div className="round-timer">{timerDisplay}</div>
-        {showDots && (
+        {showWins && (
           <div className="win-counter">
-            {(playerSlot === 1 ? p1WonLastRound : p2WonLastRound) ? '●' : '○'}
+            <span className={playerSlot === 1 ? 'win-counter--p1' : 'win-counter--p2'}>
+              {'●'.repeat(myWins)}{'○'.repeat(Math.max(0, 3 - myWins))}
+            </span>
             {' '}
-            {(playerSlot === 1 ? p2WonLastRound : p1WonLastRound) ? '●' : '○'}
+            <span className={playerSlot === 1 ? 'win-counter--p2' : 'win-counter--p1'}>
+              {'●'.repeat(oppWins)}{'○'.repeat(Math.max(0, 3 - oppWins))}
+            </span>
           </div>
         )}
       </div>
@@ -70,11 +97,21 @@ export function GameHud({
         <div className="hp-bar-label">OPP</div>
         <div className="hp-bar-track">
           <div
-            className={`hp-bar-fill${opponentHp <= 400 ? ' hp-bar-fill--low' : ''}`}
+            className={`hp-bar-fill ${opponentFillColor}${opponentLow ? ' hp-bar-fill--low' : ''}`}
             style={{ width: `${opponentPct}%` }}
           />
         </div>
       </div>
+
+      {/* Round end overlay — shown between rounds */}
+      {showRoundEnd && (
+        <div className="round-end-overlay">
+          <div className="round-end-heading">ROUND {roundNumber}</div>
+          <div className={`round-end-result ${roundEndResultMod}`}>
+            {roundEndResultText}
+          </div>
+        </div>
+      )}
 
       {/* Match end overlay — rendered only when matchEnd !== null */}
       {matchEnd !== null && (

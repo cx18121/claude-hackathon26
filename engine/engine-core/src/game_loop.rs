@@ -107,6 +107,12 @@ pub fn game_tick(state: &mut RoomState) {
         // Frames are cleared AFTER plugin.on_tick returns (see below).
     }
 
+    // Flywheel: snapshot raw frames before the plugin consumes and clears them.
+    let flywheel_frames: [Vec<MsgPoseFrame>; 2] = [
+        state.players[0].processed_frames.iter().rev().take(20).rev().cloned().collect(),
+        state.players[1].processed_frames.iter().rev().take(20).rev().cloned().collect(),
+    ];
+
     // PLUG-06: normalize released frames to hip-centred Y-up before building TickContext
     let norm_frames: [VecDeque<PoseFrame>; 2] = [
         state.players[0].processed_frames.iter().map(normalize_to_y_up).collect(),
@@ -157,6 +163,30 @@ pub fn game_tick(state: &mut RoomState) {
     }
 
     dispatch_events(state, events);
+
+    // Flywheel: emit a structured log line for every hit this tick so
+    // scripts/collect_from_logs.py can extract labelled training samples.
+    for hit in &state.recent_hits {
+        let idx = hit.player.saturating_sub(1) as usize;
+        if idx < 2 && !flywheel_frames[idx].is_empty() {
+            let frames_json: Vec<serde_json::Value> = flywheel_frames[idx].iter().map(|f| {
+                let kps: Vec<[f64; 3]> = f.keypoints.iter()
+                    .map(|kp| [kp.x, kp.y, kp.z])
+                    .collect();
+                serde_json::json!({"timestamp": f.timestamp, "keypoints": kps})
+            }).collect();
+            let payload = serde_json::json!({
+                "room": &state.code,
+                "tick": state.tick,
+                "attacker": idx,
+                "region": &hit.region,
+                "frames": frames_json,
+            });
+            if let Ok(json_str) = serde_json::to_string(&payload) {
+                tracing::info!(target: "flywheel", "FLYWHEEL_HIT {}", json_str);
+            }
+        }
+    }
 
     // Broadcast live game_state (poses always empty per _EMPTY_POSES pattern)
     let high_latency = rtt_a.max(rtt_b) > 150.0;
