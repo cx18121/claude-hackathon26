@@ -170,11 +170,13 @@ export function usePose(
     // Spawn the Worker as CLASSIC (not { type: 'module' }). MediaPipe's WASM
     // loader uses `importScripts(url)` to fetch a UMD-style glue script that
     // sets `self.ModuleFactory` as a side effect on the worker's global scope.
-    // `importScripts` is forbidden in module workers — it throws TypeError,
-    // and MediaPipe's `await self.import(url)` fallback won't restore the
-    // global side effect even if polyfilled, because dynamic `import()` runs
-    // the script in an isolated module scope. Classic worker is the only
-    // shape MediaPipe's loader is actually compatible with.
+    // `importScripts` is forbidden in module workers — it throws TypeError —
+    // and the dynamic `import()` fallback runs in an isolated module scope
+    // so the global side effect is lost. Classic worker is the only shape
+    // MediaPipe's loader is actually compatible with.
+    //
+    // The body of pose.worker.ts is a thin stub that imports the real
+    // implementation from shared/client/pose-worker-impl.ts.
     const worker = new Worker(
       new URL('../workers/pose.worker.ts', import.meta.url),
     );

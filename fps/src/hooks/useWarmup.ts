@@ -23,7 +23,8 @@ export function useWarmup(): UseWarmupResult {
     // importScripts to fetch a UMD glue script that sets self.ModuleFactory
     // as a global side effect; importScripts throws TypeError in module
     // workers and the fallback (await self.import(url)) is undefined natively.
-    // See the parallel fix in mobile/src/hooks/usePose.ts (commit cdad3e2).
+    // The body of pose.worker.ts is a thin stub that imports the shared
+    // implementation from shared/client/pose-worker-impl.ts.
     const worker = new Worker(
       new URL('../workers/pose.worker.ts', import.meta.url),
     );

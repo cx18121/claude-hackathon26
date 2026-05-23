@@ -8,10 +8,9 @@ export default defineConfig(({ command }) => ({
   resolve: {
     alias: {
       '@shared': path.resolve(import.meta.dirname, '../shared'),
+      // See mobile/vite.config.ts for the worker-chunk resolution story.
+      '@mediapipe/tasks-vision': path.resolve(import.meta.dirname, 'node_modules/@mediapipe/tasks-vision'),
     },
-    // shared/client/* lives outside this app's node_modules. `dedupe` forces
-    // Vite to resolve these from THIS app's node_modules even when the import
-    // originates from the shared tree.
     dedupe: ['react', 'react-dom'],
   },
   server: {

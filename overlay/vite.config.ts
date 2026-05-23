@@ -10,9 +10,8 @@ export default defineConfig(({ command }) => ({
     alias: {
       '@shared': path.resolve(import.meta.dirname, '../shared'),
     },
-    // shared/client/* lives outside this app's node_modules. `dedupe` forces
-    // Vite to resolve these from THIS app's node_modules even when the import
-    // originates from the shared tree.
+    // overlay does not use the pose worker, so the @mediapipe alias mobile
+    // and fps need isn't required here. Kept dedupe for React.
     dedupe: ['react', 'react-dom'],
   },
   test: {

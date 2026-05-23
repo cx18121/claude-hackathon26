@@ -9,11 +9,15 @@ export default defineConfig(({ command }) => ({
   resolve: {
     alias: {
       '@shared': path.resolve(import.meta.dirname, '../shared'),
+      // Vite's worker-chunk bundler resolves bare imports from the importing
+      // file's directory upward. Shared modules in `shared/client/` need this
+      // app's node_modules to be reachable, but there is no node_modules at
+      // the `shared/` level. Explicit aliases route shared-module bare
+      // imports back to THIS app's node_modules at worker-bundle time.
+      '@mediapipe/tasks-vision': path.resolve(import.meta.dirname, 'node_modules/@mediapipe/tasks-vision'),
     },
-    // shared/client/* lives outside this app's node_modules. `dedupe` forces
-    // Vite to resolve these from THIS app's node_modules even when the import
-    // originates from the shared tree, avoiding "Failed to resolve import" for
-    // bare specifiers in shared modules.
+    // `dedupe` covers the main chunk; the explicit aliases above cover the
+    // isolated worker-chunk pass where dedupe doesn't apply.
     dedupe: ['react', 'react-dom'],
   },
   server: {
