@@ -5,13 +5,8 @@
 use std::any::Any;
 use std::collections::VecDeque;
 use plugin_trait::{GamePlugin, GameEvent, TickContext, BodyRegion};
-use boxing_core::{hit_detection, damage};
+use boxing_core::combat::{self, DEFAULT_HIT_COOLDOWN_TICKS};
 use serde_json::json;
-
-// ---------------------------------------------------------------------------
-// Hit cooldown: 12 ticks = 200ms at 60Hz (matches BoxingPlugin)
-// ---------------------------------------------------------------------------
-const HIT_COOLDOWN_TICKS: i64 = 12;
 
 // ---------------------------------------------------------------------------
 // Landmark index constants (MediaPipe indices 11-16, per D-07)
@@ -166,62 +161,55 @@ impl GamePlugin for FPSBoxingPlugin {
         }
 
         // --- Hit detection: attacker=0 vs defender=1, then attacker=1 vs defender=0 ---
+        // boxing-core::combat::process_attacker owns the cooldown + detect_punch +
+        // damage + HP subtract + last_hit_tick bookkeeping. Punch-only here
+        // (no kicks), and ref_vel always wrapped in Some.
         for attacker_idx in 0..2usize {
             let defender_idx = 1 - attacker_idx;
-
-            // Cooldown gate: prevent hit spam
-            if ctx.tick_info.tick as i64 - s.last_hit_tick[attacker_idx] < HIT_COOLDOWN_TICKS {
-                continue;
-            }
-
-            if let Some(h) = hit_detection::detect_punch(
-                ctx.frames[attacker_idx],
-                ctx.frames[defender_idx],
+            let Some(h) = combat::process_attacker(
+                attacker_idx,
+                defender_idx,
+                ctx.frames,
+                &mut s.hp,
                 Some(s.ref_vel[attacker_idx]),
-            ) {
-                let dmg = damage::compute_damage(h.region, h.velocity, Some(s.ref_vel[attacker_idx]));
+                &mut s.last_hit_tick,
+                ctx.tick_info.tick,
+                DEFAULT_HIT_COOLDOWN_TICKS,
+                /* include_kicks */ false,
+            ) else { continue };
 
-                // Apply damage with u32 underflow guard
-                s.hp[defender_idx] = s.hp[defender_idx].saturating_sub(dmg);
-                s.last_hit_tick[attacker_idx] = ctx.tick_info.tick as i64;
+            tracing::info!(
+                attacker = attacker_idx,
+                defender = defender_idx,
+                region = ?h.region,
+                dmg = h.damage,
+                hp_remaining = s.hp[defender_idx],
+                "fps_boxing hit"
+            );
 
-                tracing::info!(
-                    attacker = attacker_idx,
-                    defender = defender_idx,
-                    region = ?h.region,
-                    dmg,
-                    hp_remaining = s.hp[defender_idx],
-                    "fps_boxing hit"
-                );
+            events.push(GameEvent::Hit {
+                attacker: (attacker_idx + 1) as u8,
+                defender: (defender_idx + 1) as u8,
+                region: h.region.clone(),
+                damage: h.damage as f32,
+                position: [h.position.0 as f32, h.position.1 as f32],
+            });
 
-                // Emit GameEvent::Hit for engine-level accounting
-                events.push(GameEvent::Hit {
-                    attacker: (attacker_idx + 1) as u8,
-                    defender: (defender_idx + 1) as u8,
-                    region: h.region,
-                    damage: dmg as f32,
-                    position: [h.position.0 as f32, h.position.1 as f32],
-                });
-
-                // Emit MsgFpsHit to the receiving player (defender)
-                let fps_hit = json!({
+            events.push(GameEvent::SendToPlayer {
+                slot: (defender_idx + 1) as u8,
+                payload: json!({
                     "type": "fps_hit",
                     "punch_type": region_to_punch_type(&h.region),
-                    "damage": dmg,
-                });
-                events.push(GameEvent::SendToPlayer {
-                    slot: (defender_idx + 1) as u8,
-                    payload: fps_hit,
-                });
+                    "damage": h.damage,
+                }),
+            });
 
-                // Check for round over
-                if s.hp[defender_idx] == 0 {
-                    s.round_ended = true;
-                    events.push(GameEvent::RoundOver {
-                        winner: Some((attacker_idx + 1) as u8),
-                    });
-                    // Still emit MsgFpsState below so both players see final HP
-                }
+            if s.hp[defender_idx] == 0 {
+                s.round_ended = true;
+                events.push(GameEvent::RoundOver {
+                    winner: Some((attacker_idx + 1) as u8),
+                });
+                // MsgFpsState still emitted below so both players see final HP
             }
         }
 

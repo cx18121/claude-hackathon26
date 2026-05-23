@@ -8,15 +8,10 @@ use std::collections::VecDeque;
 use plugin_trait::{GamePlugin, GameEvent, TickContext, BodyRegion};
 use serde_json::json;
 
-use boxing_core::hit_detection;
-use boxing_core::damage;
+use boxing_core::combat::{self, DEFAULT_HIT_COOLDOWN_TICKS};
 mod bot;
 
 pub use bot::Difficulty;
-
-/// Hit cooldown: 12 ticks = 200ms at 60Hz.
-/// Source: server/game_loop.py line 22 _HIT_COOLDOWN_TICKS = 12.
-const HIT_COOLDOWN_TICKS: i64 = 12;
 
 // ---------------------------------------------------------------------------
 // Config and state
@@ -118,57 +113,49 @@ impl GamePlugin for BoxingPlugin {
         }
 
         // --- Hit detection for human attackers (BOX-01..04, BOX-05, BOX-07) ---
+        // boxing-core::combat::process_attacker handles cooldown gate + detect +
+        // damage compute + HP saturating_sub + last_hit_tick bookkeeping. Boxing's
+        // quirks layered on top: pass `None` ref_vel when uncalibrated, skip
+        // attacker 1 in solo/bot mode, include kick detection.
         for (attacker_idx, defender_idx) in [(0usize, 1usize), (1, 0)] {
-            // BOX-07: 12-tick hit cooldown per attacker
-            if (ctx.tick_info.tick as i64) - s.last_hit_tick[attacker_idx] < HIT_COOLDOWN_TICKS {
+            if solo_mode && attacker_idx == 1 {
                 continue;
             }
-
             let ref_vel = if s.ref_vel[attacker_idx] > 0.0 {
                 Some(s.ref_vel[attacker_idx])
             } else {
                 None
             };
-
-            // In bot mode, slot 2 frames are empty; skip attacker_idx=1 in solo mode
-            if solo_mode && attacker_idx == 1 {
-                continue;
-            }
-
-            let hit = hit_detection::detect_punch(
-                ctx.frames[attacker_idx],
-                ctx.frames[defender_idx],
+            let Some(h) = combat::process_attacker(
+                attacker_idx,
+                defender_idx,
+                ctx.frames,
+                &mut s.hp,
                 ref_vel,
-            ).or_else(|| hit_detection::detect_kick(
-                ctx.frames[attacker_idx],
-                ctx.frames[defender_idx],
-                ref_vel,
-            ));
+                &mut s.last_hit_tick,
+                ctx.tick_info.tick,
+                DEFAULT_HIT_COOLDOWN_TICKS,
+                /* include_kicks */ true,
+            ) else { continue };
 
-            if let Some(h) = hit {
-                let dmg = damage::compute_damage(h.region.clone(), h.velocity, ref_vel);
-                s.hp[defender_idx] = s.hp[defender_idx].saturating_sub(dmg);
-                s.last_hit_tick[attacker_idx] = ctx.tick_info.tick as i64;
+            // Commentary hint (emitted; consumed by v2 commentary engine)
+            emit_commentary_hint(&mut events, s, attacker_idx, defender_idx, &h.region, h.damage, ctx.tick_info.elapsed_secs, self.config.hp);
 
-                // Commentary hint (emitted; consumed by v2 commentary engine)
-                emit_commentary_hint(&mut events, s, attacker_idx, defender_idx, &h.region, dmg, ctx.tick_info.elapsed_secs, self.config.hp);
-
-                events.push(GameEvent::Hit {
-                    attacker: (attacker_idx + 1) as u8,
-                    defender: (defender_idx + 1) as u8,
-                    region: h.region,
-                    damage: dmg as f32,
-                    position: [h.position.0 as f32, h.position.1 as f32],
-                });
-                events.push(GameEvent::SendToPlayer {
-                    slot: (defender_idx + 1) as u8,
-                    payload: json!({
-                        "type": "you_were_hit",
-                        "region": h.region.to_wire(), // CR-04: include region to match bot path and protocol struct
-                        "damage": dmg,
-                    }),
-                });
-            }
+            events.push(GameEvent::Hit {
+                attacker: (attacker_idx + 1) as u8,
+                defender: (defender_idx + 1) as u8,
+                region: h.region.clone(),
+                damage: h.damage as f32,
+                position: [h.position.0 as f32, h.position.1 as f32],
+            });
+            events.push(GameEvent::SendToPlayer {
+                slot: (defender_idx + 1) as u8,
+                payload: json!({
+                    "type": "you_were_hit",
+                    "region": h.region.to_wire(), // CR-04: include region to match bot path and protocol struct
+                    "damage": h.damage,
+                }),
+            });
         }
 
         // --- Round-over check (BOX-06, BOX-08, ENG-10) ---
