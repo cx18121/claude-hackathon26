@@ -110,16 +110,12 @@ pub struct MsgPong {
 // Outbound messages: Server -> Mobile
 // ============================================================================
 
-fn default_type_joined() -> String {
-    "joined".to_string()
-}
-
 fn default_game_type_unknown() -> String { "unknown".to_string() }
 
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgJoined {
-    #[serde(rename = "type", default = "default_type_joined")]
+    #[serde(rename = "type")]
     #[ts(type = "\"joined\"")]
     pub msg_type: String,
     pub room_code: String,
@@ -129,78 +125,54 @@ pub struct MsgJoined {
     pub game_type: String,
 }
 
-fn default_type_calibration_start() -> String {
-    "calibration_start".to_string()
-}
-
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgCalibrationStart {
-    #[serde(rename = "type", default = "default_type_calibration_start")]
+    #[serde(rename = "type")]
     #[ts(type = "\"calibration_start\"")]
     pub msg_type: String,
-}
-
-fn default_type_match_start() -> String {
-    "match_start".to_string()
 }
 
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgMatchStart {
-    #[serde(rename = "type", default = "default_type_match_start")]
+    #[serde(rename = "type")]
     #[ts(type = "\"match_start\"")]
     pub msg_type: String,
-}
-
-fn default_type_you_were_hit() -> String {
-    "you_were_hit".to_string()
 }
 
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgYouWereHit {
-    #[serde(rename = "type", default = "default_type_you_were_hit")]
+    #[serde(rename = "type")]
     #[ts(type = "\"you_were_hit\"")]
     pub msg_type: String,
     pub region: String,
     pub damage: f64,
 }
 
-fn default_type_player_disconnected() -> String {
-    "player_disconnected".to_string()
-}
-
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgPlayerDisconnected {
-    #[serde(rename = "type", default = "default_type_player_disconnected")]
+    #[serde(rename = "type")]
     #[ts(type = "\"player_disconnected\"")]
     pub msg_type: String,
     pub player: u8,
 }
 
-fn default_type_round_start() -> String {
-    "round_start".to_string()
-}
-
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgRoundStart {
-    #[serde(rename = "type", default = "default_type_round_start")]
+    #[serde(rename = "type")]
     #[ts(type = "\"round_start\"")]
     pub msg_type: String,
     pub round_number: u32,
 }
 
-fn default_type_round_end() -> String {
-    "round_end".to_string()
-}
-
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgRoundEnd {
-    #[serde(rename = "type", default = "default_type_round_end")]
+    #[serde(rename = "type")]
     #[ts(type = "\"round_end\"")]
     pub msg_type: String,
     /// null means draw; 1 or 2 is the winning player
@@ -208,39 +180,27 @@ pub struct MsgRoundEnd {
     pub final_hp: (u32, u32),
 }
 
-fn default_type_match_end() -> String {
-    "match_end".to_string()
-}
-
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgMatchEnd {
-    #[serde(rename = "type", default = "default_type_match_end")]
+    #[serde(rename = "type")]
     #[ts(type = "\"match_end\"")]
     pub msg_type: String,
     pub winner: u8,
 }
 
-fn default_type_rematch_start() -> String {
-    "rematch_start".to_string()
-}
-
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgRematchStart {
-    #[serde(rename = "type", default = "default_type_rematch_start")]
+    #[serde(rename = "type")]
     #[ts(type = "\"rematch_start\"")]
     pub msg_type: String,
-}
-
-fn default_type_dance_beat() -> String {
-    "dance_beat".to_string()
 }
 
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgDanceBeat {
-    #[serde(rename = "type", default = "default_type_dance_beat")]
+    #[serde(rename = "type")]
     #[ts(type = "\"dance_beat\"")]
     pub msg_type: String,
     #[ts(type = "number")]  // WR-04: override bigint → number; shared/protocol.ts is authoritative
@@ -252,14 +212,10 @@ pub struct MsgDanceBeat {
     pub target_pose: Vec<[f64; 4]>,
 }
 
-fn default_type_dance_score() -> String {
-    "dance_score".to_string()
-}
-
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgDanceScore {
-    #[serde(rename = "type", default = "default_type_dance_score")]
+    #[serde(rename = "type")]
     #[ts(type = "\"dance_score\"")]
     pub msg_type: String,
     #[ts(type = "number")]  // WR-04: override bigint → number; shared/protocol.ts is authoritative
@@ -277,41 +233,29 @@ pub struct MsgDanceScore {
 // keep the wire shape locked.
 // ============================================================================
 
-fn default_type_commentary_start() -> String {
-    "commentary_start".to_string()
-}
-
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgCommentaryStart {
-    #[serde(rename = "type", default = "default_type_commentary_start")]
+    #[serde(rename = "type")]
     #[ts(type = "\"commentary_start\"")]
     pub msg_type: String,
     pub id: u32,
 }
 
-fn default_type_commentary_text() -> String {
-    "commentary_text".to_string()
-}
-
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgCommentaryText {
-    #[serde(rename = "type", default = "default_type_commentary_text")]
+    #[serde(rename = "type")]
     #[ts(type = "\"commentary_text\"")]
     pub msg_type: String,
     pub id: u32,
     pub delta: String,
 }
 
-fn default_type_commentary_audio() -> String {
-    "commentary_audio".to_string()
-}
-
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgCommentaryAudio {
-    #[serde(rename = "type", default = "default_type_commentary_audio")]
+    #[serde(rename = "type")]
     #[ts(type = "\"commentary_audio\"")]
     pub msg_type: String,
     pub id: u32,
@@ -320,21 +264,13 @@ pub struct MsgCommentaryAudio {
     pub audio_b64: String,
 }
 
-fn default_type_commentary_end() -> String {
-    "commentary_end".to_string()
-}
-
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgCommentaryEnd {
-    #[serde(rename = "type", default = "default_type_commentary_end")]
+    #[serde(rename = "type")]
     #[ts(type = "\"commentary_end\"")]
     pub msg_type: String,
     pub id: u32,
-}
-
-fn default_type_dance_snapshot() -> String {
-    "dance_snapshot".to_string()
 }
 
 /// Spectator snapshot sent on connect for an in-progress dance round.
@@ -344,7 +280,7 @@ fn default_type_dance_snapshot() -> String {
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgDanceSnapshot {
-    #[serde(rename = "type", default = "default_type_dance_snapshot")]
+    #[serde(rename = "type")]
     #[ts(type = "\"dance_snapshot\"")]
     pub msg_type: String,
     /// Always "dance" — kept explicit so spectators can pre-narrow on it
@@ -360,14 +296,10 @@ pub struct MsgDanceSnapshot {
 // Outbound messages: Server -> Overlay
 // ============================================================================
 
-fn default_type_game_state() -> String {
-    "game_state".to_string()
-}
-
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgGameState {
-    #[serde(rename = "type", default = "default_type_game_state")]
+    #[serde(rename = "type")]
     #[ts(type = "\"game_state\"")]
     pub msg_type: String,
     pub tick: u64,
@@ -381,28 +313,20 @@ pub struct MsgGameState {
     pub max_wins: u32,
 }
 
-fn default_type_pose_update() -> String {
-    "pose_update".to_string()
-}
-
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgPoseUpdate {
-    #[serde(rename = "type", default = "default_type_pose_update")]
+    #[serde(rename = "type")]
     #[ts(type = "\"pose_update\"")]
     pub msg_type: String,
     pub player: u8,
     pub keypoints: Vec<PoseKeypoint>,
 }
 
-fn default_type_lobby_update() -> String {
-    "lobby_update".to_string()
-}
-
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgLobbyUpdate {
-    #[serde(rename = "type", default = "default_type_lobby_update")]
+    #[serde(rename = "type")]
     #[ts(type = "\"lobby_update\"")]
     pub msg_type: String,
     pub p1: bool,
@@ -440,10 +364,6 @@ pub enum InboundMobileMsg {
 // FPS Boxing messages (Phase 10: FPSP-03, FPSP-04)
 // ============================================================================
 
-fn default_type_fps_state() -> String {
-    "fps_state".to_string()
-}
-
 /// Per-tick state broadcast for fps_boxing rooms.
 /// Sent to each player containing their OPPONENT's 6 arm landmarks, both HP values, and round timer.
 /// Two separate SendToPlayer events per tick — player 0 gets player 1's landmarks; player 1 gets player 0's.
@@ -451,7 +371,7 @@ fn default_type_fps_state() -> String {
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgFpsState {
-    #[serde(rename = "type", default = "default_type_fps_state")]
+    #[serde(rename = "type")]
     #[ts(type = "\"fps_state\"")]
     pub msg_type: String,
     pub left_shoulder: PoseKeypoint,
@@ -466,16 +386,12 @@ pub struct MsgFpsState {
     pub round_timer: f64,
 }
 
-fn default_type_fps_hit() -> String {
-    "fps_hit".to_string()
-}
-
 /// Hit notification for fps_boxing rooms.
 /// Sent via SendToPlayer to the RECEIVING player only (not the attacker).
 #[derive(Serialize, Deserialize, TS, Clone, Debug)]
 #[ts(export)]
 pub struct MsgFpsHit {
-    #[serde(rename = "type", default = "default_type_fps_hit")]
+    #[serde(rename = "type")]
     #[ts(type = "\"fps_hit\"")]
     pub msg_type: String,
     /// Punch type string: "cross", "body_shot", "kick", or "blocked".
