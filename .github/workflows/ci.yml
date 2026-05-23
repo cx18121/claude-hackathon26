@@ -12,6 +12,47 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  protocol-drift:
+    name: protocol bindings up-to-date
+    runs-on: ubuntu-latest
+    # Catches the failure mode where someone edits
+    # engine/engine-core/src/protocol.rs (or
+    # shared/protocol.unions.ts.tmpl) without running
+    # scripts/regen-protocol.sh — the auto-gen pipeline only helps
+    # if shared/protocol.ts + shared/bindings/ stay in sync with
+    # the Rust sources.
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      - name: Cache cargo registry + target
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            engine/target
+          key: ${{ runner.os }}-cargo-protocol-${{ hashFiles('engine/**/Cargo.lock', 'engine/**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Regenerate shared/protocol.ts and shared/bindings/
+        run: scripts/regen-protocol.sh
+
+      - name: Fail if regen produced any diff
+        run: |
+          if ! git diff --exit-code -- shared/protocol.ts shared/bindings/; then
+            echo ""
+            echo "::error::shared/protocol.ts or shared/bindings/ is stale."
+            echo "Run \`scripts/regen-protocol.sh\` locally and commit the result."
+            exit 1
+          fi
+
   rust-tests:
     name: cargo test (engine)
     runs-on: ubuntu-latest
