@@ -4,6 +4,7 @@ import type {
   MsgYouWereHit,
   OutboundMobileMsg,
 } from '@shared/protocol';
+import { normalizeHttpUrl, normalizeWsUrl } from '@shared/client/wsUrl';
 
 export type SocketStatus =
   | 'disconnected'
@@ -54,61 +55,6 @@ const RECONNECT_DELAY_MS = 2000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const PING_INTERVAL_MS = 500;
 const HIT_FLASH_MS = 1500;
-
-// Detect a secure page origin so we can auto-upgrade insecure URLs and
-// avoid the browser's mixed-content block (the #1 deployment failure when
-// the mobile app is served from Vercel/https). typeof guard keeps this
-// SSR-safe even though we don't currently SSR.
-function isSecurePage(): boolean {
-  return typeof location !== 'undefined' && location.protocol === 'https:';
-}
-
-export function normalizeHttpUrl(input: string): string {
-  const trimmed = input.trim();
-  if (!trimmed) return trimmed;
-  const secure = isSecurePage();
-  if (trimmed.startsWith('https://')) {
-    return trimmed.replace(/\/$/, '');
-  }
-  if (trimmed.startsWith('http://')) {
-    if (secure) {
-      return 'https://' + trimmed.slice('http://'.length).replace(/\/$/, '');
-    }
-    return trimmed.replace(/\/$/, '');
-  }
-  if (trimmed.startsWith('ws://')) {
-    const host = trimmed.slice('ws://'.length).replace(/\/$/, '');
-    return (secure ? 'https://' : 'http://') + host;
-  }
-  if (trimmed.startsWith('wss://')) {
-    return 'https://' + trimmed.slice('wss://'.length).replace(/\/$/, '');
-  }
-  return (secure ? 'https://' : 'http://') + trimmed.replace(/\/$/, '');
-}
-
-export function normalizeWsUrl(input: string): string {
-  const trimmed = input.trim();
-  if (!trimmed) return trimmed;
-  const secure = isSecurePage();
-  if (trimmed.startsWith('wss://')) {
-    return trimmed.replace(/\/$/, '');
-  }
-  if (trimmed.startsWith('ws://')) {
-    if (secure) {
-      return 'wss://' + trimmed.slice('ws://'.length).replace(/\/$/, '');
-    }
-    return trimmed.replace(/\/$/, '');
-  }
-  if (trimmed.startsWith('http://')) {
-    const host = trimmed.slice('http://'.length).replace(/\/$/, '');
-    return (secure ? 'wss://' : 'ws://') + host;
-  }
-  if (trimmed.startsWith('https://')) {
-    return 'wss://' + trimmed.slice('https://'.length).replace(/\/$/, '');
-  }
-  // Bare host:port
-  return (secure ? 'wss://' : 'ws://') + trimmed.replace(/\/$/, '');
-}
 
 interface ConnectionArgs {
   serverUrl: string;

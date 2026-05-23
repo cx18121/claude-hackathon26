@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeWsUrl, normalizeHttpUrl } from './useGameSocket';
+import { normalizeWsUrl, normalizeHttpUrl } from '@shared/client/wsUrl';
 
 describe('normalizeWsUrl', () => {
   it('passes through ws:// URLs unchanged', () => {

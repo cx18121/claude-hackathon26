@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { normalizeWsUrl, useGameSocket } from './useGameSocket';
+import { useGameSocket } from './useGameSocket';
+import { normalizeWsUrl } from '@shared/client/wsUrl';
 
 describe('normalizeWsUrl', () => {
   it('returns empty string for empty input', () => {

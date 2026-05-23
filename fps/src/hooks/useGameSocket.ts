@@ -6,6 +6,7 @@ import type {
   MsgYouWereHit,
   OutboundMobileMsg,
 } from '@shared/protocol';
+import { normalizeHttpUrl, normalizeWsUrl } from '@shared/client/wsUrl';
 
 export type SocketStatus =
   | 'disconnected'
@@ -59,37 +60,6 @@ const RECONNECT_DELAY_MS = 2000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const PING_INTERVAL_MS = 500;
 const HIT_FLASH_MS = 1500;
-
-export function normalizeHttpUrl(input: string): string {
-  const trimmed = input.trim();
-  if (!trimmed) return trimmed;
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    return trimmed.replace(/\/$/, '');
-  }
-  if (trimmed.startsWith('ws://')) {
-    return 'http://' + trimmed.slice('ws://'.length).replace(/\/$/, '');
-  }
-  if (trimmed.startsWith('wss://')) {
-    return 'https://' + trimmed.slice('wss://'.length).replace(/\/$/, '');
-  }
-  return 'http://' + trimmed.replace(/\/$/, '');
-}
-
-export function normalizeWsUrl(input: string): string {
-  const trimmed = input.trim();
-  if (!trimmed) return trimmed;
-  if (trimmed.startsWith('ws://') || trimmed.startsWith('wss://')) {
-    return trimmed.replace(/\/$/, '');
-  }
-  if (trimmed.startsWith('http://')) {
-    return 'ws://' + trimmed.slice('http://'.length).replace(/\/$/, '');
-  }
-  if (trimmed.startsWith('https://')) {
-    return 'wss://' + trimmed.slice('https://'.length).replace(/\/$/, '');
-  }
-  // Bare host:port
-  return 'ws://' + trimmed.replace(/\/$/, '');
-}
 
 interface ConnectionArgs {
   serverUrl: string;
