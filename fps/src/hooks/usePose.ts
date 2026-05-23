@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { PoseKeypoint } from '@shared/protocol';
 
+export type ModelStatus = 'idle' | 'ready' | 'error';
+
 export interface UsePoseResult {
   keypoints: PoseKeypoint[] | null;
   imageKeypoints: PoseKeypoint[] | null;
   fps: number;
+  modelStatus: ModelStatus;
+  modelError: string | null;
 }
 
 // `requestVideoFrameCallback` types aren't in the lib.dom defaults.
@@ -18,6 +22,10 @@ function supportsOffscreen() {
   return typeof OffscreenCanvas !== 'undefined';
 }
 
+function supportsCreateImageBitmap() {
+  return typeof createImageBitmap !== 'undefined';
+}
+
 // GPS timing: rolling window of last 10 detect→result latencies
 const LATENCY_WINDOW = 10;
 
@@ -29,6 +37,11 @@ export function usePose(
   const [keypoints, setKeypoints] = useState<PoseKeypoint[] | null>(null);
   const [imageKeypoints, setImageKeypoints] = useState<PoseKeypoint[] | null>(null);
   const [fps, setFps] = useState(0);
+  const [modelStatus, setModelStatus] = useState<ModelStatus>('idle');
+  const [modelError, setModelError] = useState<string | null>(null);
+
+  // One-shot guard so we don't re-set the no-capture error every frame.
+  const noCaptureReportedRef = useRef(false);
 
   // Refs let the rAF loop read current values without stale closures
   const workerBusyRef = useRef(false);
@@ -91,6 +104,15 @@ export function usePose(
             } catch {
               workerBusyRef.current = false;
             }
+          } else if (!supportsCreateImageBitmap()) {
+            // Neither capture API works — surface as a modelError so the UI
+            // can show a real message instead of an indefinite "no pose"
+            // loading state. Report once to avoid spamming setState.
+            if (!noCaptureReportedRef.current && !cancelled) {
+              noCaptureReportedRef.current = true;
+              setModelStatus('error');
+              setModelError('Frame capture requires OffscreenCanvas or createImageBitmap (not available on this browser)');
+            }
           }
         }
       }
@@ -137,14 +159,19 @@ export function usePose(
         if (!cancelled) {
           setKeypoints(msg.worldLandmarks ?? null);
           setImageKeypoints(msg.landmarks ?? null);
+          setModelStatus((prev) => (prev === 'error' ? prev : 'ready'));
         }
       }
 
       if (msg.type === 'error') {
         workerBusyRef.current = false;
         detectSentAtRef.current = null;
-        // surface via console — no modelError state in fps/ usePose
+        // surface to UI as modelError and log
         console.error('[usePose] worker error:', msg.message);
+        if (!cancelled) {
+          setModelStatus('error');
+          setModelError(msg.message ?? 'Pose worker error');
+        }
       }
     };
 
@@ -166,5 +193,5 @@ export function usePose(
     };
   }, [cameraReady, workerRef, videoRef]);
 
-  return { keypoints, imageKeypoints, fps };
+  return { keypoints, imageKeypoints, fps, modelStatus, modelError };
 }

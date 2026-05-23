@@ -47,10 +47,6 @@ export interface UseGameSocketResult {
   // Returns the room code (caller persists it for the UI) or throws on failure.
   connectSolo: (serverUrl: string) => Promise<string>;
   disconnect: () => void;
-  // Mobile drives its own phase transitions because the current server build
-  // does not emit calibration_start / match_start. These setters let the
-  // calibration hook advance the local phase as the user progresses.
-  setPhase: (phase: GamePhase) => void;
   playAgain: () => Promise<void>;
 }
 
@@ -318,7 +314,16 @@ export function useGameSocket(): UseGameSocketResult {
     const args = connectionArgsRef.current;
     if (!args) return;
     const base = normalizeHttpUrl(args.serverUrl);
-    await fetch(`${base}/rooms/${encodeURIComponent(args.roomCode)}/rematch`, { method: 'POST' });
+    try {
+      const res = await fetch(`${base}/rooms/${encodeURIComponent(args.roomCode)}/rematch`, { method: 'POST' });
+      if (!res.ok) {
+        setErrorMessage(`Rematch failed (status ${res.status}). Try reconnecting.`);
+        setErrorCode('unreachable');
+      }
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Rematch failed');
+      setErrorCode('unreachable');
+    }
   }, []);
 
   const connect = useCallback(
@@ -413,7 +418,6 @@ export function useGameSocket(): UseGameSocketResult {
     connect,
     connectSolo,
     disconnect,
-    setPhase,
     playAgain,
   };
 }

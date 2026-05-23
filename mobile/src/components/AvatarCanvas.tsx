@@ -96,7 +96,7 @@ export function AvatarCanvas({ keypoints, hitRegion }: Props) {
       ctx.arc(pb.x, pb.y, radius, 0, Math.PI * 2)
       ctx.fill()
     }
-  }, [keypoints])
+  }, [keypoints, hitRegion])
 
   return <canvas ref={canvasRef} className="avatar-canvas" />
 }

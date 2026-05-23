@@ -53,6 +53,9 @@ pub struct BoxingState {
     pub first_blood_pending: bool,
     /// Elapsed seconds when the bot should next fire a hit. 0.0 = fire immediately next tick.
     pub bot_next_hit_at: f64,
+    /// True once the first RoundOver event has been emitted this round.
+    /// Prevents redundant RoundOver broadcasts on every tick after a KO until on_round_reset.
+    pub round_ended: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -82,7 +85,8 @@ impl GamePlugin for BoxingPlugin {
             combo: [(0.0, 0); 2],
             low_hp_announced: [false; 2],
             first_blood_pending: true,
-            bot_next_hit_at: 0.0,
+            bot_next_hit_at: 2.0,
+            round_ended: false,
         })
     }
 
@@ -169,7 +173,10 @@ impl GamePlugin for BoxingPlugin {
 
         // --- Round-over check (BOX-06, BOX-08, ENG-10) ---
         if let Some(ev) = check_round_over(&s.hp, ctx.tick_info.remaining_secs) {
-            events.push(ev);
+            if !s.round_ended {
+                s.round_ended = true;
+                events.push(ev);
+            }
         }
 
         events
@@ -192,6 +199,7 @@ impl GamePlugin for BoxingPlugin {
         s.combo = [(0.0, 0); 2];
         s.low_hp_announced = [false; 2];
         s.first_blood_pending = true;
+        s.round_ended = false;
         // bot_next_hit_at is intentionally NOT reset — bot continues its timer from the round break
         // This matches Python _tick_bot behavior which does not reset the interval on rematch.
     }

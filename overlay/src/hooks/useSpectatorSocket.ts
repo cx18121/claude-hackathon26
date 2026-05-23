@@ -217,6 +217,10 @@ export function useSpectatorSocket(
         if (parsed.type === 'game_state') {
           setGameState(parsed)
           setMaxWins(parsed.max_wins ?? 2)
+          // FIX-02 (overlay side): wins is emitted on every game_state tick by
+          // the engine specifically so a mid-match spectator / reconnect sees
+          // the correct score immediately instead of [0,0] until round_end.
+          setWins([parsed.wins[0], parsed.wins[1]])
           setDisconnectedPlayer(null)
           // Accumulate damage/hits from this tick (deduplicated by tick number)
           if (parsed.recent_hits.length > 0 && parsed.tick > lastStatTickRef.current) {
@@ -231,7 +235,16 @@ export function useSpectatorSocket(
         }
 
         if (parsed.type === 'round_start') {
-          if (parsed.round_number === 1) setWins([0, 0])
+          if (parsed.round_number === 1) {
+            // Server-restart mid-match can emit round_start(1) without a
+            // preceding rematch_start. Mirror the rematch_start resets so
+            // stale accumulators don't poison the final MatchStats.
+            setWins([0, 0])
+            damageAccRef.current = [0, 0]
+            hitsAccRef.current = [0, 0]
+            roundsPlayedRef.current = 0
+            lastStatTickRef.current = -1
+          }
           roundNumberRef.current = parsed.round_number
           setMatchWinner(null)
           setRoundState({ number: parsed.round_number, phase: 'active' })

@@ -32,7 +32,7 @@ export function danceReducer(
 ): DanceState {
   if (msg.type === 'joined') {
     const gt = msg.game_type as string | undefined
-    if (gt === 'boxing' || gt === 'dance') {
+    if (gt === 'boxing' || gt === 'fps_boxing' || gt === 'dance') {
       return { ...state, gameType: gt }
     }
     return state

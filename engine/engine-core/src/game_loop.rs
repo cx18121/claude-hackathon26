@@ -213,8 +213,12 @@ fn dispatch_events(state: &mut RoomState, events: Vec<GameEvent>) {
                 );
             }
             GameEvent::RoundOver { winner } => {
-                // Defer round-over processing to after the loop (avoids double-borrow of state)
-                round_over_winner = Some(winner);
+                // First-wins: on simultaneous events in one tick (e.g., a double-KO),
+                // record the first reported winner and ignore subsequent RoundOvers
+                // so the wrong player's win isn't latched by overwrite.
+                if round_over_winner.is_none() {
+                    round_over_winner = Some(winner);
+                }
             }
             GameEvent::SendToPlayer { slot, payload } => {
                 // T-02-16: bounds-check slot index before tx lookup; drops silently if out of range

@@ -83,6 +83,8 @@ function setupMocks(phase: 'lobby' | 'calibration' | 'match' = 'lobby') {
     keypoints: null,
     imageKeypoints: null,
     fps: 0,
+    modelStatus: 'idle',
+    modelError: null,
   });
 
   mockUseOneEuroFilter.mockReturnValue(null);
@@ -162,6 +164,8 @@ describe('App phase routing', () => {
       keypoints: testKeypoints,
       imageKeypoints: null,
       fps: 0,
+      modelStatus: 'idle',
+      modelError: null,
     });
 
     render(<App />);

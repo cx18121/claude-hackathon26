@@ -4,6 +4,9 @@ import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import type { PoseKeypoint } from '@shared/protocol';
 import type { MsgFpsHit } from '@shared/protocol';
 import { buildArmSegment, updateArmSegment } from '../lib/armGeometry';
+
+// Minimal disposable surface — covers geometries, materials, textures.
+type ThreeDisposable = { dispose: () => void };
 import { keypointToWorld, WORLD_SCALE } from '../lib/coordinateMap';
 import { LANDMARK, computeWristPeakSpeed, type TimedFrame } from '../lib/velocity';
 import { stepSpring, type SpringState } from '../lib/springPhysics';
@@ -137,6 +140,12 @@ export function useGameRenderer(
     const container = containerRef.current;
     if (!container) return;
 
+    // Track every geometry / material / texture created in this effect so
+    // we can dispose them on unmount. renderer.dispose() does NOT recurse
+    // into scene contents, so without explicit disposal these accumulate
+    // GPU memory across rematches / Strict Mode double-mount.
+    const disposables: ThreeDisposable[] = [];
+
     // --- Renderer ---
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio);
@@ -179,10 +188,14 @@ export function useGameRenderer(
     const opponentColor = playerSlot === 1 ? p2Color : p1Color;
 
     const playerGradient = buildGradientMap();
+    disposables.push(playerGradient);
     const playerMat = new THREE.MeshToonMaterial({ color: playerColor, gradientMap: playerGradient });
+    disposables.push(playerMat);
 
     const opponentGradient = buildGradientMap();
+    disposables.push(opponentGradient);
     const opponentMat = new THREE.MeshToonMaterial({ color: opponentColor, gradientMap: opponentGradient });
+    disposables.push(opponentMat);
 
     // --- Player arm meshes (arms scene — depth separated) ---
     const playerArms: ArmMeshes = {
@@ -192,6 +205,12 @@ export function useGameRenderer(
       rightFore:  buildArmSegment(0.05, 0.04, playerMat),
     };
     armsScene.add(playerArms.leftUpper, playerArms.leftFore, playerArms.rightUpper, playerArms.rightFore);
+    disposables.push(
+      playerArms.leftUpper.geometry,
+      playerArms.leftFore.geometry,
+      playerArms.rightUpper.geometry,
+      playerArms.rightFore.geometry,
+    );
     playerArmMeshesRef.current = playerArms;
 
     // --- Opponent arm meshes (world scene) ---
@@ -202,6 +221,12 @@ export function useGameRenderer(
       rightFore:  buildArmSegment(0.05, 0.04, opponentMat),
     };
     worldScene.add(opponentArms.leftUpper, opponentArms.leftFore, opponentArms.rightUpper, opponentArms.rightFore);
+    disposables.push(
+      opponentArms.leftUpper.geometry,
+      opponentArms.leftFore.geometry,
+      opponentArms.rightUpper.geometry,
+      opponentArms.rightFore.geometry,
+    );
     opponentArmMeshesRef.current = opponentArms;
 
     // --- OutlineEffect (arms scene only — Pitfall 6) ---
@@ -372,6 +397,12 @@ export function useGameRenderer(
     // T-14-01-04: cleanup on unmount — prevents renderer leak in React strict mode
     return () => {
       renderer.setAnimationLoop(null);
+      // Dispose scene contents before the renderer — renderer.dispose() does
+      // not walk the scene graph, so geometries / materials / textures would
+      // otherwise leak GPU memory across rematches and Strict Mode mounts.
+      for (const d of disposables) {
+        d.dispose();
+      }
       renderer.dispose();
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);

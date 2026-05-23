@@ -27,6 +27,7 @@ export function PoseOverlay({ keypoints }: PoseOverlayProps) {
 
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
+    if (w === 0 || h === 0) return;
     if (canvas.width !== w || canvas.height !== h) {
       canvas.width = w;
       canvas.height = h;

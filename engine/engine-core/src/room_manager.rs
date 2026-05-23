@@ -41,7 +41,14 @@ impl RoomHandle {
                 poisoned.into_inner()
             }
         };
-        guard.map_or(false, |t| t.elapsed() > Duration::from_secs(600)) // 10 minutes
+        // Normal path: disconnect timestamp present — expire 10 minutes after disconnect.
+        // Fallback: match_over but no disconnect timestamp was ever recorded (e.g., the
+        // engine never stamped it before the room actor exited). In that case, fall back
+        // to a 15-minute grace period since room creation so the room can't live forever.
+        match guard.as_ref() {
+            Some(t) => t.elapsed() > Duration::from_secs(600),
+            None => self.created_at.elapsed() > Duration::from_secs(900),
+        }
     }
 }
 

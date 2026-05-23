@@ -56,8 +56,19 @@ function playFallbackTone(name: SfxName, volume: number) {
 
 class SfxPlayer {
   private readonly sounds = new Map<SfxName, HTMLAudioElement>()
+  private preloaded = false
 
   constructor() {
+    // NB: do NOT preload here. Chromium >=92 marks Audio elements created
+    // before any user gesture as autoplay-blocked, and cloneNode() inherits
+    // that state — so hit_light/hit_heavy would silently fall back to
+    // oscillator tones even after unlockSfx() ran. preloadAll() is now
+    // invoked from unlockSfx() on the user-gesture path.
+  }
+
+  ensurePreloaded() {
+    if (this.preloaded) return
+    this.preloaded = true
     this.preloadAll()
   }
 
@@ -130,6 +141,10 @@ export function getBgmVolume() { return bgmVolume }
 
 export function unlockSfx() {
   audioUnlocked = true
+  // Preload now — this is the user-gesture entry point, so Audio elements
+  // created here are NOT autoplay-blocked. Cloned nodes inherit that
+  // (good) state, so hit_light / hit_heavy will actually play.
+  sfx.ensurePreloaded()
   try {
     const context = getAudioContext()
     void context.resume()
