@@ -1,0 +1,33 @@
+# Single Railway service fronts three game servers via path routing.
+# Railway injects PORT; we bind Caddy to it and reverse-proxy each /game/*
+# prefix to the matching localhost backend. handle_path strips the prefix
+# so each engine_core instance still sees URLs at its own root (`/`,
+# `/ws/...`, `/assets/...`), unchanged from the per-game dev setup.
+{
+	auto_https off
+	admin off
+}
+
+:{$PORT:8080} {
+	encode zstd gzip
+
+	handle_path /boxing/* {
+		reverse_proxy localhost:8001
+	}
+
+	handle_path /dance/* {
+		reverse_proxy localhost:8002
+	}
+
+	handle_path /fps-boxing/* {
+		reverse_proxy localhost:8003
+	}
+
+	# Landing page at / lists the three games. Railway's healthcheck hits
+	# this and gets a 200 from the static file.
+	handle {
+		root * /app
+		try_files /landing.html
+		file_server
+	}
+}
