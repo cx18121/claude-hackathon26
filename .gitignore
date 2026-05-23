@@ -17,6 +17,7 @@ CLAUDE.md
 AGENTS.md
 docs/agents/
 engine/target/
+games/*/plugin/target/
 .playwright-mcp/
 
 # Per-app Playwright artifacts (mobile/fps/overlay)
