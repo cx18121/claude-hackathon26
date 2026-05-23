@@ -54,21 +54,24 @@ jobs:
           fi
 
   rust-tests:
-    name: cargo test (engine)
+    name: cargo test + build (Rust)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache cargo registry + target
+      - name: Cache cargo registry + targets
         uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             engine/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('engine/**/Cargo.lock', 'engine/**/Cargo.toml') }}
+            games/boxing/server/target
+            games/dance/server/target
+            games/fps-boxing/server/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('engine/**/Cargo.lock', 'engine/**/Cargo.toml', 'games/**/Cargo.lock', 'games/**/Cargo.toml') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
 
@@ -76,13 +79,19 @@ jobs:
         working-directory: engine
         run: cargo test --workspace --all-targets
 
+      - name: Build game server binaries (compile check)
+        run: |
+          cargo build --manifest-path games/boxing/server/Cargo.toml
+          cargo build --manifest-path games/dance/server/Cargo.toml
+          cargo build --manifest-path games/fps-boxing/server/Cargo.toml
+
   node-tests:
     name: vitest (${{ matrix.app }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        app: [mobile, overlay, fps]
+        app: [games/boxing/client, games/dance/client, games/fps-boxing/client]
     steps:
       - uses: actions/checkout@v5
 
@@ -111,7 +120,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [mobile, overlay, fps]
+        app: [games/boxing/client, games/dance/client, games/fps-boxing/client]
     steps:
       - uses: actions/checkout@v5
 
@@ -130,14 +139,18 @@ jobs:
         run: npm run build
 
   e2e:
-    name: playwright e2e (${{ matrix.app }})
+    name: playwright e2e (${{ matrix.game }})
     runs-on: ubuntu-latest
-    # Need engine binary + chromium + app build chained — give it room.
+    # Need game server binary + chromium + app build chained — give it room.
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        app: [mobile, fps, overlay]
+        include:
+          - game: fps-boxing
+            app: games/fps-boxing/client
+            server: games/fps-boxing/server
+            binary: fps-boxing-server
     steps:
       - uses: actions/checkout@v5
 
@@ -156,13 +169,14 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             engine/target
-          key: ${{ runner.os }}-cargo-e2e-${{ hashFiles('engine/**/Cargo.lock', 'engine/**/Cargo.toml') }}
+            ${{ matrix.server }}/target
+          key: ${{ runner.os }}-cargo-e2e-${{ matrix.game }}-${{ hashFiles('engine/**/Cargo.lock', 'engine/**/Cargo.toml', format('{0}/**', matrix.server)) }}
           restore-keys: |
+            ${{ runner.os }}-cargo-e2e-${{ matrix.game }}-
             ${{ runner.os }}-cargo-
 
-      - name: Build engine in release mode
-        working-directory: engine
-        run: cargo build --release -p engine-core
+      - name: Build ${{ matrix.game }} server (release)
+        run: cargo build --release --manifest-path ${{ matrix.server }}/Cargo.toml
 
       - name: npm ci (${{ matrix.app }})
         working-directory: ${{ matrix.app }}
@@ -172,23 +186,16 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
-          # Bumped suffix when webkit was added to mobile's playwright.config;
-          # without it the cache from the chromium-only era satisfied the
-          # restore and the install step skipped the new browser.
           key: ${{ runner.os }}-pw-v2-${{ hashFiles(format('{0}/package-lock.json', matrix.app)) }}
 
       - name: Install Playwright browsers
         working-directory: ${{ matrix.app }}
-        # Mobile has both chromium and webkit projects (webkit is the same
-        # engine as iOS Safari and acts as the iOS proxy). Other apps only
-        # have chromium configured. Installing both for every matrix entry
-        # is one cheap step that avoids per-app branching here.
         run: npx playwright install --with-deps chromium webkit
 
-      - name: Run e2e (using prebuilt engine binary)
+      - name: Run e2e
         working-directory: ${{ matrix.app }}
         env:
-          SPECTRE_ENGINE_BIN: ${{ github.workspace }}/engine/target/release/engine-core
+          SPECTRE_ENGINE_BIN: ${{ github.workspace }}/${{ matrix.server }}/target/release/${{ matrix.binary }}
           CI: 'true'
         run: npm run test:e2e
 
@@ -196,7 +203,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v5
         with:
-          name: playwright-report-${{ matrix.app }}
+          name: playwright-report-${{ matrix.game }}
           path: |
             ${{ matrix.app }}/playwright-report
             ${{ matrix.app }}/test-results
