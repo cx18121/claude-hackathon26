@@ -1,0 +1,14 @@
+[package]
+name = "boxing-server"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "boxing-server"
+path = "src/main.rs"
+
+[dependencies]
+engine-core = { path = "../../../engine/engine-core" }
+boxing-plugin = { path = "../plugin" }
+tokio = { version = "1.52.1", features = ["full"] }
+plugin-trait = { path = "../../../engine/plugin-trait" }
