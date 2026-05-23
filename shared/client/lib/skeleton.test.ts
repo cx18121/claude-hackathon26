@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { CONNECTIONS, REGION_KEYPOINTS } from '@shared/client/lib/skeleton'
+import { CONNECTIONS, REGION_KEYPOINTS } from './skeleton'
 
 const MEDIAPIPE_LANDMARK_COUNT = 33
 

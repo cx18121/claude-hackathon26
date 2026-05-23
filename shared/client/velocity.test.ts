@@ -4,7 +4,7 @@ import {
   smoothKeypoints,
   LANDMARK,
   type TimedFrame,
-} from '@shared/client/velocity';
+} from './velocity';
 import type { PoseKeypoint } from '@shared/protocol';
 
 function makeKeypoints(overrides: Partial<Record<number, Partial<PoseKeypoint>>> = {}): PoseKeypoint[] {

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useGameSocket } from '@shared/client/hooks/useGameSocket';
+import { useGameSocket } from './useGameSocket';
 import { normalizeWsUrl } from '@shared/client/wsUrl';
 
 describe('normalizeWsUrl', () => {

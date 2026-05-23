@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useCalibration } from '@shared/client/useCalibration';
+import { useCalibration } from './useCalibration';
 import type { PoseKeypoint } from '@shared/protocol';
 import { LANDMARK } from '@shared/client/velocity';
 

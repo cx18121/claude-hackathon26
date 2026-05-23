@@ -18,6 +18,7 @@ export default defineConfig(() => ({
       'pixi.js': path.resolve(import.meta.dirname, 'node_modules/pixi.js'),
       'react': path.resolve(import.meta.dirname, 'node_modules/react'),
       'react-dom': path.resolve(import.meta.dirname, 'node_modules/react-dom'),
+      '@testing-library/react': path.resolve(import.meta.dirname, 'node_modules/@testing-library/react'),
     },
     // `dedupe` covers the main chunk; the explicit aliases above cover the
     // isolated worker-chunk pass where dedupe doesn't apply.
@@ -26,10 +27,19 @@ export default defineConfig(() => ({
   server: {
     host: true,
     port: 5174,
+    fs: {
+      allow: [path.resolve(import.meta.dirname, '../../../')],
+    },
   },
   test: {
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // Discover both per-app tests and the shared tests collocated with
+    // their source under shared/client/.
+    include: [
+      'src/**/*.{test,spec}.{ts,tsx}',
+      '../../../shared/client/**/*.{test,spec}.{ts,tsx}',
+    ],
   },
 }))

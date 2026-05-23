@@ -29,7 +29,9 @@
       "react-dom": ["./node_modules/@types/react-dom", "./node_modules/react-dom"],
       "react-dom/*": ["./node_modules/@types/react-dom/*", "./node_modules/react-dom/*"],
       "@mediapipe/tasks-vision": ["./node_modules/@mediapipe/tasks-vision"],
-      "pixi.js": ["./node_modules/pixi.js"]
+      "pixi.js": ["./node_modules/pixi.js"],
+      "vitest": ["./node_modules/vitest"],
+      "@testing-library/react": ["./node_modules/@testing-library/react"]
     }
   },
   "include": ["src", "../../../shared"]
