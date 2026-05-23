@@ -13,7 +13,7 @@ export interface DanceBeat {
 }
 
 export interface DanceState {
-  gameType: 'boxing' | 'dance' | null
+  gameType: 'boxing' | 'fps_boxing' | 'dance' | null
   danceScores: [number, number]
   danceBeat: DanceBeat | null
 }

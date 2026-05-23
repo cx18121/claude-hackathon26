@@ -10,7 +10,7 @@ interface RoundOverlayProps {
   matchStats: MatchStats | null;
   serverUrl: string;
   roomCode: string;
-  gameType: 'boxing' | 'dance' | null;
+  gameType: 'boxing' | 'fps_boxing' | 'dance' | null;
   danceScores: [number, number];
 }
 

@@ -1,4 +1,4 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 
 // CI gives flaky tests one retry; locally we want first-run failures to surface.
 const isCI = !!process.env.CI;
@@ -15,15 +15,33 @@ export default defineConfig({
   reporter: isCI ? [['github'], ['list']] : 'list',
   use: {
     baseURL: 'http://127.0.0.1:4173',
-    // Fake camera stream so MediaPipe has frames to process without a real webcam.
-    // Chromium accepts a Y4M file via --use-file-for-fake-video-capture; we use a
-    // looping synthetic stream from the built-in fake device when no file is given.
-    launchOptions: {
-      args: [
-        '--use-fake-ui-for-media-stream',
-        '--use-fake-device-for-media-stream',
-      ],
-    },
     trace: 'retain-on-failure',
   },
+  // Two browser engines: chromium (Android/desktop Chrome signal) and webkit
+  // (same engine as iOS Safari, so failures here are the best non-device
+  // proxy for the iOS bugs we ship). Solo-flow uses chromium's
+  // --use-fake-device-for-media-stream flag, which webkit doesn't expose, so
+  // it's chromium-only; worker-smoke and two-player-gate don't need a camera
+  // and run on both engines.
+  projects: [
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: {
+          args: [
+            '--use-fake-ui-for-media-stream',
+            '--use-fake-device-for-media-stream',
+          ],
+        },
+      },
+    },
+    {
+      name: 'webkit',
+      use: {
+        ...devices['Desktop Safari'],
+      },
+      testIgnore: /solo-flow\.spec\.ts/,
+    },
+  ],
 });

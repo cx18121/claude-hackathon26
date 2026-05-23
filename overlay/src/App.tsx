@@ -80,7 +80,11 @@ function App() {
 
       {isWaiting && <WaitingOverlay lobbyState={lobbyState} />}
 
-      {gameType === 'boxing' && (
+      {/* HP-bar HUD is rendered for any combat-style game (boxing, fps_boxing).
+          Dance has its own DanceHud below; only that branch should be
+          mutually-exclusive with this one. Previously this was gated to
+          'boxing' alone, so fps_boxing spectators saw no HUD at all. */}
+      {(gameType === 'boxing' || gameType === 'fps_boxing') && (
         <HudLayer
           connected={connected}
           disconnectedPlayer={disconnectedPlayer}

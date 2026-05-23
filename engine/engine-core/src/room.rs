@@ -180,6 +180,7 @@ fn build_snapshot(state: &RoomState) -> RoomSnapshot {
         msg_type: "lobby_update".to_string(),
         p1: state.players[0].connected,
         p2: state.players[1].connected,
+        game_type: state.game_type.clone(),
     };
     let plugin_snapshot = if state.round_start_time.is_some() {
         state.plugin.spectator_snapshot(&*state.plugin_state)
@@ -274,6 +275,7 @@ fn handle_cmd(state: &mut RoomState, cmd: RoomCmd) {
                 msg_type: "lobby_update".to_string(),
                 p1: state.players[0].connected,
                 p2: state.players[1].connected,
+                game_type: state.game_type.clone(),
             }) {
                 let _ = state.game_tx.send(json);
             }
@@ -422,6 +424,7 @@ fn handle_cmd(state: &mut RoomState, cmd: RoomCmd) {
                 msg_type: "lobby_update".to_string(),
                 p1: state.players[0].connected,
                 p2: state.players[1].connected,
+                game_type: state.game_type.clone(),
             }) {
                 let _ = state.game_tx.send(json);
             }

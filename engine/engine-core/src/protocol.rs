@@ -300,6 +300,12 @@ pub struct MsgLobbyUpdate {
     pub msg_type: String,
     pub p1: bool,
     pub p2: bool,
+    /// Identifies the game running in this room ("boxing", "fps_boxing",
+    /// "dance"). The spectator overlay uses this to pick which HUD to render
+    /// (HudLayer for boxing-like games, DanceHud for dance) — without it,
+    /// gameType stays null on the client and no HUD shows.
+    #[serde(default)]
+    pub game_type: String,
 }
 
 // ============================================================================

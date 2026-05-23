@@ -58,7 +58,7 @@ interface SpectatorSocketState {
   disconnectedPlayer: PlayerSlot | null
   poseStreamRef: React.MutableRefObject<PoseStream>
   socket: WebSocket | null
-  gameType: 'boxing' | 'dance' | null
+  gameType: 'boxing' | 'fps_boxing' | 'dance' | null
   danceScores: [number, number]
   danceBeat: { beat: number; totalBeats: number; targetPose: Array<[number, number, number, number]> } | null
 }
@@ -124,7 +124,7 @@ export function useSpectatorSocket(
   const [disconnectedPlayer, setDisconnectedPlayer] = useState<PlayerSlot | null>(
     null,
   )
-  const [gameType, setGameType] = useState<'boxing' | 'dance' | null>(null)
+  const [gameType, setGameType] = useState<'boxing' | 'fps_boxing' | 'dance' | null>(null)
   const [danceScores, setDanceScores] = useState<[number, number]>([0, 0])
   const [danceBeat, setDanceBeat] = useState<{ beat: number; totalBeats: number; targetPose: Array<[number, number, number, number]> } | null>(null)
   const roundNumberRef = useRef(1)
@@ -166,7 +166,7 @@ export function useSpectatorSocket(
           const rawType = (parsed as Record<string, unknown>).type
           if (rawType === 'joined') {
             const gt = (parsed as { game_type?: string }).game_type
-            if (gt === 'boxing' || gt === 'dance') setGameType(gt)
+            if (gt === 'boxing' || gt === 'fps_boxing' || gt === 'dance') setGameType(gt)
             return
           }
           if (rawType === 'dance_snapshot') {
@@ -203,6 +203,14 @@ export function useSpectatorSocket(
 
         if (parsed.type === 'lobby_update') {
           setLobbyState({ p1: parsed.p1, p2: parsed.p2 })
+          // lobby_update is the FIRST message every spectator receives, so
+          // this is where we pick up the room's game_type. Without it the
+          // HUD gates (gameType === 'boxing' / 'dance' / etc) never flip
+          // and no HUD renders for the spectator at all.
+          const gt = (parsed as { game_type?: string }).game_type
+          if (gt === 'boxing' || gt === 'fps_boxing' || gt === 'dance') {
+            setGameType(gt)
+          }
           return
         }
 

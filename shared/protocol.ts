@@ -166,6 +166,10 @@ export interface MsgLobbyUpdate {
   type: "lobby_update";
   p1: boolean;
   p2: boolean;
+  // Identifies the game running in the room ("boxing", "fps_boxing", "dance").
+  // The spectator overlay uses this to pick which HUD to render — without it,
+  // gameType stays null on the client and the HUD is silently disabled.
+  game_type?: string;
 }
 
 export interface MsgRematchStart {
