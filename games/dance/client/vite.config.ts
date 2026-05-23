@@ -3,8 +3,8 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 
 // https://vite.dev/config/
-export default defineConfig(({ command }) => ({
-  base: process.env.VERCEL ? '/' : command === 'build' ? '/dance/' : '/',
+export default defineConfig(() => ({
+  base: '/',
   plugins: [react()],
   resolve: {
     alias: {

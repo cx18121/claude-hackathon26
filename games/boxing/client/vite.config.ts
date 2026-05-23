@@ -1,10 +1,10 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
 // https://vite.dev/config/
-export default defineConfig(({ command }) => ({
-  base: process.env.VERCEL ? '/' : command === 'build' ? '/boxing/' : '/',
+export default defineConfig({
+  base: '/',
   plugins: [react()],
   resolve: {
     alias: {
@@ -23,4 +23,4 @@ export default defineConfig(({ command }) => ({
     setupFiles: ['./src/test/setup.ts'],
     exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
   },
-}))
+})
