@@ -1,7 +1,7 @@
 // Wire protocol mirrored by hand from engine/engine-core/src/protocol.rs.
 //
 // The Rust side derives `#[derive(TS)]` per struct and writes one .ts file
-// per type into engine/engine-core/bindings/ (verify after editing the
+// per type into shared/bindings/ (verify after editing the
 // Rust struct: `cd engine && cargo test`). This consolidated file
 // re-states those interfaces so the frontends can import a single
 // `@shared/protocol` module, and also adds the discriminated unions
@@ -13,7 +13,7 @@
 // fixture-backed roundtrip test in tests/protocol_roundtrip.rs, so a
 // shape change on the Rust side surfaces immediately. Keep the
 // interfaces below in sync with the per-type files under
-// engine/engine-core/bindings/ whenever you touch the Rust side.
+// shared/bindings/ whenever you touch the Rust side.
 
 export type PlayerSlot = 1 | 2;
 export type HpPair = [number, number];
@@ -194,7 +194,7 @@ export interface MsgRematchStart {
 
 // Spectator snapshot sent on connect for an in-progress dance round.
 // Mirrors `MsgDanceSnapshot` in protocol.rs (also in
-// engine-core/bindings/MsgDanceSnapshot.ts). Locked against drift by
+// shared/bindings/MsgDanceSnapshot.ts). Locked against drift by
 // msg_dance_snapshot_roundtrip in protocol_roundtrip.rs.
 export interface MsgDanceSnapshot {
   type: "dance_snapshot";

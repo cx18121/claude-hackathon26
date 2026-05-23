@@ -1,2 +1,12 @@
 [env]
-TS_RS_EXPORT_DIR = { value = "../../shared", relative = true }
+# Where ts-rs writes the per-type TypeScript bindings during `cargo test`.
+# `relative = true` resolves against the directory of THIS file, which is
+# `engine/.cargo/`. Cargo resolves it again against the cargo invocation
+# CWD, which for this workspace is `engine/` — so `../shared/bindings`
+# lands at `<repo-root>/shared/bindings/`.
+#
+# Previous value `../../shared` was off by one — it resolved to
+# `~/School/Comps/shared/`, outside the repo, so the in-repo
+# `engine/engine-core/bindings/` checkpoint went months without a
+# refresh. Don't put this back without re-checking the resolution.
+TS_RS_EXPORT_DIR = { value = "../shared/bindings", relative = true }
