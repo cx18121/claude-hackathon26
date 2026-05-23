@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SPECTRE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: oklch(7% 0.008 22);
+      --bg-mid: oklch(11% 0.009 22);
+      --bg-surface: oklch(17% 0.01 22);
+      --accent: oklch(44% 0.22 22);
+      --accent-bright: oklch(60% 0.25 22);
+      --accent-p2: oklch(50% 0.18 250);
+      --gold: oklch(78% 0.11 85);
+      --text-primary: oklch(95% 0.008 85);
+      --text-secondary: oklch(65% 0.008 85);
+      --text-dim: oklch(38% 0.006 85);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      max-width: 480px;
+      margin: 48px auto;
+      padding: 0 16px;
+    }
+    .site-heading {
+      font-size: 28px; font-weight: 900; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--text-primary); line-height: 1.1;
+    }
+    .tagline {
+      font-size: 12px; font-weight: 400; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-secondary); margin-top: 4px;
+      margin-bottom: 32px;
+    }
+    .section-label {
+      font-size: 12px; font-weight: 900; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-secondary); margin-bottom: 12px;
+    }
+    .game-picker { display: flex; gap: 8px; margin-bottom: 16px; }
+    .game-tile {
+      flex: 1; min-height: 80px; display: flex; align-items: center; justify-content: center;
+      background: var(--bg-surface); border: 1px solid var(--text-dim); border-radius: 4px;
+      font-size: 16px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--text-primary); cursor: pointer; font-family: inherit;
+      transition: border-color 0.12s, background 0.12s; user-select: none;
+    }
+    .game-tile:hover { border-color: var(--text-secondary); background: var(--bg-mid); }
+    .game-tile:active { transform: scale(0.97); transition: transform 80ms ease-out; }
+    .game-tile.selected-boxing {
+      border-color: var(--accent);
+      background: color-mix(in oklch, var(--accent) 10%, transparent);
+    }
+    .game-tile.selected-dance {
+      border-color: var(--accent-p2);
+      background: color-mix(in oklch, var(--accent-p2) 10%, transparent);
+    }
+    .game-tile.selected-fps_boxing {
+      border-color: var(--accent);
+      background: color-mix(in oklch, var(--accent) 10%, transparent);
+    }
+    .btn-create {
+      width: 100%; min-height: 52px; border-radius: 4px; border: 1px solid var(--text-dim);
+      background: var(--bg-surface); color: var(--text-primary); font-family: inherit;
+      font-size: 16px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase;
+      cursor: pointer; opacity: 0.5; pointer-events: none;
+      transition: background 0.15s, border-color 0.15s; margin-bottom: 32px;
+    }
+    .btn-create.enabled {
+      border-color: var(--accent);
+      background: color-mix(in oklch, var(--accent) 15%, transparent);
+      opacity: 1; pointer-events: auto; cursor: pointer;
+    }
+    .btn-create.enabled:hover {
+      background: color-mix(in oklch, var(--accent) 25%, transparent);
+      border-color: var(--accent-bright);
+    }
+    .btn-create.enabled:active { transform: scale(0.97); transition: transform 80ms ease-out; }
+    .separator {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 24px;
+    }
+    .separator::before, .separator::after {
+      content: ''; flex: 1; height: 1px;
+      background: color-mix(in oklch, var(--text-dim) 40%, transparent);
+    }
+    .separator span {
+      font-size: 12px; font-weight: 400; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em;
+    }
+    .join-row { display: flex; gap: 8px; }
+    .join-input {
+      flex: 1; min-height: 52px; background: var(--bg-surface); border: 1px solid var(--text-dim);
+      border-radius: 4px; padding: 0 16px; color: var(--text-primary); font-family: inherit;
+      font-size: 16px; font-weight: 900; letter-spacing: 0.2em; text-transform: uppercase;
+      outline: none; transition: border-color 0.12s;
+    }
+    .join-input::placeholder { color: var(--text-dim); font-weight: 400; letter-spacing: 0.04em; text-transform: none; }
+    .join-input:focus { border-color: var(--accent); }
+    .btn-join {
+      min-width: 100px; min-height: 52px; background: var(--bg-surface); border: 1px solid var(--text-dim);
+      border-radius: 4px; color: var(--text-primary); font-family: inherit; font-size: 16px;
+      font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
+      opacity: 0.5; pointer-events: none;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .btn-join.enabled {
+      opacity: 1; pointer-events: auto; cursor: pointer;
+    }
+    .btn-join.enabled:hover {
+      border-color: color-mix(in oklch, var(--accent) 60%, transparent);
+      background: color-mix(in oklch, var(--accent) 8%, transparent);
+    }
+    .btn-join.enabled:active { transform: scale(0.97); transition: transform 80ms ease-out; }
+    .error-msg {
+      display: none; margin-top: 8px; padding: 8px 12px; border-radius: 4px;
+      background: color-mix(in oklch, var(--accent-bright) 15%, transparent);
+      border: 1px solid color-mix(in oklch, var(--accent-bright) 40%, transparent);
+      font-size: 16px; font-weight: 400; color: var(--text-primary);
+    }
+    .error-msg.visible { display: block; }
+  </style>
+</head>
+<body>
+  <h1 class="site-heading">SPECTRE</h1>
+  <p class="tagline">real punches. real fights.</p>
+
+  <p class="section-label">Select a Game</p>
+  <div class="game-picker">
+    <button class="game-tile" id="tile-boxing" onclick="selectGame('boxing')">BOXING</button>
+    <button class="game-tile" id="tile-dance" onclick="selectGame('dance')">DANCE</button>
+    <button class="game-tile" id="tile-fps_boxing" onclick="selectGame('fps_boxing')">FPS BOXING</button>
+  </div>
+
+  <button class="btn-create" id="btn-create" onclick="createRoom()">Create Room</button>
+  <div class="error-msg" id="create-error"></div>
+
+  <div class="separator"><span>or</span></div>
+
+  <p class="section-label">Join a Room</p>
+  <div class="join-row">
+    <input
+      type="text"
+      id="join-input"
+      class="join-input"
+      placeholder="Room Code"
+      maxlength="6"
+      autocomplete="off"
+      spellcheck="false"
+      oninput="onJoinInput(this)"
+    />
+    <button class="btn-join" id="btn-join" onclick="joinRoom()">Join Room</button>
+  </div>
+
+  <script>
+    var selectedGame = null;
+
+    function selectGame(game) {
+      if (selectedGame === game) return;
+      selectedGame = game;
+      document.getElementById('tile-boxing').className   = 'game-tile' + (game === 'boxing'     ? ' selected-boxing'     : '');
+      document.getElementById('tile-dance').className    = 'game-tile' + (game === 'dance'      ? ' selected-dance'      : '');
+      document.getElementById('tile-fps_boxing').className = 'game-tile' + (game === 'fps_boxing' ? ' selected-fps_boxing' : '');
+      var btn = document.getElementById('btn-create');
+      btn.classList.add('enabled');
+    }
+
+    async function createRoom() {
+      if (!selectedGame) return;
+      var btn = document.getElementById('btn-create');
+      var errEl = document.getElementById('create-error');
+      btn.textContent = 'Creating...';
+      btn.classList.remove('enabled');
+      errEl.className = 'error-msg';
+      try {
+        var res = await fetch('/rooms?game=' + selectedGame, { method: 'POST' });
+        var data = await res.json();
+        if (res.ok) {
+          window.location.href = '/rooms/' + data.room_code;
+        } else {
+          errEl.textContent = data.error ? data.error : 'Server error — try again';
+          errEl.className = 'error-msg visible';
+          btn.textContent = 'Create Room';
+          btn.classList.add('enabled');
+        }
+      } catch (_) {
+        errEl.textContent = 'Could not reach server';
+        errEl.className = 'error-msg visible';
+        btn.textContent = 'Create Room';
+        btn.classList.add('enabled');
+      }
+    }
+
+    function onJoinInput(input) {
+      input.value = input.value.toUpperCase();
+      var joinBtn = document.getElementById('btn-join');
+      if (input.value.length > 0) {
+        joinBtn.classList.add('enabled');
+      } else {
+        joinBtn.classList.remove('enabled');
+      }
+    }
+
+    function joinRoom() {
+      var code = document.getElementById('join-input').value.trim();
+      if (!code) return;
+      // WR-03: align ?server= format with QR-card URLs. The QR codes encode
+      // the WS form (wss://host) into the server param; the lobby join must
+      // do the same so both entry points hand the mobile client a single
+      // canonical scheme. Mobile useGameSocket tolerates either form, but
+      // consistency keeps the protocol contract narrow.
+      var origin = window.location.origin;
+      var wsServer = origin.replace(/^https/, 'wss').replace(/^http(?!s)/, 'ws');
+      window.location.href = '/mobile?room=' + encodeURIComponent(code)
+        + '&server=' + encodeURIComponent(wsServer);
+    }
+  </script>
+</body>
+</html>

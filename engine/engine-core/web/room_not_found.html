@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Room not found — SPECTRE</title>
+  <style>
+    :root {
+      --bg-deep: oklch(7% 0.008 22);
+      --text-primary: oklch(95% 0.008 85);
+      --text-secondary: oklch(65% 0.008 85);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      max-width: 720px;
+      margin: 48px auto;
+      padding: 0 24px;
+    }
+    .error-block { text-align: center; margin-top: 80px; }
+    .error-heading { font-size: 28px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-primary); margin-bottom: 16px; }
+    .error-body { font-size: 16px; font-weight: 400; color: var(--text-secondary); margin-bottom: 24px; }
+    .back-link { color: var(--text-secondary); font-size: 16px; text-decoration: none; }
+    .back-link:hover { color: var(--text-primary); }
+  </style>
+</head>
+<body>
+  <div class="error-block">
+    <div class="error-heading">Room not found</div>
+    <p class="error-body">This room has expired or does not exist. Return to the lobby to create a new one.</p>
+    <a href="/" class="back-link">Back to Lobby</a>
+  </div>
+</body>
+</html>

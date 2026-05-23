@@ -191,6 +191,11 @@ fn generate_qr_svg(url: &str) -> String {
     strip_xml_prolog(&raw)
 }
 
+/// HTML template for the room page — rendered with simple `{{KEY}}`
+/// substitution at request time. Compiled into the binary so deployment
+/// stays self-contained.
+const ROOM_HTML_TEMPLATE: &str = include_str!("../web/room.html");
+
 /// Build the room page HTML with three QR cards (P1, P2, Overlay).
 ///
 /// BLK-01 / WR-04 / WR-05: every value derived from request input
@@ -263,156 +268,23 @@ fn room_page_html(code: &str, game_type: &str, base_url: &str) -> String {
     let code_esc = html_escape(code);
     let game_type_upper = game_type.to_ascii_uppercase();
     let game_type_upper_esc = html_escape(&game_type_upper);
-    format!(r#"<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Room {code_esc} — SPECTRE</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;900&display=swap" rel="stylesheet">
-  <style>
-    :root {{
-      --bg-deep: oklch(7% 0.008 22);
-      --bg-mid: oklch(11% 0.009 22);
-      --bg-surface: oklch(17% 0.01 22);
-      --accent: oklch(44% 0.22 22);
-      --accent-bright: oklch(60% 0.25 22);
-      --accent-p2: oklch(50% 0.18 250);
-      --gold: oklch(78% 0.11 85);
-      --text-primary: oklch(95% 0.008 85);
-      --text-secondary: oklch(65% 0.008 85);
-      --text-dim: oklch(38% 0.006 85);
-    }}
-    *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
-    body {{
-      font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
-      background: var(--bg-deep);
-      color: var(--text-primary);
-      max-width: 720px;
-      margin: 48px auto;
-      padding: 0 24px;
-    }}
-    .back-link {{ display: block; color: var(--text-secondary); text-decoration: none; font-size: 16px; font-weight: 400; margin-bottom: 24px; }}
-    .back-link:hover {{ color: var(--text-primary); }}
-    .room-code {{ font-size: 32px; font-weight: 900; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-primary); line-height: 1.1; }}
-    .game-badge {{ display: inline-block; font-size: 12px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-secondary); border: 1px solid var(--text-dim); padding: 4px 8px; border-radius: 4px; margin-top: 8px; }}
-    .subtitle {{ color: var(--text-secondary); font-size: 16px; font-weight: 400; margin-top: 8px; margin-bottom: 32px; }}
-    .qr-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }}
-    @media (max-width: 599px) {{ .qr-grid {{ grid-template-columns: 1fr; gap: 16px; }} }}
-    .qr-card {{
-      background: var(--bg-surface);
-      border-radius: 4px;
-      padding: 24px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
-    }}
-    .qr-card.p1 {{ border: 1px solid var(--accent); }}
-    .qr-card.p2 {{ border: 1px solid var(--accent-p2); }}
-    .qr-card.overlay {{ border: 1px solid color-mix(in oklch, var(--gold) 60%, transparent); }}
-    .role-label {{ font-size: 12px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-secondary); align-self: flex-start; }}
-    .qr-code {{ width: 160px; height: 160px; flex-shrink: 0; }}
-    .url-link {{ font-size: 12px; font-weight: 900; color: var(--text-secondary); letter-spacing: 0.04em; word-break: break-all; text-align: center; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; text-overflow: ellipsis; width: 100%; }}
-    .url-link:hover {{ text-decoration: underline; color: var(--text-primary); }}
-    .copy-btn {{
-      width: 100%; min-height: 36px; background: var(--bg-mid); border: 1px solid var(--text-dim);
-      border-radius: 4px; color: var(--text-secondary); font-family: inherit; font-size: 12px;
-      font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
-      transition: border-color 0.15s, background 0.15s, color 0.15s;
-    }}
-    .copy-btn:hover {{ border-color: color-mix(in oklch, var(--accent) 60%, transparent); background: color-mix(in oklch, var(--accent) 8%, transparent); }}
-    .copy-btn.copied {{ border-color: color-mix(in oklch, var(--gold) 60%, transparent); color: var(--text-primary); }}
-  </style>
-</head>
-<body>
-  <a href="/" class="back-link">← Lobby</a>
-  <div class="room-code">{code_esc}</div>
-  <div class="game-badge">{game_type_upper_esc}</div>
-  <p class="subtitle">Share these links with your players</p>
-  <div class="qr-grid">
-    <div class="qr-card p1">
-      <div class="role-label">PLAYER 1</div>
-{p1_qr_div}      <a href="{p1_url_esc}" target="_blank" class="url-link">{p1_url_esc}</a>
-      <button class="copy-btn" data-copy-url="{p1_url_esc}">Copy Link</button>
-    </div>
-    <div class="qr-card p2">
-      <div class="role-label">PLAYER 2</div>
-{p2_qr_div}      <a href="{p2_url_esc}" target="_blank" class="url-link">{p2_url_esc}</a>
-      <button class="copy-btn" data-copy-url="{p2_url_esc}">Copy Link</button>
-    </div>
-{overlay_card}  </div>
-  <script>
-    // WR-05: single delegated listener reads the URL from data-copy-url
-    // instead of inlining it into an onclick attribute. This eliminates
-    // the JS-string-inside-HTML-attribute escaping requirement; HTML
-    // escaping of the data attribute alone is sufficient.
-    document.querySelectorAll('.copy-btn').forEach(function(btn) {{
-      btn.addEventListener('click', function() {{
-        var url = btn.dataset.copyUrl || '';
-        navigator.clipboard.writeText(url).then(function() {{
-          btn.textContent = 'Copied!';
-          btn.classList.add('copied');
-          setTimeout(function() {{
-            btn.textContent = 'Copy Link';
-            btn.classList.remove('copied');
-          }}, 2000);
-        }});
-      }});
-    }});
-  </script>
-</body>
-</html>"#,
-        code_esc = code_esc,
-        game_type_upper_esc = game_type_upper_esc,
-        p1_qr_div = p1_qr_div,
-        p2_qr_div = p2_qr_div,
-        overlay_card = overlay_card,
-        p1_url_esc = p1_url_esc,
-        p2_url_esc = p2_url_esc,
-    )
+
+    ROOM_HTML_TEMPLATE
+        .replace("{{CODE}}", &code_esc)
+        .replace("{{GAME_TYPE_UPPER}}", &game_type_upper_esc)
+        .replace("{{P1_QR_DIV}}", &p1_qr_div)
+        .replace("{{P2_QR_DIV}}", &p2_qr_div)
+        .replace("{{OVERLAY_CARD}}", &overlay_card)
+        // P1_URL appears three times (href, link text, data-copy-url) but
+        // .replace(all) handles every occurrence — same as the previous
+        // format!() repeat.
+        .replace("{{P1_URL}}", &p1_url_esc)
+        .replace("{{P2_URL}}", &p2_url_esc)
 }
 
-/// 404 page when room code is not found.
+/// 404 page when a room code is not found. Static HTML, no substitution.
 fn room_not_found_html() -> String {
-    r#"<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Room not found — SPECTRE</title>
-  <style>
-    :root {
-      --bg-deep: oklch(7% 0.008 22);
-      --text-primary: oklch(95% 0.008 85);
-      --text-secondary: oklch(65% 0.008 85);
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
-      background: var(--bg-deep);
-      color: var(--text-primary);
-      max-width: 720px;
-      margin: 48px auto;
-      padding: 0 24px;
-    }
-    .error-block { text-align: center; margin-top: 80px; }
-    .error-heading { font-size: 28px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-primary); margin-bottom: 16px; }
-    .error-body { font-size: 16px; font-weight: 400; color: var(--text-secondary); margin-bottom: 24px; }
-    .back-link { color: var(--text-secondary); font-size: 16px; text-decoration: none; }
-    .back-link:hover { color: var(--text-primary); }
-  </style>
-</head>
-<body>
-  <div class="error-block">
-    <div class="error-heading">Room not found</div>
-    <p class="error-body">This room has expired or does not exist. Return to the lobby to create a new one.</p>
-    <a href="/" class="back-link">Back to Lobby</a>
-  </div>
-</body>
-</html>"#.to_string()
+    include_str!("../web/room_not_found.html").to_string()
 }
 
 /// Handler for GET /rooms/{code}: returns the room page with QR cards or a 404 page.
@@ -713,227 +585,7 @@ async fn handle_spectator(
     tracing::info!("spectator disconnected from room {}", room_code);
 }
 
-const LOBBY_HTML: &str = r#"<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SPECTRE</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;900&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg-deep: oklch(7% 0.008 22);
-      --bg-mid: oklch(11% 0.009 22);
-      --bg-surface: oklch(17% 0.01 22);
-      --accent: oklch(44% 0.22 22);
-      --accent-bright: oklch(60% 0.25 22);
-      --accent-p2: oklch(50% 0.18 250);
-      --gold: oklch(78% 0.11 85);
-      --text-primary: oklch(95% 0.008 85);
-      --text-secondary: oklch(65% 0.008 85);
-      --text-dim: oklch(38% 0.006 85);
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
-      background: var(--bg-deep);
-      color: var(--text-primary);
-      max-width: 480px;
-      margin: 48px auto;
-      padding: 0 16px;
-    }
-    .site-heading {
-      font-size: 28px; font-weight: 900; letter-spacing: 0.12em;
-      text-transform: uppercase; color: var(--text-primary); line-height: 1.1;
-    }
-    .tagline {
-      font-size: 12px; font-weight: 400; letter-spacing: 0.08em;
-      text-transform: uppercase; color: var(--text-secondary); margin-top: 4px;
-      margin-bottom: 32px;
-    }
-    .section-label {
-      font-size: 12px; font-weight: 900; letter-spacing: 0.08em;
-      text-transform: uppercase; color: var(--text-secondary); margin-bottom: 12px;
-    }
-    .game-picker { display: flex; gap: 8px; margin-bottom: 16px; }
-    .game-tile {
-      flex: 1; min-height: 80px; display: flex; align-items: center; justify-content: center;
-      background: var(--bg-surface); border: 1px solid var(--text-dim); border-radius: 4px;
-      font-size: 16px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase;
-      color: var(--text-primary); cursor: pointer; font-family: inherit;
-      transition: border-color 0.12s, background 0.12s; user-select: none;
-    }
-    .game-tile:hover { border-color: var(--text-secondary); background: var(--bg-mid); }
-    .game-tile:active { transform: scale(0.97); transition: transform 80ms ease-out; }
-    .game-tile.selected-boxing {
-      border-color: var(--accent);
-      background: color-mix(in oklch, var(--accent) 10%, transparent);
-    }
-    .game-tile.selected-dance {
-      border-color: var(--accent-p2);
-      background: color-mix(in oklch, var(--accent-p2) 10%, transparent);
-    }
-    .game-tile.selected-fps_boxing {
-      border-color: var(--accent);
-      background: color-mix(in oklch, var(--accent) 10%, transparent);
-    }
-    .btn-create {
-      width: 100%; min-height: 52px; border-radius: 4px; border: 1px solid var(--text-dim);
-      background: var(--bg-surface); color: var(--text-primary); font-family: inherit;
-      font-size: 16px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase;
-      cursor: pointer; opacity: 0.5; pointer-events: none;
-      transition: background 0.15s, border-color 0.15s; margin-bottom: 32px;
-    }
-    .btn-create.enabled {
-      border-color: var(--accent);
-      background: color-mix(in oklch, var(--accent) 15%, transparent);
-      opacity: 1; pointer-events: auto; cursor: pointer;
-    }
-    .btn-create.enabled:hover {
-      background: color-mix(in oklch, var(--accent) 25%, transparent);
-      border-color: var(--accent-bright);
-    }
-    .btn-create.enabled:active { transform: scale(0.97); transition: transform 80ms ease-out; }
-    .separator {
-      display: flex; align-items: center; gap: 12px; margin-bottom: 24px;
-    }
-    .separator::before, .separator::after {
-      content: ''; flex: 1; height: 1px;
-      background: color-mix(in oklch, var(--text-dim) 40%, transparent);
-    }
-    .separator span {
-      font-size: 12px; font-weight: 400; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em;
-    }
-    .join-row { display: flex; gap: 8px; }
-    .join-input {
-      flex: 1; min-height: 52px; background: var(--bg-surface); border: 1px solid var(--text-dim);
-      border-radius: 4px; padding: 0 16px; color: var(--text-primary); font-family: inherit;
-      font-size: 16px; font-weight: 900; letter-spacing: 0.2em; text-transform: uppercase;
-      outline: none; transition: border-color 0.12s;
-    }
-    .join-input::placeholder { color: var(--text-dim); font-weight: 400; letter-spacing: 0.04em; text-transform: none; }
-    .join-input:focus { border-color: var(--accent); }
-    .btn-join {
-      min-width: 100px; min-height: 52px; background: var(--bg-surface); border: 1px solid var(--text-dim);
-      border-radius: 4px; color: var(--text-primary); font-family: inherit; font-size: 16px;
-      font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
-      opacity: 0.5; pointer-events: none;
-      transition: background 0.15s, border-color 0.15s;
-    }
-    .btn-join.enabled {
-      opacity: 1; pointer-events: auto; cursor: pointer;
-    }
-    .btn-join.enabled:hover {
-      border-color: color-mix(in oklch, var(--accent) 60%, transparent);
-      background: color-mix(in oklch, var(--accent) 8%, transparent);
-    }
-    .btn-join.enabled:active { transform: scale(0.97); transition: transform 80ms ease-out; }
-    .error-msg {
-      display: none; margin-top: 8px; padding: 8px 12px; border-radius: 4px;
-      background: color-mix(in oklch, var(--accent-bright) 15%, transparent);
-      border: 1px solid color-mix(in oklch, var(--accent-bright) 40%, transparent);
-      font-size: 16px; font-weight: 400; color: var(--text-primary);
-    }
-    .error-msg.visible { display: block; }
-  </style>
-</head>
-<body>
-  <h1 class="site-heading">SPECTRE</h1>
-  <p class="tagline">real punches. real fights.</p>
-
-  <p class="section-label">Select a Game</p>
-  <div class="game-picker">
-    <button class="game-tile" id="tile-boxing" onclick="selectGame('boxing')">BOXING</button>
-    <button class="game-tile" id="tile-dance" onclick="selectGame('dance')">DANCE</button>
-    <button class="game-tile" id="tile-fps_boxing" onclick="selectGame('fps_boxing')">FPS BOXING</button>
-  </div>
-
-  <button class="btn-create" id="btn-create" onclick="createRoom()">Create Room</button>
-  <div class="error-msg" id="create-error"></div>
-
-  <div class="separator"><span>or</span></div>
-
-  <p class="section-label">Join a Room</p>
-  <div class="join-row">
-    <input
-      type="text"
-      id="join-input"
-      class="join-input"
-      placeholder="Room Code"
-      maxlength="6"
-      autocomplete="off"
-      spellcheck="false"
-      oninput="onJoinInput(this)"
-    />
-    <button class="btn-join" id="btn-join" onclick="joinRoom()">Join Room</button>
-  </div>
-
-  <script>
-    var selectedGame = null;
-
-    function selectGame(game) {
-      if (selectedGame === game) return;
-      selectedGame = game;
-      document.getElementById('tile-boxing').className   = 'game-tile' + (game === 'boxing'     ? ' selected-boxing'     : '');
-      document.getElementById('tile-dance').className    = 'game-tile' + (game === 'dance'      ? ' selected-dance'      : '');
-      document.getElementById('tile-fps_boxing').className = 'game-tile' + (game === 'fps_boxing' ? ' selected-fps_boxing' : '');
-      var btn = document.getElementById('btn-create');
-      btn.classList.add('enabled');
-    }
-
-    async function createRoom() {
-      if (!selectedGame) return;
-      var btn = document.getElementById('btn-create');
-      var errEl = document.getElementById('create-error');
-      btn.textContent = 'Creating...';
-      btn.classList.remove('enabled');
-      errEl.className = 'error-msg';
-      try {
-        var res = await fetch('/rooms?game=' + selectedGame, { method: 'POST' });
-        var data = await res.json();
-        if (res.ok) {
-          window.location.href = '/rooms/' + data.room_code;
-        } else {
-          errEl.textContent = data.error ? data.error : 'Server error — try again';
-          errEl.className = 'error-msg visible';
-          btn.textContent = 'Create Room';
-          btn.classList.add('enabled');
-        }
-      } catch (_) {
-        errEl.textContent = 'Could not reach server';
-        errEl.className = 'error-msg visible';
-        btn.textContent = 'Create Room';
-        btn.classList.add('enabled');
-      }
-    }
-
-    function onJoinInput(input) {
-      input.value = input.value.toUpperCase();
-      var joinBtn = document.getElementById('btn-join');
-      if (input.value.length > 0) {
-        joinBtn.classList.add('enabled');
-      } else {
-        joinBtn.classList.remove('enabled');
-      }
-    }
-
-    function joinRoom() {
-      var code = document.getElementById('join-input').value.trim();
-      if (!code) return;
-      // WR-03: align ?server= format with QR-card URLs. The QR codes encode
-      // the WS form (wss://host) into the server param; the lobby join must
-      // do the same so both entry points hand the mobile client a single
-      // canonical scheme. Mobile useGameSocket tolerates either form, but
-      // consistency keeps the protocol contract narrow.
-      var origin = window.location.origin;
-      var wsServer = origin.replace(/^https/, 'wss').replace(/^http(?!s)/, 'ws');
-      window.location.href = '/mobile?room=' + encodeURIComponent(code)
-        + '&server=' + encodeURIComponent(wsServer);
-    }
-  </script>
-</body>
-</html>"#;
+const LOBBY_HTML: &str = include_str!("../web/lobby.html");
 
 async fn lobby_html() -> impl IntoResponse {
     axum::response::Html(LOBBY_HTML)
