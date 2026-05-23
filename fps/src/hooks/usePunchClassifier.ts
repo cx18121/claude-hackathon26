@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import * as ort from 'onnxruntime-web';
 import type { PoseKeypoint } from '@shared/protocol';
 import { normalizeWindow } from '../lib/normalizeWindow';
-import { computeWristPeakSpeed, LANDMARK } from '../lib/velocity';
-import type { TimedFrame } from '../lib/velocity';
+import { computeWristPeakSpeed, LANDMARK } from '@shared/client/velocity';
+import type { TimedFrame } from '@shared/client/velocity';
 
 // Set WASM CDN path once at module init (per D5: CDN approach for Phase 13.1).
 // This must happen before any InferenceSession.create call.

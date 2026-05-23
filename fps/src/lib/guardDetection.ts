@@ -14,7 +14,7 @@
  */
 
 import type { PoseKeypoint } from '@shared/protocol';
-import { LANDMARK } from './velocity';
+import { LANDMARK } from '@shared/client/velocity';
 
 export interface GuardState {
   active: boolean;

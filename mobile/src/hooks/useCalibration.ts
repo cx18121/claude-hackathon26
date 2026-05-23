@@ -15,7 +15,7 @@ import {
   computeWristPeakSpeed,
   LANDMARK,
   type TimedFrame,
-} from '../lib/velocity';
+} from '@shared/client/velocity';
 
 export type CalibrationStage =
   | 'idle'

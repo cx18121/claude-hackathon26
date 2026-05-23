@@ -5,7 +5,7 @@ import {
   computeWristPeakSpeed,
   LANDMARK,
   type TimedFrame,
-} from './velocity';
+} from '@shared/client/velocity';
 
 function makeFrame(leftWristX: number, rightWristX: number, t: number): TimedFrame {
   const kps = new Array(33).fill(null).map(() => ({ x: 0, y: 0, z: 0, visibility: 1 }));

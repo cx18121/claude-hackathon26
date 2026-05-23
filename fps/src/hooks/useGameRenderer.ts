@@ -8,7 +8,7 @@ import { buildArmSegment, updateArmSegment } from '../lib/armGeometry';
 // Minimal disposable surface — covers geometries, materials, textures.
 type ThreeDisposable = { dispose: () => void };
 import { keypointToWorld, WORLD_SCALE } from '../lib/coordinateMap';
-import { LANDMARK, computeWristPeakSpeed, type TimedFrame } from '../lib/velocity';
+import { LANDMARK, computeWristPeakSpeed, type TimedFrame } from '@shared/client/velocity';
 import { stepSpring, type SpringState } from '../lib/springPhysics';
 import { isGuardPose, updateGuard, type GuardState } from '../lib/guardDetection';
 import type { UseGameSocketResult } from './useGameSocket';

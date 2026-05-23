@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import type { PoseKeypoint } from '@shared/protocol';
 import { useCalibration } from './useCalibration';
-import { LANDMARK } from '../lib/velocity';
+import { LANDMARK } from '@shared/client/velocity';
 
 // We control time so frame timestamps are deterministic.
 // The hook reads performance.now() inside its per-frame effect.
