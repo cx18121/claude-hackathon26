@@ -26,5 +26,11 @@
       "@mediapipe/tasks-vision": ["./node_modules/@mediapipe/tasks-vision"]
     }
   },
-  "include": ["src", "../../../shared"]
+  "include": ["src", "../../../shared"],
+  "exclude": [
+    "../../../shared/client/components",
+    "../../../shared/client/lib",
+    "../../../shared/client/workers",
+    "../../../shared/client/hooks"
+  ]
 }

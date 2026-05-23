@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ConnectionScreen } from './components/ConnectionScreen';
-import { GameScreen } from './components/GameScreen';
-import { useGameSocket } from './hooks/useGameSocket';
+import { ConnectionScreen } from '@shared/client/components/ConnectionScreen';
+import { GameScreen } from '@shared/client/components/GameScreen';
+import { useGameSocket } from '@shared/client/hooks/useGameSocket';
 
 const SERVER_URL_STORAGE_KEY = 'shadowfight.serverUrl';
 

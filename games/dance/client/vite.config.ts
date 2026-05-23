@@ -15,6 +15,9 @@ export default defineConfig(() => ({
       // the `shared/` level. Explicit aliases route shared-module bare
       // imports back to THIS app's node_modules at worker-bundle time.
       '@mediapipe/tasks-vision': path.resolve(import.meta.dirname, 'node_modules/@mediapipe/tasks-vision'),
+      'pixi.js': path.resolve(import.meta.dirname, 'node_modules/pixi.js'),
+      'react': path.resolve(import.meta.dirname, 'node_modules/react'),
+      'react-dom': path.resolve(import.meta.dirname, 'node_modules/react-dom'),
     },
     // `dedupe` covers the main chunk; the explicit aliases above cover the
     // isolated worker-chunk pass where dedupe doesn't apply.

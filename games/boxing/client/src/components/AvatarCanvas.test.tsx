@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render } from '@testing-library/react'
-import { AvatarCanvas } from './AvatarCanvas'
+import { AvatarCanvas } from '@shared/client/components/AvatarCanvas'
 import type { PoseKeypoint } from '@shared/protocol'
 
 // jsdom doesn't implement canvas 2D; provide a minimal spy-based mock.

@@ -25,9 +25,11 @@
     "paths": {
       "@shared/*": ["../../../shared/*"],
       "react": ["./node_modules/@types/react", "./node_modules/react"],
+      "react/*": ["./node_modules/@types/react/*", "./node_modules/react/*"],
       "react-dom": ["./node_modules/@types/react-dom", "./node_modules/react-dom"],
       "react-dom/*": ["./node_modules/@types/react-dom/*", "./node_modules/react-dom/*"],
-      "@mediapipe/tasks-vision": ["./node_modules/@mediapipe/tasks-vision"]
+      "@mediapipe/tasks-vision": ["./node_modules/@mediapipe/tasks-vision"],
+      "pixi.js": ["./node_modules/pixi.js"]
     }
   },
   "include": ["src", "../../../shared"]
