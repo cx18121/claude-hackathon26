@@ -1,7 +1,7 @@
 // Vitest setup: shared mocks for browser APIs jsdom doesn't provide.
 
 import { afterEach } from 'vitest';
-import '@testing-library/jest-dom';
+import '@testing-library/jest-dom/vitest';
 
 // performance.now is provided by jsdom but at module init we sometimes
 // import code that captures it; ensure it's defined.

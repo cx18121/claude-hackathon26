@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
@@ -21,9 +21,12 @@ export default defineConfig(() => ({
     dedupe: ['react', 'react-dom'],
   },
   server: {
-    // Listen on all interfaces so a phone on the same LAN can hit the dev
-    // server when this app is running on a laptop.
     host: true,
     port: 5174,
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
   },
 }))

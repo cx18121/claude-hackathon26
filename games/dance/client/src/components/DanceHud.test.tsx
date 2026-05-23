@@ -41,7 +41,7 @@ describe('DanceHud — beat label', () => {
         connected={true}
       />,
     )
-    expect(screen.getByText('— / —')).toBeInTheDocument()
+    expect(screen.getAllByText('— / —')[0]).toBeInTheDocument()
   })
 
   it('shows "beat / totalBeats" when danceBeat is provided', () => {

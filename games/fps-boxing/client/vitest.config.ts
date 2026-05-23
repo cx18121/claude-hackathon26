@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@shared': path.resolve(import.meta.dirname, '../shared'),
+      '@shared': path.resolve(import.meta.dirname, '../../../shared'),
     },
     // See vite.config.ts dedupe doc — same reason here.
     dedupe: ['react', 'react-dom'],
