@@ -480,6 +480,13 @@ export function PixiCanvas({ gameState, poseStreamRef, danceBeatRef, onHeavyHit 
         return
       }
 
+      // Publish appRef BEFORE any synchronous setup work. If a downstream
+      // `new Container()` / `new Graphics()` ever throws, the unmount cleanup
+      // can still find and destroy the Application via appRef.current —
+      // otherwise the canvas would orphan with no handle to free its GPU
+      // resources.
+      appRef.current = app
+
       host.appendChild(app.canvas)
       app.canvas.classList.add('pixi-canvas')
 
@@ -500,8 +507,6 @@ export function PixiCanvas({ gameState, poseStreamRef, danceBeatRef, onHeavyHit 
 
       const emitter = new SparkEmitter(sparkContainer)
       emitterRef.current = emitter
-
-      appRef.current = app
 
       const handler = (ticker: { deltaTime: number }) => {
         const now = performance.now()
