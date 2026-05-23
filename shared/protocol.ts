@@ -178,6 +178,17 @@ export interface MsgRematchStart {
   type: "rematch_start";
 }
 
+// Spectator snapshot sent on connect for an in-progress dance round.
+// Emitted by DancePlugin::spectator_snapshot — not a typed Rust struct, so
+// this interface is hand-maintained here. Mirrored in
+// engine/dance-plugin/src/lib.rs `spectator_snapshot`.
+export interface MsgDanceSnapshot {
+  type: "dance_snapshot";
+  game_type: "dance";
+  beat: number;
+  scores: [number, number];
+}
+
 // Dance game messages (server -> mobile and spectator overlay)
 export interface MsgDanceBeat {
   type: "dance_beat";
@@ -240,6 +251,7 @@ export type InboundServerMsg =
   | MsgCommentaryEnd;
 
 export type ServerMessage =
+  | MsgJoined
   | MsgLobbyUpdate
   | MsgGameState
   | MsgPoseUpdate
@@ -247,8 +259,10 @@ export type ServerMessage =
   | MsgRoundEnd
   | MsgMatchEnd
   | MsgRematchStart
+  | MsgPlayerDisconnected
   | MsgDanceBeat
   | MsgDanceScore
+  | MsgDanceSnapshot
   | MsgCommentaryStart
   | MsgCommentaryText
   | MsgCommentaryAudio

@@ -1,11 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type {
   HpPair,
-  MsgDanceBeat,
-  MsgDanceScore,
   MsgGameState,
-  MsgPlayerDisconnected,
-  MsgPoseUpdate,
   PoseKeypoint,
   ServerMessage,
   PlayerSlot,
@@ -95,9 +91,7 @@ function spectatorUrl(serverUrl: string, roomCode: string) {
   return `${toWebSocketBase(serverUrl)}/ws/spectator/${encodeURIComponent(roomCode)}`
 }
 
-type IncomingMessage = ServerMessage | MsgPlayerDisconnected | MsgPoseUpdate
-
-function isIncomingMessage(value: unknown): value is IncomingMessage {
+function isServerMessage(value: unknown): value is ServerMessage {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -154,166 +148,143 @@ export function useSpectatorSocket(
 
       activeSocket.addEventListener('message', (event) => {
         let parsed: unknown
-
         try {
           parsed = JSON.parse(String(event.data))
         } catch {
           return
         }
+        if (!isServerMessage(parsed)) return
 
-        // Handle messages not in the ServerMessage union before type-narrowing.
-        if (typeof parsed === 'object' && parsed !== null) {
-          const rawType = (parsed as Record<string, unknown>).type
-          if (rawType === 'joined') {
-            const gt = (parsed as { game_type?: string }).game_type
-            if (gt === 'boxing' || gt === 'fps_boxing' || gt === 'dance') setGameType(gt)
-            return
-          }
-          if (rawType === 'dance_snapshot') {
-            const snap = parsed as { scores?: [number, number] }
-            if (snap.scores) setDanceScores([snap.scores[0], snap.scores[1]])
-            return
-          }
-        }
-
-        if (!isIncomingMessage(parsed)) {
-          return
-        }
-
-        if (parsed.type === 'pose_update') {
-          // Hot path: ~120 messages/sec (60Hz x 2 players). Mutate the ref
-          // in place — no setState, no re-render. PixiCanvas's ticker will
-          // pick this up on the next frame.
-          const slotIdx = parsed.player - 1
-          const player = poseStreamRef.current.players[slotIdx]
-          const now = performance.now()
-          if (player.lastArrivalMs > 0) {
-            const delta = now - player.lastArrivalMs
-            if (delta > 0 && Number.isFinite(delta)) {
-              player.expectedIntervalMs =
-                player.expectedIntervalMs * (1 - POSE_INTERVAL_EWMA_ALPHA) +
-                delta * POSE_INTERVAL_EWMA_ALPHA
+        switch (parsed.type) {
+          case 'pose_update': {
+            // Hot path: ~120 messages/sec (60Hz x 2 players). Mutate the ref
+            // in place — no setState, no re-render. PixiCanvas's ticker will
+            // pick this up on the next frame.
+            const slotIdx = parsed.player - 1
+            const player = poseStreamRef.current.players[slotIdx]
+            const now = performance.now()
+            if (player.lastArrivalMs > 0) {
+              const delta = now - player.lastArrivalMs
+              if (delta > 0 && Number.isFinite(delta)) {
+                player.expectedIntervalMs =
+                  player.expectedIntervalMs * (1 - POSE_INTERVAL_EWMA_ALPHA) +
+                  delta * POSE_INTERVAL_EWMA_ALPHA
+              }
             }
+            player.prev = player.next
+            player.next = parsed.keypoints
+            player.lastArrivalMs = now
+            break
           }
-          player.prev = player.next
-          player.next = parsed.keypoints
-          player.lastArrivalMs = now
-          return
-        }
-
-        if (parsed.type === 'lobby_update') {
-          setLobbyState({ p1: parsed.p1, p2: parsed.p2 })
-          // lobby_update is the FIRST message every spectator receives, so
-          // this is where we pick up the room's game_type. Without it the
-          // HUD gates (gameType === 'boxing' / 'dance' / etc) never flip
-          // and no HUD renders for the spectator at all.
-          const gt = (parsed as { game_type?: string }).game_type
-          if (gt === 'boxing' || gt === 'fps_boxing' || gt === 'dance') {
-            setGameType(gt)
-          }
-          return
-        }
-
-        if (parsed.type === 'game_state') {
-          setGameState(parsed)
-          setMaxWins(parsed.max_wins ?? 2)
-          // FIX-02 (overlay side): wins is emitted on every game_state tick by
-          // the engine specifically so a mid-match spectator / reconnect sees
-          // the correct score immediately instead of [0,0] until round_end.
-          setWins([parsed.wins[0], parsed.wins[1]])
-          setDisconnectedPlayer(null)
-          // Accumulate damage/hits from this tick (deduplicated by tick number)
-          if (parsed.recent_hits.length > 0 && parsed.tick > lastStatTickRef.current) {
-            lastStatTickRef.current = parsed.tick
-            for (const hit of parsed.recent_hits) {
-              const idx = hit.player - 1
-              damageAccRef.current[idx] += hit.damage
-              hitsAccRef.current[idx]++
+          case 'joined':
+            // Game-type latches on the first message that carries it. lobby_update
+            // typically arrives first, but `joined` covers the case where a
+            // spectator reconnects after lobby_update has already passed.
+            if (parsed.game_type === 'boxing' || parsed.game_type === 'fps_boxing' || parsed.game_type === 'dance') {
+              setGameType(parsed.game_type)
             }
-          }
-          return
-        }
-
-        if (parsed.type === 'round_start') {
-          if (parsed.round_number === 1) {
-            // Server-restart mid-match can emit round_start(1) without a
-            // preceding rematch_start. Mirror the rematch_start resets so
-            // stale accumulators don't poison the final MatchStats.
+            break
+          case 'lobby_update':
+            setLobbyState({ p1: parsed.p1, p2: parsed.p2 })
+            // lobby_update is the FIRST message every spectator receives, so
+            // this is where we pick up the room's game_type. Without it the
+            // HUD gates (gameType === 'boxing' / 'dance' / etc) never flip
+            // and no HUD renders for the spectator at all.
+            if (parsed.game_type === 'boxing' || parsed.game_type === 'fps_boxing' || parsed.game_type === 'dance') {
+              setGameType(parsed.game_type)
+            }
+            break
+          case 'game_state':
+            setGameState(parsed)
+            setMaxWins(parsed.max_wins ?? 2)
+            // FIX-02 (overlay side): wins is emitted on every game_state tick by
+            // the engine specifically so a mid-match spectator / reconnect sees
+            // the correct score immediately instead of [0,0] until round_end.
+            setWins([parsed.wins[0], parsed.wins[1]])
+            setDisconnectedPlayer(null)
+            // Accumulate damage/hits from this tick (deduplicated by tick number)
+            if (parsed.recent_hits.length > 0 && parsed.tick > lastStatTickRef.current) {
+              lastStatTickRef.current = parsed.tick
+              for (const hit of parsed.recent_hits) {
+                const idx = hit.player - 1
+                damageAccRef.current[idx] += hit.damage
+                hitsAccRef.current[idx]++
+              }
+            }
+            break
+          case 'round_start':
+            if (parsed.round_number === 1) {
+              // Server-restart mid-match can emit round_start(1) without a
+              // preceding rematch_start. Mirror the rematch_start resets so
+              // stale accumulators don't poison the final MatchStats.
+              setWins([0, 0])
+              damageAccRef.current = [0, 0]
+              hitsAccRef.current = [0, 0]
+              roundsPlayedRef.current = 0
+              lastStatTickRef.current = -1
+            }
+            roundNumberRef.current = parsed.round_number
+            setMatchWinner(null)
+            setRoundState({ number: parsed.round_number, phase: 'active' })
+            break
+          case 'round_end':
+            if (parsed.winner !== null && parsed.winner !== undefined) {
+              setWins(prev => {
+                const next: [number, number] = [prev[0], prev[1]]
+                next[(parsed.winner as 1 | 2) - 1]++
+                return next
+              })
+            }
+            roundsPlayedRef.current++
+            setRoundState({
+              number: roundNumberRef.current,
+              phase: 'ended',
+              winner: parsed.winner ?? undefined,
+              finalHp: parsed.final_hp,
+            })
+            break
+          case 'match_end':
+            setMatchWinner(parsed.winner)
+            setMatchStats({
+              damage: [damageAccRef.current[0], damageAccRef.current[1]],
+              hits: [hitsAccRef.current[0], hitsAccRef.current[1]],
+              rounds: roundsPlayedRef.current,
+              winner: parsed.winner,
+            })
+            break
+          case 'rematch_start':
+            setMatchWinner(null)
+            setMatchStats(null)
+            setGameState(null)
             setWins([0, 0])
+            setRoundState({ number: 1, phase: 'waiting' })
+            poseStreamRef.current = makePoseStream()
             damageAccRef.current = [0, 0]
             hitsAccRef.current = [0, 0]
             roundsPlayedRef.current = 0
             lastStatTickRef.current = -1
-          }
-          roundNumberRef.current = parsed.round_number
-          setMatchWinner(null)
-          setRoundState({ number: parsed.round_number, phase: 'active' })
-          return
+            setDanceScores([0, 0])
+            setDanceBeat(null)
+            break
+          case 'player_disconnected':
+            setDisconnectedPlayer(parsed.player)
+            break
+          case 'dance_beat':
+            setDanceBeat({ beat: parsed.beat, totalBeats: parsed.total_beats, targetPose: parsed.target_pose })
+            break
+          case 'dance_score':
+            setDanceScores([parsed.scores[0], parsed.scores[1]])
+            break
+          case 'dance_snapshot':
+            setDanceScores([parsed.scores[0], parsed.scores[1]])
+            break
+          case 'commentary_start':
+          case 'commentary_text':
+          case 'commentary_audio':
+          case 'commentary_end':
+            // Commentary is owned by useCommentary; this hook ignores.
+            break
         }
-
-        if (parsed.type === 'round_end') {
-          if (parsed.winner !== null && parsed.winner !== undefined) {
-            setWins(prev => {
-              const next: [number, number] = [prev[0], prev[1]]
-              next[(parsed.winner as 1 | 2) - 1]++
-              return next
-            })
-          }
-          roundsPlayedRef.current++
-          setRoundState({
-            number: roundNumberRef.current,
-            phase: 'ended',
-            winner: parsed.winner ?? undefined,
-            finalHp: parsed.final_hp,
-          })
-          return
-        }
-
-        if (parsed.type === 'match_end') {
-          setMatchWinner(parsed.winner)
-          setMatchStats({
-            damage: [damageAccRef.current[0], damageAccRef.current[1]],
-            hits: [hitsAccRef.current[0], hitsAccRef.current[1]],
-            rounds: roundsPlayedRef.current,
-            winner: parsed.winner,
-          })
-          return
-        }
-
-        if (parsed.type === 'rematch_start') {
-          setMatchWinner(null)
-          setMatchStats(null)
-          setGameState(null)
-          setWins([0, 0])
-          setRoundState({ number: 1, phase: 'waiting' })
-          poseStreamRef.current = makePoseStream()
-          damageAccRef.current = [0, 0]
-          hitsAccRef.current = [0, 0]
-          roundsPlayedRef.current = 0
-          lastStatTickRef.current = -1
-          setDanceScores([0, 0])
-          setDanceBeat(null)
-          return
-        }
-
-        if (parsed.type === 'player_disconnected') {
-          setDisconnectedPlayer(parsed.player)
-          return
-        }
-
-        if (parsed.type === 'dance_beat') {
-          const msg = parsed as MsgDanceBeat
-          setDanceBeat({ beat: msg.beat, totalBeats: msg.total_beats, targetPose: msg.target_pose })
-          return
-        }
-
-        if (parsed.type === 'dance_score') {
-          const msg = parsed as MsgDanceScore
-          setDanceScores([msg.scores[0], msg.scores[1]])
-          return
-        }
-
-        console.warn('useSpectatorSocket: unknown message type', parsed)
       })
 
       activeSocket.addEventListener('close', () => {
