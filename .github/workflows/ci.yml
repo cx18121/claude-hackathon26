@@ -100,6 +100,35 @@ jobs:
         working-directory: ${{ matrix.app }}
         run: npm test
 
+  node-build:
+    name: npm run build (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    # vitest doesn't catch `tsc -b --force` strict-mode breakage because
+    # each app's root tsconfig.json uses `"files": []` + `references`, so
+    # `npx tsc --noEmit` invoked at the project root is a no-op. Railway
+    # uses `npm run build` (= `tsc -b --force && vite build`), so CI must
+    # too — otherwise a passing PR can break the deploy.
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [mobile, overlay, fps]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
+
+      - name: npm ci
+        working-directory: ${{ matrix.app }}
+        run: npm ci
+
+      - name: npm run build
+        working-directory: ${{ matrix.app }}
+        run: npm run build
+
   e2e:
     name: playwright e2e (${{ matrix.app }})
     runs-on: ubuntu-latest
