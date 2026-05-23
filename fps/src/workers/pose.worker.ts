@@ -17,17 +17,50 @@ const post = (msg: OutMessage) => (self as DedicatedWorkerGlobalScope).postMessa
 let landmarker: PoseLandmarker | null = null;
 let lastTimestampMs = 0;
 
+// Probe worker-WebGL2 once; only attempt the GPU delegate when it's actually
+// supported. Without this, browsers that expose OffscreenCanvas but can't
+// create a WebGL2 context inside a worker (notably iOS Safari) trigger an
+// async init failure inside MediaPipe that the createFromOptions promise
+// doesn't reliably catch.
+function hasWorkerWebGL2(): boolean {
+  try {
+    if (typeof OffscreenCanvas === 'undefined') return false;
+    const probe = new OffscreenCanvas(1, 1);
+    const gl = probe.getContext('webgl2');
+    return gl !== null;
+  } catch {
+    return false;
+  }
+}
+
+// Always serialise the error name + stack — plain err.message strips both
+// and we need them to triage cross-platform failures.
+function describeError(err: unknown): string {
+  if (err instanceof Error) {
+    const parts = [`${err.name}: ${err.message}`];
+    if (err.stack) parts.push(err.stack);
+    return parts.join('\n');
+  }
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
+
 self.onmessage = async (e: MessageEvent<InMessage>) => {
   const msg = e.data;
 
   if (msg.type === 'init') {
     try {
       const vision = await FilesetResolver.forVisionTasks(msg.wasmUrl);
-      // Try GPU (WebGL) first — available in Workers via OffscreenCanvas in modern browsers.
-      // Fall back to CPU/WASM if the GL context can't be created in this Worker.
+      const canTryGpu = hasWorkerWebGL2();
       try {
         landmarker = await PoseLandmarker.createFromOptions(vision, {
-          baseOptions: { modelAssetPath: msg.modelUrl, delegate: 'GPU' },
+          baseOptions: {
+            modelAssetPath: msg.modelUrl,
+            delegate: canTryGpu ? 'GPU' : 'CPU',
+          },
           runningMode: 'VIDEO',
           numPoses: 1,
         });
@@ -40,7 +73,7 @@ self.onmessage = async (e: MessageEvent<InMessage>) => {
       }
       post({ type: 'ready' });
     } catch (err) {
-      post({ type: 'error', message: err instanceof Error ? err.message : String(err) });
+      post({ type: 'error', message: describeError(err) });
     }
     return;
   }
@@ -86,7 +119,7 @@ self.onmessage = async (e: MessageEvent<InMessage>) => {
       post({ type: 'result', worldLandmarks, landmarks });
     } catch (err) {
       // Post error so the hook can reset workerBusy and surface it
-      post({ type: 'error', message: err instanceof Error ? err.message : String(err) });
+      post({ type: 'error', message: describeError(err) });
     } finally {
       // Always release the transferred bitmap regardless of success or failure
       msg.bitmap.close();

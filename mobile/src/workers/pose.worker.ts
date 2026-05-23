@@ -16,21 +16,62 @@ const post = (msg: OutMessage) => (self as DedicatedWorkerGlobalScope).postMessa
 let landmarker: PoseLandmarker | null = null;
 let lastTimestampMs = 0;
 
+// Feature-detect a working WebGL2 in this worker. MediaPipe's GPU delegate
+// initialises a WebGL2 context internally and on iOS Safari that init can
+// fail asynchronously — the outer try/catch around createFromOptions doesn't
+// always catch it because the error fires from a microtask after the
+// constructor resolves. By probing WebGL2 ourselves and only attempting GPU
+// when we know it works, we avoid the iOS failure path entirely.
+function hasWorkerWebGL2(): boolean {
+  try {
+    if (typeof OffscreenCanvas === 'undefined') return false;
+    const probe = new OffscreenCanvas(1, 1);
+    const gl = probe.getContext('webgl2');
+    return gl !== null;
+  } catch {
+    return false;
+  }
+}
+
+// Serialize any thrown value into the most diagnostic string possible.
+// Plain `err.message` drops the error name (e.g. "RuntimeError" vs
+// "TypeError") and the stack, both of which we need to triage iOS-only
+// failures without a remote debugger attached.
+function describeError(err: unknown): string {
+  if (err instanceof Error) {
+    const parts = [`${err.name}: ${err.message}`];
+    if (err.stack) parts.push(err.stack);
+    return parts.join('\n');
+  }
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
+
 self.onmessage = async (e: MessageEvent<InMessage>) => {
   const msg = e.data;
 
   if (msg.type === 'init') {
     try {
       const vision = await FilesetResolver.forVisionTasks(msg.wasmUrl);
-      // Try GPU (WebGL) first — available in Workers via OffscreenCanvas in modern browsers.
-      // Fall back to CPU/WASM if the GL context can't be created in this Worker.
+      // Try GPU only when WebGL2 actually works in this worker context. On
+      // browsers without working worker-WebGL2 (notably iOS Safari classic
+      // workers), we go straight to CPU/WASM and skip the GPU attempt that
+      // would otherwise error asynchronously and dead-lock init.
+      const canTryGpu = hasWorkerWebGL2();
       try {
         landmarker = await PoseLandmarker.createFromOptions(vision, {
-          baseOptions: { modelAssetPath: msg.modelUrl, delegate: 'GPU' },
+          baseOptions: {
+            modelAssetPath: msg.modelUrl,
+            delegate: canTryGpu ? 'GPU' : 'CPU',
+          },
           runningMode: 'VIDEO',
           numPoses: 1,
         });
       } catch {
+        // If GPU was attempted and failed synchronously, retry on CPU.
         landmarker = await PoseLandmarker.createFromOptions(vision, {
           baseOptions: { modelAssetPath: msg.modelUrl, delegate: 'CPU' },
           runningMode: 'VIDEO',
@@ -39,7 +80,7 @@ self.onmessage = async (e: MessageEvent<InMessage>) => {
       }
       post({ type: 'ready' });
     } catch (err) {
-      post({ type: 'error', message: err instanceof Error ? err.message : String(err) });
+      post({ type: 'error', message: describeError(err) });
     }
     return;
   }
@@ -80,7 +121,7 @@ self.onmessage = async (e: MessageEvent<InMessage>) => {
       post({ type: 'result', worldLandmarks, landmarks });
     } catch (err) {
       // Post error so the hook can reset workerBusy and surface it
-      post({ type: 'error', message: err instanceof Error ? err.message : String(err) });
+      post({ type: 'error', message: describeError(err) });
     } finally {
       // Always release the transferred bitmap regardless of success or failure
       msg.bitmap.close();

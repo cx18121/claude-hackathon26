@@ -31,6 +31,20 @@ type RvfcVideoElement = HTMLVideoElement & {
 const supportsOffscreen = typeof OffscreenCanvas !== 'undefined';
 const supportsCreateImageBitmap = typeof createImageBitmap !== 'undefined';
 
+// iOS Safari exposes OffscreenCanvas + transferToImageBitmap but the resulting
+// bitmaps are sometimes 0×0 / unusable depending on iOS version + concurrent
+// WebGL context state. createImageBitmap(video) is the supported path on
+// iOS, so prefer it there even when OffscreenCanvas is available. UA-sniffing
+// is gross but iOS Safari is the only platform with this misshape and there's
+// no synchronous feature check that distinguishes a working bitmap from an
+// empty one before we hand it to MediaPipe.
+const isIOS =
+  typeof navigator !== 'undefined' &&
+  (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    // iPadOS 13+ reports as Mac; disambiguate via touch support.
+    (navigator.platform === 'MacIntel' && (navigator as Navigator & { maxTouchPoints?: number }).maxTouchPoints !== undefined && ((navigator as Navigator & { maxTouchPoints: number }).maxTouchPoints > 1)));
+const preferCreateImageBitmap = isIOS && supportsCreateImageBitmap;
+
 export function usePose(
   videoRef: RefObject<HTMLVideoElement | null>,
   cameraReady: boolean,
@@ -81,7 +95,7 @@ export function usePose(
         const w = video.videoWidth;
         const h = video.videoHeight;
         if (w > 0 && h > 0) {
-          if (supportsOffscreen) {
+          if (supportsOffscreen && !preferCreateImageBitmap) {
             // FIX #5: wrap OffscreenCanvas path in its own try/catch and surface
             // failures as a modelError rather than silently resetting busy.
             try {
