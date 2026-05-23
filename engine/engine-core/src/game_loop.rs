@@ -42,10 +42,10 @@ fn normalize_to_y_up(frame: &crate::protocol::MsgPoseFrame) -> PoseFrame {
 /// Implements: warmup gate (ENG-09), round lifecycle (ENG-10), MsgGameState broadcast.
 /// Phase 2: calls plugin.on_tick and dispatches all 5 GameEvent variants.
 pub fn game_tick(state: &mut RoomState) {
-    // WR-01: use the solo_mode flag set once at match start (CalibrationDone handler in room.rs).
-    // Do NOT re-derive from !state.players[1].connected per tick — P2 disconnect during a live
-    // two-player match must not silently activate bot mode.
-    let solo_mode = state.solo_mode;
+    // `intended_solo` is the single source of truth — set once at PlayerConnect
+    // from MsgJoin.solo. Do NOT re-derive from `!P2.connected`: a transient P2
+    // disconnect during a two-player match must not flip the room to bot mode.
+    let solo_mode = state.is_solo_match();
     let calibrated_ok = if solo_mode {
         // In solo mode, only player 0 must have calibrated (player 1 is a bot)
         state.players[0].reference_velocity.is_some()
@@ -131,7 +131,7 @@ pub fn game_tick(state: &mut RoomState) {
                     reference_velocity: state.players[1].reference_velocity,
                 },
             ],
-            solo_mode: state.solo_mode, // WR-01: propagate stable solo_mode to plugin
+            solo_mode: state.is_solo_match(),
         },
     };
 
@@ -383,36 +383,27 @@ mod solo_mode_tests {
         )
     }
 
-    /// BOX-10: solo mode gate — player 0 calibrated, player 1 never connected.
-    /// game_tick must NOT return early; match_in_progress must be true once
+    /// BOX-10: solo mode gate — slot 0 calibrated, slot 1 never connected,
+    /// `intended_solo` latched. game_tick must NOT return early once
     /// round_start_time is set.
     #[test]
     fn box10_solo_mode_gate_allows_single_player() {
         let mut state = make_room_state();
 
-        // Player 0 connects and calibrates
+        state.intended_solo = true;
         state.players[0].connected = true;
         state.players[0].reference_velocity = Some(5.0);
 
-        // Player 1 is never connected (solo mode)
-        assert!(!state.players[1].connected, "player 1 must not be connected");
-        assert!(state.players[1].reference_velocity.is_none(), "player 1 has no ref_vel");
-
-        // Before round_start_time is set, match_in_progress is false (correct: match hasn't started yet)
-        // Simulate what room.rs CalibrationDone handler does in solo mode:
-        // ready_to_start = !player1_connected && player0_ref_vel.is_some()
-        let solo_mode = !state.players[1].connected;
+        let solo_mode = state.is_solo_match();
         let ready_to_start = if solo_mode {
             state.players[0].reference_velocity.is_some()
         } else {
             state.players.iter().all(|p| p.reference_velocity.is_some())
         };
-        assert!(ready_to_start, "solo mode: player 0 calibrated alone should be ready_to_start");
+        assert!(ready_to_start, "solo room: slot 0 calibrated alone should be ready_to_start");
 
-        // Set round_start_time (what room.rs does when ready_to_start)
         state.round_start_time = Some(std::time::Instant::now());
 
-        // Now verify game_tick's match_in_progress would be true
         let calibrated_ok = if solo_mode {
             state.players[0].reference_velocity.is_some()
         } else {
@@ -425,24 +416,48 @@ mod solo_mode_tests {
         assert!(match_in_progress, "BOX-10: match_in_progress must be true in solo mode once calibrated");
     }
 
-    /// Two-player mode is unaffected: both players must calibrate.
+    /// Two-player room: both slots must calibrate.
     #[test]
     fn two_player_mode_still_requires_both_calibrated() {
         let mut state = make_room_state();
-
+        // intended_solo stays false — this is a two-player room
         state.players[0].connected = true;
         state.players[0].reference_velocity = Some(5.0);
         state.players[1].connected = true;
-        // Player 1 has NOT calibrated yet
 
-        let solo_mode = !state.players[1].connected;
-        let ready_to_start = if solo_mode {
+        let ready_to_start = if state.is_solo_match() {
             state.players[0].reference_velocity.is_some()
         } else {
             state.players.iter().all(|p| p.reference_velocity.is_some())
         };
 
-        assert!(!ready_to_start, "two-player mode: only one player calibrated must NOT be ready_to_start");
+        assert!(!ready_to_start, "two-player room: only one slot calibrated must NOT be ready_to_start");
+    }
+
+    /// Regression: a two-player room where P2 disconnects between PlayerConnect
+    /// and CalibrationDone must NOT silently start in bot mode. With the old
+    /// `solo_mode = !players[1].connected` derivation, slot 0 calibrating alone
+    /// would have flipped the room to solo. Now `intended_solo` stays false.
+    #[test]
+    fn two_player_room_with_transient_p2_disconnect_does_not_become_solo() {
+        let mut state = make_room_state();
+        // Two-player room (intended_solo=false). P1 connected, P2 connected
+        // then dropped before calibration completed.
+        state.players[0].connected = true;
+        state.players[0].reference_velocity = Some(5.0);
+        state.players[1].connected = false;
+
+        assert!(!state.is_solo_match(), "intended_solo must remain false");
+
+        let ready_to_start = if state.is_solo_match() {
+            state.players[0].reference_velocity.is_some()
+        } else {
+            state.players.iter().all(|p| p.reference_velocity.is_some())
+        };
+        assert!(
+            !ready_to_start,
+            "transient P2 disconnect must not auto-start a bot match"
+        );
     }
 }
 

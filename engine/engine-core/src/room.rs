@@ -41,13 +41,11 @@ pub struct RoomState {
     /// Shared with RoomHandle — set to Some(Instant::now()) when last player disconnects (CR-01).
     pub last_player_disconnected_at: Arc<std::sync::Mutex<Option<Instant>>>,
     pub max_wins: u32,
-    /// Set once at CalibrationDone when match starts (WR-01: avoid re-deriving per tick which
-    /// would silently activate bot mode if P2 disconnects during a two-player match).
-    pub solo_mode: bool,
-    /// Set true when the first joining client sent `solo: true` in MsgJoin. Gates the
-    /// solo auto-start branch in PlayerConnect — without this, the room would auto-start
-    /// a solo match the moment P1 connects to any room (because P2 isn't connected yet),
-    /// leaving a real P2 stuck on the waiting screen when they later join.
+    /// Single source of truth for "this is a solo/bot match." Latched at
+    /// PlayerConnect from `MsgJoin.solo`; never derived from `!P2.connected`,
+    /// since a transient P2 disconnect during a two-player match would
+    /// otherwise silently flip the room to bot mode.
+    /// Read via [`RoomState::is_solo_match`].
     pub intended_solo: bool,
     pub hp: [u32; 2],
     /// Starting HP per player — set from plugin.initial_hp() at creation; used on round reset (WR-01).
@@ -92,7 +90,6 @@ impl RoomState {
             match_over_flag,
             last_player_disconnected_at,
             max_wins,
-            solo_mode: false,
             intended_solo: false,
             hp: [initial_hp, initial_hp],
             initial_hp,
@@ -105,6 +102,11 @@ impl RoomState {
             commentary_tx: None, // Set by room_manager after spawning the commentary task
             game_type,
         }
+    }
+
+    /// Single source of truth for solo/bot mode. See `intended_solo` field doc.
+    pub fn is_solo_match(&self) -> bool {
+        self.intended_solo
     }
 }
 
@@ -172,6 +174,48 @@ fn send_to_slot(state: &RoomState, slot_idx: usize, json: &str) {
     if let Some(tx) = &state.players[slot_idx].tx {
         let _ = tx.try_send(json.to_string());
     }
+}
+
+/// Send `calibration_start` (if the plugin uses calibration) or kick straight
+/// into the match (otherwise) for the given slots. Used by both the two-player
+/// and solo start paths in PlayerConnect — same orchestration, different slot
+/// list.
+///
+/// For non-calibrating plugins (dance), we set a sentinel reference_velocity
+/// of `Some(0.0)` on each target slot so the `game_tick` calibrated_ok gate
+/// passes. The dance plugin ignores the value.
+fn start_session(state: &mut RoomState, slots: &[usize]) {
+    use crate::protocol::*;
+    if state.plugin.requires_calibration() {
+        if let Ok(json) = serde_json::to_string(&MsgCalibrationStart {
+            msg_type: "calibration_start".to_string(),
+        }) {
+            for &slot in slots {
+                send_to_slot(state, slot, &json);
+            }
+            let kind = if slots.len() == 1 { "solo/bot mode" } else { "two-player" };
+            tracing::info!("room {} calibration started ({})", state.code, kind);
+        }
+        return;
+    }
+
+    for &slot in slots {
+        state.players[slot].reference_velocity = Some(0.0);
+    }
+    if let Ok(json) = serde_json::to_string(&MsgMatchStart {
+        msg_type: "match_start".to_string(),
+    }) {
+        broadcast_all(state, &json);
+    }
+    if let Ok(json) = serde_json::to_string(&MsgRoundStart {
+        msg_type: "round_start".to_string(),
+        round_number: state.round_number,
+    }) {
+        broadcast_all(state, &json);
+    }
+    state.round_start_time = Some(Instant::now());
+    let kind = if slots.len() == 1 { "solo" } else { "two-player" };
+    tracing::info!("room {} {} match started (no calibration)", state.code, kind);
 }
 
 /// Broadcast to spectators (slow path) and all connected players.
@@ -289,76 +333,24 @@ fn handle_cmd(state: &mut RoomState, cmd: RoomCmd) {
             }) {
                 let _ = state.game_tx.send(json);
             }
-            // Two-player mode: both players connected — send calibration_start to both (ENG-11).
-            // Solo mode: only player 0 connected (player 1 is a bot) — send calibration_start to
-            // slot 0 only. The solo branch is now gated on state.intended_solo (set from the
-            // first MsgJoin.solo) — without this, the server treats any first-joiner as solo
-            // and a real P2 joining later sits on the waiting screen forever because the
-            // calibration_start gate (round_start_time.is_none()) has already fired.
-            // Dance rooms: skip calibration entirely; set sentinel velocities and start match now.
-            let solo_mode = state.intended_solo && !state.players[1].connected;
-            if state.players[0].connected && state.players[1].connected
-                && state.round_start_time.is_none()  // CR-02: guard against restarting an already-running match when P2 joins late
+            // Pick which slots receive the start signal:
+            //   - two-player room with both connected → [0, 1]
+            //   - solo room and the connector is P1     → [0]
+            //   - otherwise                              → wait
+            // CR-02 guard: state.round_start_time.is_none() prevents restarting
+            // an already-running match if P2 joins after a solo run begins.
+            let solo_starting = state.is_solo_match() && slot == 0;
+            let start_slots: &[usize] = if state.players[0].connected && state.players[1].connected
+                && state.round_start_time.is_none()
             {
-                if state.plugin.requires_calibration() {
-                    use crate::protocol::MsgCalibrationStart;
-                    if let Ok(json) = serde_json::to_string(&MsgCalibrationStart {
-                        msg_type: "calibration_start".to_string(),
-                    }) {
-                        send_to_slot(state, 0, &json);
-                        send_to_slot(state, 1, &json);
-                        tracing::info!("room {} calibration started (two-player)", state.code);
-                    }
-                } else {
-                    // Dance: skip calibration handshake; set sentinel velocities so game_loop::game_tick
-                    // calibrated_ok check passes (Pitfall 1 — reference_velocity.is_some() gate).
-                    // Some(0.0) clearly signals "calibration bypassed"; dance plugin ignores this value.
-                    state.players[0].reference_velocity = Some(0.0);
-                    state.players[1].reference_velocity = Some(0.0);
-                    state.solo_mode = false;
-                    use crate::protocol::*;
-                    if let Ok(json) = serde_json::to_string(&MsgMatchStart {
-                        msg_type: "match_start".to_string(),
-                    }) {
-                        broadcast_all(state, &json);
-                    }
-                    if let Ok(json) = serde_json::to_string(&MsgRoundStart {
-                        msg_type: "round_start".to_string(),
-                        round_number: state.round_number,
-                    }) {
-                        broadcast_all(state, &json);
-                    }
-                    state.round_start_time = Some(Instant::now());
-                    tracing::info!("room {} dance match started (no calibration)", state.code);
-                }
-            } else if solo_mode && slot == 0 && state.round_start_time.is_none() {
-                if state.plugin.requires_calibration() {
-                    use crate::protocol::MsgCalibrationStart;
-                    if let Ok(json) = serde_json::to_string(&MsgCalibrationStart {
-                        msg_type: "calibration_start".to_string(),
-                    }) {
-                        send_to_slot(state, 0, &json);
-                        tracing::info!("room {} calibration started (solo/bot mode)", state.code);
-                    }
-                } else {
-                    // Dance solo: skip calibration; set sentinel velocity for slot 0 only
-                    state.players[0].reference_velocity = Some(0.0);
-                    state.solo_mode = true;
-                    use crate::protocol::*;
-                    if let Ok(json) = serde_json::to_string(&MsgMatchStart {
-                        msg_type: "match_start".to_string(),
-                    }) {
-                        broadcast_all(state, &json);
-                    }
-                    if let Ok(json) = serde_json::to_string(&MsgRoundStart {
-                        msg_type: "round_start".to_string(),
-                        round_number: state.round_number,
-                    }) {
-                        broadcast_all(state, &json);
-                    }
-                    state.round_start_time = Some(Instant::now());
-                    tracing::info!("room {} dance solo match started (no calibration)", state.code);
-                }
+                &[0, 1]
+            } else if solo_starting && state.round_start_time.is_none() {
+                &[0]
+            } else {
+                &[]
+            };
+            if !start_slots.is_empty() {
+                start_session(state, start_slots);
             }
             let _ = reply.send(Some(result));
         }
@@ -372,22 +364,14 @@ fn handle_cmd(state: &mut RoomState, cmd: RoomCmd) {
             state.players[slot].reference_velocity = Some(reference_velocity);
             state.plugin.on_calibration_complete(slot as u8, reference_velocity, &mut *state.plugin_state);
             tracing::info!("player {} calibrated ref_vel={:.2}", slot + 1, reference_velocity);
-            // Determine if match can start.
-            // Solo mode: player 2 is not connected — one calibrated player (slot 0) suffices.
-            // Two-player mode: both players must have calibrated.
-            let solo_mode = !state.players[1].connected;
-            let ready_to_start = if solo_mode {
-                // In solo mode, the connecting player (slot 0) calibrating is sufficient.
-                // Player 1 (the bot) never connects and never calibrates.
+            // Solo room: slot 0 calibrating is sufficient (P2 is the bot, never calibrates).
+            // Two-player room: both slots must have calibrated.
+            let ready_to_start = if state.is_solo_match() {
                 state.players[0].reference_velocity.is_some()
             } else {
-                // In two-player mode, both players must have calibrated.
                 state.players.iter().all(|p| p.reference_velocity.is_some())
             };
             if ready_to_start && state.round_start_time.is_none() {
-                // WR-01: record solo_mode once at match start; do not re-derive per tick
-                state.solo_mode = solo_mode;
-                // Start match — game_loop will handle warmup gate
                 use crate::protocol::*;
                 if let Ok(json) = serde_json::to_string(&MsgMatchStart { msg_type: "match_start".to_string() }) {
                     broadcast_all(state, &json);
@@ -396,11 +380,8 @@ fn handle_cmd(state: &mut RoomState, cmd: RoomCmd) {
                     broadcast_all(state, &json);
                 }
                 state.round_start_time = Some(Instant::now());
-                if solo_mode {
-                    tracing::info!("room {} solo/bot match started", state.code);
-                } else {
-                    tracing::info!("room {} match started", state.code);
-                }
+                let kind = if state.is_solo_match() { "solo/bot" } else { "two-player" };
+                tracing::info!("room {} {} match started", state.code, kind);
             }
         }
         RoomCmd::RecordPong { slot, original_t } => {
