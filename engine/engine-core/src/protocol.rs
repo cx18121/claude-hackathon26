@@ -252,6 +252,28 @@ pub struct MsgDanceScore {
     pub scores: [f64; 2],
 }
 
+fn default_type_dance_snapshot() -> String {
+    "dance_snapshot".to_string()
+}
+
+/// Spectator snapshot sent on connect for an in-progress dance round.
+/// Emitted by `DancePlugin::spectator_snapshot`. Lives next to the other
+/// dance messages so the TS binding stays on the same ts-rs generation
+/// path instead of drifting as a hand-written entry in shared/protocol.ts.
+#[derive(Serialize, Deserialize, TS, Clone, Debug)]
+#[ts(export)]
+pub struct MsgDanceSnapshot {
+    #[serde(rename = "type", default = "default_type_dance_snapshot")]
+    pub msg_type: String,
+    /// Always "dance" — kept explicit so spectators can pre-narrow on it
+    /// before applying the rest of the fields.
+    pub game_type: String,
+    #[ts(type = "number")]  // override bigint → number to match the other dance messages
+    pub beat: u64,
+    /// Cumulative similarity scores for [player_1, player_2]. Range [0.0, 1.0].
+    pub scores: [f64; 2],
+}
+
 // ============================================================================
 // Outbound messages: Server -> Overlay
 // ============================================================================

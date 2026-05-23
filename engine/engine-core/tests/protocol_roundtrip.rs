@@ -242,6 +242,25 @@ fn msg_dance_score_roundtrip() {
 }
 
 #[test]
+fn msg_dance_snapshot_roundtrip() {
+    // Locks the wire shape against MsgDanceSnapshot. dance-plugin emits the
+    // payload via json!() (it can't `use engine_core::protocol::*` without
+    // creating a workspace cycle), so this fixture is the only thing
+    // preventing the json!() keys from drifting silently away from the
+    // typed struct that drives the TypeScript binding.
+    let raw = fixture("msg_dance_snapshot");
+    let msg: MsgDanceSnapshot = serde_json::from_str(&raw).expect("deserialize MsgDanceSnapshot");
+    let re = serde_json::to_string(&msg).expect("serialize MsgDanceSnapshot");
+    let orig: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    let round: serde_json::Value = serde_json::from_str(&re).unwrap();
+    assert_type_field(&round, "dance_snapshot");
+    assert_eq!(orig["game_type"], round["game_type"]);
+    assert_eq!(orig["beat"], round["beat"]);
+    assert_eq!(orig["scores"][0], round["scores"][0]);
+    assert_eq!(orig["scores"][1], round["scores"][1]);
+}
+
+#[test]
 fn inbound_mobile_msg_discriminator() {
     // All 5 inbound variants must deserialize via InboundMobileMsg
     let cases = vec![

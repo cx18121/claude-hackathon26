@@ -58,14 +58,15 @@ export interface UseGameSocketBaseConfig {
    */
   joinSolo: (args: ConnectionArgs) => boolean;
   /**
-   * Called for every parsed message AFTER the shared case is matched (or
-   * for messages with no shared case). The app's handler can store
-   * app-specific state, call `flashHit` for hit-like payloads, etc.
-   *
-   * The shared cases (joined/pong/ping/calibration_start/match_start/
+   * Called ONLY for message types the base hook does not handle itself —
+   * the shared cases (joined/pong/ping/calibration_start/match_start/
    * you_were_hit/player_disconnected/round_start/round_end/match_end/
-   * rematch_start) are handled by the base hook itself; this callback
-   * is only useful for additive types.
+   * rematch_start) are processed by the base and never forwarded here.
+   * Use this for additive types like `fps_state`, `fps_hit`, etc.
+   *
+   * Helpers provided so app dispatchers can reuse base-owned state
+   * machinery (e.g. `flashHit` shares the hit-clear timer used by
+   * `you_were_hit`).
    */
   onAppMessage?: (msg: InboundServerMsg, helpers: GameSocketHelpers) => void;
 }
