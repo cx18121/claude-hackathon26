@@ -224,31 +224,29 @@ export function useGameSocket(): UseGameSocketResult {
         setPhase('ended');
         break;
 
-      // game_state goes to spectators only; mobile ignores it if it ever arrives.
-      default: {
-        // Handle messages not in the InboundServerMsg union (fps_boxing,
-        // rematch_start). MsgRematchStart is declared in shared/protocol but
-        // only listed in the ServerMessage union; the engine still emits it
-        // to player connections, so we have to dispatch it here.
-        const raw = msg as unknown as { type: string };
-        if (raw.type === 'fps_state') {
-          // T-14-01-01: guard hp array before indexing to prevent tampered server messages
-          const fpsState = msg as unknown as MsgFpsState;
-          if (Array.isArray(fpsState.hp) && fpsState.hp.length >= 2) {
-            setLastFpsState(fpsState);
-          }
-        } else if (raw.type === 'fps_hit') {
-          setLastFpsHit(msg as unknown as MsgFpsHit);
-        } else if (raw.type === 'rematch_start') {
-          // Server-initiated rematch — drop back to calibration. Mirrors
-          // calibration_start so the UI cleanly transitions out of 'ended'.
-          setPhase('calibration');
-          setMatchEnd(null);
-          setLastRoundEnd(null);
-          setRoundNumber(1);
+      case 'fps_state':
+        // T-14-01-01: guard hp array before indexing to prevent tampered server messages.
+        if (Array.isArray(msg.hp) && msg.hp.length >= 2) {
+          setLastFpsState(msg);
         }
         break;
-      }
+
+      case 'fps_hit':
+        setLastFpsHit(msg);
+        break;
+
+      case 'rematch_start':
+        setPhase('calibration');
+        setMatchEnd(null);
+        setLastRoundEnd(null);
+        setRoundNumber(1);
+        break;
+
+      default:
+        // Spectator-only channels (game_state, pose_update, commentary_*,
+        // dance_*) arrive on the same socket but are not consumed by the
+        // fps UI. Silently ignore.
+        break;
     }
   }, [send]);
 

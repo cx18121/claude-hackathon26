@@ -227,10 +227,13 @@ export type InboundServerMsg =
   | MsgRoundStart
   | MsgRoundEnd
   | MsgMatchEnd
+  | MsgRematchStart
   | MsgGameState
   | MsgPoseUpdate
   | MsgDanceBeat
   | MsgDanceScore
+  | MsgFpsState
+  | MsgFpsHit
   | MsgCommentaryStart
   | MsgCommentaryText
   | MsgCommentaryAudio

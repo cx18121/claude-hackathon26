@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   InboundServerMsg,
-  MsgFpsHit,
   MsgYouWereHit,
   OutboundMobileMsg,
 } from '@shared/protocol';
@@ -243,45 +242,31 @@ export function useGameSocket(): UseGameSocketResult {
         setPhase('ended');
         break;
 
-      case 'dance_beat':
-        // Dance UI on mobile is not implemented yet; ignore to avoid the
-        // noisy default-warn if one is ever added.
-        break;
-
-      case 'dance_score':
-        // Dance UI on mobile is not implemented yet; ignore to avoid the
-        // noisy default-warn if one is ever added.
-        break;
-
-      // game_state goes to spectators only; mobile ignores it if it ever arrives.
-      default: {
-        // Some messages (fps_hit, rematch_start) aren't in the
-        // InboundServerMsg union but the engine emits them to player
-        // connections. Mirror the fps app's default-branch dispatch pattern
-        // so we can react without widening the shared union.
-        const raw = msg as unknown as { type: string };
-        if (raw.type === 'fps_hit') {
-          // fps_boxing equivalent of you_were_hit — mirror its flash pattern
-          // so the mobile player sees damage feedback in fps matches.
-          const hit = msg as unknown as MsgFpsHit;
-          setLastHit({ region: hit.punch_type, damage: hit.damage });
-          if (hitClearTimerRef.current !== null) {
-            window.clearTimeout(hitClearTimerRef.current);
-          }
-          hitClearTimerRef.current = window.setTimeout(() => {
-            setLastHit(null);
-            hitClearTimerRef.current = null;
-          }, HIT_FLASH_MS);
-        } else if (raw.type === 'rematch_start') {
-          // Server-initiated rematch — drop back to calibration so the UI
-          // cleanly transitions out of 'ended'.
-          setPhase('calibration');
-          setMatchEnd(null);
-          setLastRoundEnd(null);
-          setRoundNumber(1);
+      case 'fps_hit':
+        // fps_boxing equivalent of you_were_hit — mirror its flash pattern
+        // so the mobile player sees damage feedback in fps matches.
+        setLastHit({ region: msg.punch_type, damage: msg.damage });
+        if (hitClearTimerRef.current !== null) {
+          window.clearTimeout(hitClearTimerRef.current);
         }
+        hitClearTimerRef.current = window.setTimeout(() => {
+          setLastHit(null);
+          hitClearTimerRef.current = null;
+        }, HIT_FLASH_MS);
         break;
-      }
+
+      case 'rematch_start':
+        setPhase('calibration');
+        setMatchEnd(null);
+        setLastRoundEnd(null);
+        setRoundNumber(1);
+        break;
+
+      default:
+        // Spectator/overlay/fps-renderer channels (game_state, pose_update,
+        // commentary_*, dance_*, fps_state) arrive on the same socket but are
+        // not consumed by the mobile UI. Silently ignore.
+        break;
     }
   }, [send]);
 
