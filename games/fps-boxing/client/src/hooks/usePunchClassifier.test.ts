@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import type { PoseKeypoint } from '@shared/protocol';
+import type { LabeledSample } from '@shared/client/useCalibration';
 
 // Mock onnxruntime-web before importing the hook
 const mockRun = vi.fn();
@@ -123,5 +124,74 @@ describe('usePunchClassifier', () => {
       });
     }
     expect(result.current.type).toBeNull();
+  });
+
+  // Helper: build a window of N frames for setPrototypes.
+  function makeSampleWindow(n = 20): PoseKeypoint[][] {
+    return Array.from({ length: n }, () => makeKeypoints());
+  }
+
+  it('Test 7: setPrototypes routes inference through nearest-centroid path', async () => {
+    // Same feature vector for both setPrototypes (centroid build) and inference
+    // → distance == 0 → softmax-over-neg-distances pins confidence at 1.0 on the
+    // sample's label. Logits are deliberately uniform so a passing result MUST
+    // come from the prototype branch, not the logits fallback.
+    const featData = new Float32Array(64).fill(0.42);
+    mockRun.mockResolvedValue({
+      logits: { data: new Float32Array([0.1, 0.1, 0.1, 0.1, 0.1]) },
+      features: { data: featData },
+    });
+
+    const { result, rerender } = renderHook(
+      ({ keypoints }) => usePunchClassifier(keypoints),
+      { initialProps: { keypoints: makeKeypoints() } },
+    );
+    await act(async () => { await new Promise(r => setTimeout(r, 10)); });
+
+    const samples: LabeledSample[] = [{ label: 'hook_r', window: makeSampleWindow() }];
+    await act(async () => { await result.current.setPrototypes(samples); });
+
+    for (let i = 0; i < 20; i++) {
+      await act(async () => {
+        rerender({ keypoints: makeKeypoints(i * 0.001) });
+        await new Promise(r => setTimeout(r, 0));
+      });
+    }
+
+    expect(result.current.type).toBe('hook_r');
+    expect(result.current.confidence).toBeGreaterThan(0.7);
+  });
+
+  it('Test 8: setPrototypes is no-op when the session has no features output (placeholder model)', async () => {
+    // Default inference response includes features + jab-leaning logits.
+    mockRun.mockResolvedValue({
+      logits: { data: new Float32Array([10, -10, -10, -10, -10]) },
+      features: { data: new Float32Array(64).fill(0.42) },
+    });
+    // First call (the one setPrototypes makes per sample) returns no features —
+    // matches what the placeholder ONNX shipped before a real model exists.
+    mockRun.mockResolvedValueOnce({
+      logits: { data: new Float32Array(5) },
+    });
+
+    const { result, rerender } = renderHook(
+      ({ keypoints }) => usePunchClassifier(keypoints),
+      { initialProps: { keypoints: makeKeypoints() } },
+    );
+    await act(async () => { await new Promise(r => setTimeout(r, 10)); });
+
+    const samples: LabeledSample[] = [{ label: 'hook_r', window: makeSampleWindow() }];
+    await act(async () => { await result.current.setPrototypes(samples); });
+
+    for (let i = 0; i < 20; i++) {
+      await act(async () => {
+        rerender({ keypoints: makeKeypoints(i * 0.001) });
+        await new Promise(r => setTimeout(r, 0));
+      });
+    }
+
+    // No prototypes were built → logits branch fires → jab wins.
+    // The point: prototype path silently degrades, doesn't crash or label hook_r.
+    expect(result.current.type).toBe('jab');
   });
 });

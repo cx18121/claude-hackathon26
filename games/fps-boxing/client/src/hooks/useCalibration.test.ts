@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import type { PoseKeypoint } from '@shared/protocol';
-import { useCalibration } from '@shared/client/useCalibration';
+import { useCalibration, type LabeledSample } from '@shared/client/useCalibration';
 import { LANDMARK } from '@shared/client/velocity';
 
 // We control time so frame timestamps are deterministic.
@@ -222,4 +222,99 @@ describe('useCalibration', () => {
     expect(result.current.tposeProgress).toBe(0);
     expect(result.current.punchesRecorded).toBe(0);
   });
+});
+
+// Labeled mode is what fps-boxing actually ships (CalibrationScreen.tsx:28).
+// It replaces the single 'punches' stage with 4 per-class stages and threads
+// captured 20-frame windows back to usePunchClassifier.setPrototypes via the
+// 2nd arg of onComplete.
+describe('useCalibration -- labeledPunchMode', () => {
+  interface LabeledHookProps {
+    keypoints: PoseKeypoint[] | null;
+    active: boolean;
+    onComplete: (ref: number, samples?: LabeledSample[]) => void;
+  }
+
+  function feedLabeled(
+    rerenderFn: unknown,
+    onComplete: ReturnType<typeof vi.fn>,
+    kp: PoseKeypoint[],
+  ) {
+    const rerender = rerenderFn as (p: LabeledHookProps) => void;
+    mockNow += FRAME_DT_MS;
+    act(() => {
+      rerender({
+        keypoints: kp.map((p) => ({ ...p })),
+        active: true,
+        onComplete: onComplete as unknown as LabeledHookProps['onComplete'],
+      });
+    });
+  }
+
+  // Drive one labeled-stage's worth of frames: settle → motion → rest.
+  // Rest uses x:0 (the T-pose default) so the first settle frame doesn't
+  // jump the wrist position — that would arm both trackers before the
+  // stage's intended motion and double-count peaks.
+  const REST_KP = makeKeypoints();
+  function driveOneLabeledPeak(
+    rerender: unknown,
+    onComplete: ReturnType<typeof vi.fn>,
+  ) {
+    // Settle so tracker.ready flips true after the previous stage's reset.
+    for (let i = 0; i < 4; i++) feedLabeled(rerender, onComplete, REST_KP);
+    // Motion: 0.10m per 33ms ≈ 3 m/s — well above PUNCH_PEAK_THRESHOLD (1.2).
+    for (let i = 0; i < 4; i++) {
+      const x = (i + 1) * 0.10;
+      feedLabeled(rerender, onComplete, makeKeypoints({
+        [LANDMARK.LEFT_WRIST]: { x },
+      }));
+    }
+    // Rest: wrist returns to x:0 so velocity drops back below RESET threshold.
+    for (let i = 0; i < 6; i++) feedLabeled(rerender, onComplete, REST_KP);
+  }
+
+  it('progresses tpose → 4 labeled punch stages → neutral → done', () => {
+    const onComplete = vi.fn();
+    const stable = makeKeypoints();
+    const { result, rerender } = renderHook(
+      (props: LabeledHookProps) => useCalibration({ ...props, labeledPunchMode: true }),
+      {
+        initialProps: { keypoints: null, active: true, onComplete } satisfies LabeledHookProps,
+      },
+    );
+
+    // T-pose: 35 stable frames (matches existing Test 3 pattern).
+    for (let i = 0; i < 35; i++) feedLabeled(rerender, onComplete, stable);
+    expect(result.current.stage).toBe('punch_jab');
+
+    const stagesExpected = ['punch_cross', 'punch_hook_l', 'punch_hook_r', 'neutral'] as const;
+    for (const next of stagesExpected) {
+      driveOneLabeledPeak(rerender, onComplete);
+      expect(result.current.stage).toBe(next);
+    }
+
+    // Neutral: 70 still frames (NEUTRAL_FRAMES_NEEDED=60, with margin).
+    const neutralKp = makeKeypoints({ [LANDMARK.LEFT_WRIST]: { x: 0.4 } });
+    for (let i = 0; i < 70; i++) feedLabeled(rerender, onComplete, neutralKp);
+
+    expect(result.current.stage).toBe('done');
+    expect(onComplete).toHaveBeenCalledTimes(1);
+
+    // The second arg — load-bearing for usePunchClassifier.setPrototypes.
+    const [refVel, samples] = onComplete.mock.calls[0] as [number, LabeledSample[]];
+    expect(refVel).toBeGreaterThan(0);
+    expect(Array.isArray(samples)).toBe(true);
+    expect(samples).toHaveLength(4);
+    expect(samples.map((s) => s.label)).toEqual(['jab', 'cross', 'hook_l', 'hook_r']);
+    for (const sample of samples) {
+      expect(sample.window.length).toBeGreaterThan(0);
+      expect(sample.window.length).toBeLessThanOrEqual(20); // CAPTURE_WINDOW_SIZE
+      // Each captured frame is a full 33-landmark pose.
+      expect(sample.window[0]).toHaveLength(33);
+    }
+
+    // calibrationSamples surfaced on the hook result matches the onComplete payload.
+    expect(result.current.calibrationSamples).toHaveLength(4);
+  });
+
 });
