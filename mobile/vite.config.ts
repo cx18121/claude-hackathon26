@@ -10,6 +10,11 @@ export default defineConfig(({ command }) => ({
     alias: {
       '@shared': path.resolve(import.meta.dirname, '../shared'),
     },
+    // shared/client/* lives outside this app's node_modules. `dedupe` forces
+    // Vite to resolve these from THIS app's node_modules even when the import
+    // originates from the shared tree, avoiding "Failed to resolve import" for
+    // bare specifiers in shared modules.
+    dedupe: ['react', 'react-dom'],
   },
   server: {
     // Listen on all interfaces so a phone on the same LAN can hit the dev

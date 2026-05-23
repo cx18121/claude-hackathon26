@@ -1,4 +1,4 @@
-import type { CalibrationStage } from '../hooks/useCalibration';
+import type { CalibrationStage } from '@shared/client/useCalibration';
 
 interface CalibrationOverlayProps {
   stage: CalibrationStage;

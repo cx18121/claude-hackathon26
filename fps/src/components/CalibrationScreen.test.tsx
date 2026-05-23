@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import * as useCalibrationModule from '../hooks/useCalibration';
+import * as useCalibrationModule from '@shared/client/useCalibration';
 import { CalibrationScreen } from './CalibrationScreen';
-import type { UseCalibrationResult } from '../hooks/useCalibration';
+import type { UseCalibrationResult } from '@shared/client/useCalibration';
 
 const defaultCalResult: UseCalibrationResult = {
   stage: 'tpose',

@@ -8,6 +8,8 @@ export default defineConfig({
     alias: {
       '@shared': path.resolve(import.meta.dirname, '../shared'),
     },
+    // See vite.config.ts dedupe doc — same reason here.
+    dedupe: ['react', 'react-dom'],
   },
   test: {
     environment: 'jsdom',

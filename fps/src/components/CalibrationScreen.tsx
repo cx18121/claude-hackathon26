@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type React from 'react';
 import type { PoseKeypoint } from '@shared/protocol';
-import { useCalibration } from '../hooks/useCalibration';
+import { useCalibration } from '@shared/client/useCalibration';
 
 interface CalibrationScreenProps {
   stream: MediaStream | null;

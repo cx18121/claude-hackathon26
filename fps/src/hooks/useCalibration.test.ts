@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import type { PoseKeypoint } from '@shared/protocol';
-import { useCalibration } from './useCalibration';
+import { useCalibration } from '@shared/client/useCalibration';
 import { LANDMARK } from '@shared/client/velocity';
 
 // We control time so frame timestamps are deterministic.
