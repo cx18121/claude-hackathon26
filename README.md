@@ -2,6 +2,8 @@
 
 [demo](https://www.youtube.com/watch?v=Afx3NxmBlJA&feature=youtu.be)
 
+> **Note:** This README describes the original hackathon build. The codebase has since been rewritten in Rust (an Axum engine with per-game plugins) and restructured under `games/`. The Python setup, layout, and tech-stack sections below are historical. For the current architecture and domain glossary, see [CONTEXT.md](CONTEXT.md) and [docs/](docs/).
+
 A real-time 1v1 boxing game that turns your movement into gameplay. Throw real punches and kicks at your phone cameras and watch your silhouette fight in a live browser overlay. 
 
 Built for the Cornell Claude Builders Club Hackathon, spring 2026, by Charlie Xue, Akhil Chilaka, Yosef Mimarbasi, and Adi Prathapa. 

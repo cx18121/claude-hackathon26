@@ -12,9 +12,7 @@ Do not call it a "boxing game" (too narrow — kicks are included) or "Shadow Fi
 
 **Round** — one timed bout within a Match. A Round ends when either a player's HP reaches 0 or the timer expires — whichever comes first. If the timer expires, the player with more HP remaining wins the Round (or it is a draw if HP is equal).
 
-**Calibration** — a one-time setup phase at the start of a Room session in which each player throws 3 full-speed practice punches so the server can measure their natural punch velocity. The result (`reference_velocity`) normalizes hit detection so players of different size and fitness are judged relative to their own baseline, not an absolute threshold. Calibration persists for the entire Room session — it is NOT reset between Matches (rematches).
-
-> ⚠️ Bug: `main.py:383` resets `reference_velocity = None` on rematch and re-sends `MsgCalibrationStart`. This contradicts the intended behaviour.
+**Calibration** — a one-time setup phase at the start of a Room session in which each player throws 3 full-speed practice punches so the server can measure their natural punch velocity. The result (`reference_velocity`) normalizes hit detection so players of different size and fitness are judged relative to their own baseline, not an absolute threshold. Calibration persists for the entire Room session — it is NOT reset between Matches (rematches). The Rust engine enforces this: `reference_velocity` lives on the player slot and the rematch handler (`engine/engine-core/src/room.rs`) deliberately preserves it (FIX-01), guarded by per-plugin `on_round_reset` tests.
 
 **HP (Hitpoints)** — each Fighter starts a Round with 800 HP. Every landed Attack deducts a damage amount. HP is never shown as a number in the UI — only the bar width (ratio of current to max) is displayed. When a Fighter's HP reaches 0, they are **KO'd** (Knocked Out), which immediately ends the Round.
 
@@ -32,9 +30,9 @@ Do not call it a "boxing game" (too narrow — kicks are included) or "Shadow Fi
 
 **Fighting** — the active state during a Round when hit detection is live and HP is draining. A Fighter is either in the Lobby, Fighting, or in a post-round pause. Do not use "in-match", "live", or "in-game".
 
-**Controller** — the mobile browser app a Fighter uses during a match. It runs MediaPipe pose estimation and streams keypoints to the server. Do not call it "mobile client", "phone", or "player" — use Controller. (The code directory is named `mobile/` for historical reasons.)
+**Controller** — the mobile browser app a Fighter uses during a match. It runs MediaPipe pose estimation and streams keypoints to the server. Do not call it "mobile client", "phone", or "player" — use Controller. (In code it is the `PlayerApp` inside each game's `games/<game>/client/`.)
 
-**Arena** — the spectator-facing browser view that renders the match: Fighter silhouettes, HP bars, round overlays, and the Commentator. What the room watches. Do not call it "overlay" in product or UI copy — use Arena. (The code directory is named `overlay/` for historical reasons.)
+**Arena** — the spectator-facing browser view that renders the match: Fighter silhouettes, HP bars, round overlays, and the Commentator. What the room watches. Do not call it "overlay" in product or UI copy — use Arena. (In code it is the `OverlayApp` inside each game's `games/<game>/client/`.)
 
 **Commentator** — the AI-driven voice that narrates the match on the Arena. Powered by Claude (text) and ElevenLabs (audio). It is a spectator-only component — Fighters do not interact with it and it has no effect on game state. Do not call it "Commentary" or "AI Commentator" — just "Commentator".
 
