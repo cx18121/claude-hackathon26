@@ -449,6 +449,30 @@ async fn handle_player(
         }
     });
 
+    let rtt_ping_tx = player_tx.clone();
+    let rtt_ping_handle = tokio::spawn(async move {
+        let mut ping_interval = tokio::time::interval(std::time::Duration::from_millis(500));
+        ping_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            ping_interval.tick().await;
+            let t = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs_f64();
+            match serde_json::to_string(&crate::protocol::MsgPing {
+                msg_type: "ping".to_string(),
+                t,
+            }) {
+                Ok(json) => {
+                    if rtt_ping_tx.send(json).await.is_err() {
+                        break;
+                    }
+                }
+                Err(_) => {}
+            }
+        }
+    });
+
     tracing::info!("player {} connected to room {}", connect_result.slot + 1, room_code);
 
     // Send MsgJoined back to client
@@ -510,6 +534,8 @@ async fn handle_player(
             _ => {}
         }
     }
+
+    rtt_ping_handle.abort();
 
     // Disconnect
     let _ = cmd_tx.send(RoomCmd::PlayerDisconnect { slot: slot_idx }).await;
