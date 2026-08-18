@@ -53,6 +53,15 @@
 | Phases | 9 |
 | Plans | 28 |
 | Duration (days) | 15 |
-| Rust LOC | ~29,500 |
+| Rust LOC | ~29,500 (see correction) |
 | TypeScript LOC | ~6,100 |
 | Test count | 270 |
+
+> **Correction (2026-08-05):** the Rust LOC figure is wrong by roughly 4×.
+> Measured at the v2.0 close commit `f603e911`, the tree held 19 `.rs` files
+> totalling 6,850 lines; at 2026-08-05 it is 23 files / 6,930 lines. The v1.0
+> tree was smaller still, so ~29,500 was never reachable — it likely counted
+> `target/` artifacts or lockfiles. The "320 new files / ~29,500 Rust LOC" line
+> in the v1.0 "What Was Built" section above carries the same error. Test counts
+> in these records are also unverified: 144 Rust test functions exist today
+> against a claimed 201 at v1.0.

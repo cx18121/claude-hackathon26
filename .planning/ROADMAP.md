@@ -4,6 +4,7 @@
 
 - ✅ **v1.0 PoseEngine MVP** — Phases 1–9 (shipped 2026-05-10) — [archive](.planning/milestones/v1.0-ROADMAP.md)
 - ✅ **v2.0 First-Person Boxing** — Phases 10–14 (shipped 2026-05-17) — [archive](.planning/milestones/v2.0-ROADMAP.md)
+- ⚙️ **Post-v2.0 interim work** — 66 untracked commits (2026-05-23 → 2026-07-20) — see below
 - 📋 **v3.0** — not yet planned
 
 ## Phases
@@ -36,6 +37,26 @@
 - [x] **Phase 14: Three.js Renderer + Game Loop** — Full first-person rendering, hit feedback, and game loop HUD (completed 2026-05-17)
 
 </details>
+
+### ⚙️ Post-v2.0 Interim Work (not phase-tracked)
+
+66 commits between `f603e911` (v2.0 close) and `011631f2` shipped without
+phases, plans, or SUMMARY artifacts. They are recorded in STATE.md
+"Post-v2.0 Untracked Work" rather than retrofitted into phases here, because no
+plan or verification history exists to back-fill. Summary:
+
+| Batch | Date | Substance |
+|-------|------|-----------|
+| Monorepo restructure | 2026-05-23 | `games/*/{client,plugin,server}` verticals; engine-core → lib + 3 server binaries; `boxing-core` extracted; legacy `mobile/`, `overlay/`, `fps/` deleted; `shared/client/` rollup |
+| Protocol autogen | 2026-05-23 | `shared/protocol.ts` + `shared/bindings/` generated from `protocol.rs` via ts-rs; `protocol-drift` CI job |
+| ML classifier upgrade | 2026-05-23 | TCN backbone, QAT, temperature scaling, per-player prototype adaptation, labeled calibration stages, flywheel log collector |
+| CI/deploy hardening | 2026-05-23 | `node-build`, `python-checks`, fps-boxing Playwright e2e; Dockerfile for games/* (Caddy + 3 servers) |
+| Engine RTT fix | 2026-07-20 | Server now sends `MsgPing` every 500ms so the input-delay fairness buffer samples non-zero RTT |
+
+**Process note:** this drift is the second instance of the RETROSPECTIVE.md
+lesson about traceability going stale mid-milestone. If interim work continues
+between milestones, either run it through `/gsd-quick` or log it here as it
+lands.
 
 ### 📋 v3.0 — Not Yet Planned
 
@@ -160,6 +181,6 @@ Items captured for future milestones but not yet scheduled.
 
 | ID | Item | Target | Notes |
 |----|------|--------|-------|
-| BL-01 | Punch classifier ML model — jab/cross/hook_l/hook_r damage multipliers | v3 | Pipeline scaffold in `ml/` is complete. Blocked on FPS-perspective training data. Use `ml/scripts/record_webcam.py` to collect ~30min of labeled FPS punches, then run `ml/train.py`. `usePunchClassifier` hook is in-repo and ready to wire up once a real model is trained. |
+| BL-01 | Punch classifier ML model — jab/cross/hook_l/hook_r damage multipliers | v3 | **Tooling complete as of the post-v2.0 ML batch; only data + a training run remain.** Three collection paths: (a) flywheel — play real matches, pipe server output through `scripts/collect_from_logs.py`, which labels each `FLYWHEEL_HIT` window by wrist peak-velocity direction; (b) guided webcam — `ml/scripts/record_webcam.py --label <class>` then `ml/scripts/extract_keypoints.py`; (c) BoxingVI re-extraction (third-person geometry — weakest option, and its AlphaPose COCO-17 annotations must not be used). Then `ml/scripts/train.py` (TCN + QAT + temperature fit) → `export_onnx.py` → `quantize.py` → replace `games/fps-boxing/client/public/models/punch_classifier_int8.onnx`. Note the model README still references the pre-restructure `fps/` path. Both `usePunchClassifier` paths return `type: null` until real weights land. |
 | BL-02 | AI commentary (COMM-01..04) | v3 | Deferred from v1.0 |
 | BL-03 | AI game generation | v3 | Deferred from v1.0 — SDK is proven |
